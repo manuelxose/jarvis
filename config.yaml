@@ -1,0 +1,50 @@
+jarvis:
+  name: "Jarvis"
+  user_name: "Manuel"
+  language: "es"
+
+wake_word:
+  model: "hey_jarvis"
+  threshold: 0.35
+
+stt:
+  model: "small"
+  device: "cpu"
+  compute_type: "int8"
+  language: "es"
+  silence_duration: 1.2
+  min_speech_duration: 0.3
+  max_record_seconds: 20
+  vad_mode: 1
+
+llm:
+  base_url: "http://localhost:11434"
+  model: "mistral:7b-instruct"
+  temperature: 0.7
+  timeout: 30
+  max_history_messages: 10
+
+tts:
+  model: "tts_models/multilingual/multi-dataset/xtts_v2"
+  language: "es"
+  speaker_wav_dir: "voice_samples/"
+  cache_enabled: true
+  auto_accept_cpml: true
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  chunk_size: 1024
+  auto_select_input: true
+  input_device: 1
+  output_device: null
+
+ais:
+  enabled: true
+  host: "localhost"
+  port: 10110
+  search_radius_km: 50
+
+trading:
+  enabled: true
+  mt4_log_path: "C:/Users/Manuel/AppData/Roaming/MetaQuotes/Terminal"

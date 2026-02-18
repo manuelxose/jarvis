@@ -1,0 +1,78 @@
+{
+  "conversations": [
+    {
+      "timestamp": "2026-02-18T22:35:09+00:00",
+      "role": "user",
+      "content": "estado del sistema"
+    },
+    {
+      "timestamp": "2026-02-18T22:35:09+00:00",
+      "role": "user",
+      "content": "estado del sistema"
+    },
+    {
+      "timestamp": "2026-02-18T22:35:10+00:00",
+      "role": "assistant",
+      "content": "CPU al 82.3 por ciento, RAM al 72.4 por ciento, disco libre 241.8 gigas."
+    },
+    {
+      "timestamp": "2026-02-18T22:35:10+00:00",
+      "role": "assistant",
+      "content": "CPU al 78.1 por ciento, RAM al 72.9 por ciento, disco libre 241.8 gigas."
+    },
+    {
+      "timestamp": "2026-02-18T22:35:53+00:00",
+      "role": "user",
+      "content": "¿Cómo estás?"
+    },
+    {
+      "timestamp": "2026-02-18T22:35:53+00:00",
+      "role": "user",
+      "content": "¿Cómo estás?"
+    },
+    {
+      "timestamp": "2026-02-18T22:35:54+00:00",
+      "role": "assistant",
+      "content": "No he podido contactar con el modelo local."
+    },
+    {
+      "timestamp": "2026-02-18T22:35:55+00:00",
+      "role": "assistant",
+      "content": "No he podido contactar con el modelo local."
+    },
+    {
+      "timestamp": "2026-02-18T22:37:42+00:00",
+      "role": "user",
+      "content": "Abre Google."
+    },
+    {
+      "timestamp": "2026-02-18T22:37:42+00:00",
+      "role": "user",
+      "content": "Abre Google."
+    },
+    {
+      "timestamp": "2026-02-18T22:37:42+00:00",
+      "role": "assistant",
+      "content": "No pude abrir la aplicacion solicitada."
+    },
+    {
+      "timestamp": "2026-02-18T22:37:42+00:00",
+      "role": "assistant",
+      "content": "No pude abrir la aplicacion solicitada."
+    },
+    {
+      "timestamp": "2026-02-18T22:39:29+00:00",
+      "role": "user",
+      "content": "Especialmente suave. Rafa, rafa. Sí. No, no. Sí, es una... es una... es una... es una... es una... es una..."
+    },
+    {
+      "timestamp": "2026-02-18T22:40:23+00:00",
+      "role": "assistant",
+      "content": "No he podido contactar con el modelo local."
+    }
+  ],
+  "facts": {
+    "nombre_usuario": "Manuel",
+    "preferencias": {}
+  }
+}
