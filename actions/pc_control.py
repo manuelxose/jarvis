@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shlex
 import subprocess
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +32,11 @@ class PCController:
             "powershell": ["start", "powershell"],
             "explorer": ["explorer"],
             "bloc de notas": ["notepad"],
+            "blog de notas": ["notepad"],
+            "blog notas": ["notepad"],
+            "bloc notas": ["notepad"],
+            "editor de texto": ["notepad"],
+            "notas": ["notepad"],
             "notepad": ["notepad"],
         }
         self.process_map: dict[str, str] = {
@@ -43,9 +50,21 @@ class PCController:
         self.screenshot_dir = Path(__file__).resolve().parents[1] / "cache" / "screenshots"
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
 
+    def _normalize_name(self, text: str) -> str:
+        normalized = unicodedata.normalize("NFKD", text)
+        without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        lowered = without_accents.lower()
+        cleaned = re.sub(r"[^a-z0-9\\s]+", " ", lowered)
+        return " ".join(cleaned.split())
+
     def open_application(self, name: str) -> bool:
-        app_name = name.strip().lower()
+        app_name = self._normalize_name(name)
         command = self.app_map.get(app_name)
+        if command is None:
+            for alias, alias_cmd in self.app_map.items():
+                if alias in app_name or app_name in alias:
+                    command = alias_cmd
+                    break
         try:
             if command:
                 if command[0] == "start":

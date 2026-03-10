@@ -1,0 +1,13 @@
+2026-02-19 17:55:16 | INFO     | voice.tts | COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.
+2026-02-19 17:55:16 | INFO     | voice.tts | Loading XTTS model 'tts_models/multilingual/multi-dataset/xtts_v2' on CPU...
+2026-02-19 17:55:16 | INFO     | TTS.utils.manage | tts_models/multilingual/multi-dataset/xtts_v2 is already downloaded.
+2026-02-19 17:55:16 | INFO     | TTS.tts.models | Using model: xtts
+2026-02-19 17:55:35 | INFO     | voice.audio_utils | Input probe index=1 rms=0.48
+2026-02-19 17:55:35 | INFO     | voice.audio_utils | Input probe index=5 rms=5841.69
+2026-02-19 17:55:36 | INFO     | voice.audio_utils | Input probe index=0 rms=0.48
+2026-02-19 17:55:36 | INFO     | voice.audio_utils | Input probe index=4 rms=41.53
+2026-02-19 17:55:36 | INFO     | jarvis.main | Input audio device selected: index=5, name=Varios micrÃ³fonos (IntelÂ® Smart Sound Technology for Digital Microphones)
+2026-02-19 17:55:36 | INFO     | voice.stt | Loading faster-whisper model 'small' on cpu (int8)...
+2026-02-19 17:55:38 | INFO     | voice.wake_word | Wake word listener started.
+2026-02-19 17:55:39 | INFO     | voice.wake_word | Wake listener using index=5, name=Varios micrÃ³fonos (IntelÂ® Smart Sound Technology for Digital Microphones)
+2026-02-19 17:55:40 | INFO     | jarvis.main | Jarvis listo. Esperando wake word...

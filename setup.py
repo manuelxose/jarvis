@@ -20,7 +20,7 @@ def print_step(step: str) -> None:
 
 
 def check_python() -> None:
-    print_step("1/10 Verificando Python compatible (3.10 o 3.11)...")
+    print_step("1/11 Verificando Python compatible (3.10 o 3.11)...")
     major, minor = sys.version_info.major, sys.version_info.minor
     if (major, minor) < (3, 10) or (major, minor) >= (3, 12):
         raise RuntimeError(
@@ -78,7 +78,7 @@ def find_ollama_executable() -> str:
 
 
 def check_ollama_running(base_url: str) -> str:
-    print_step("2/10 Verificando Ollama instalado y en ejecucion...")
+    print_step("2/11 Verificando Ollama instalado y en ejecucion...")
     ollama_cmd = find_ollama_executable()
 
     version_result = run_subprocess([ollama_cmd, "--version"], timeout=10)
@@ -97,7 +97,7 @@ def check_ollama_running(base_url: str) -> str:
 
 
 def ensure_model(base_url: str, model_name: str, ollama_cmd: str) -> None:
-    print_step(f"3/10 Verificando modelo {model_name}...")
+    print_step(f"3/11 Verificando modelo {model_name}...")
     tags = _http_get_json(f"{base_url}/api/tags", timeout=10)
     names = {item.get("name") for item in tags.get("models", [])}
     if model_name in names:
@@ -115,7 +115,7 @@ def ensure_model(base_url: str, model_name: str, ollama_cmd: str) -> None:
 
 
 def install_requirements() -> None:
-    print_step("4/10 Instalando dependencias Python...")
+    print_step("4/11 Instalando dependencias Python...")
     req_file = BASE_DIR / "requirements.txt"
     if not req_file.exists():
         raise RuntimeError(f"No existe {req_file}")
@@ -136,7 +136,7 @@ def install_requirements() -> None:
 
 
 def warmup_xtts(model_name: str) -> None:
-    print_step("5/10 Verificando descarga de XTTS-v2...")
+    print_step("5/11 Verificando descarga de XTTS-v2...")
     os.environ["COQUI_TOS_AGREED"] = "1"
     from TTS.api import TTS  # noqa: PLC0415
 
@@ -147,10 +147,22 @@ def warmup_xtts(model_name: str) -> None:
         pass
 
 
+def normalize_voice_samples_step() -> None:
+    print_step("6/11 Normalizando muestras de voz (conversion a WAV + renombrado)...")
+    from normalize_voice_samples import run as normalize_run  # noqa: PLC0415
+
+    count = normalize_run(samples_dir=BASE_DIR / "voice_samples")
+    if count == 0:
+        raise RuntimeError(
+            "No quedaron muestras WAV tras la normalizacion. "
+            "Agrega archivos de audio en voice_samples/ y vuelve a ejecutar el setup."
+        )
+
+
 def verify_voice_samples() -> None:
-    print_step("6/10 Verificando muestras de voz...")
+    print_step("7/11 Verificando muestras de voz...")
     samples_dir = BASE_DIR / "voice_samples"
-    wav_files = sorted(samples_dir.glob("*.wav"))
+    wav_files = sorted(samples_dir.glob("sample*.wav"))
     if not wav_files:
         raise RuntimeError(
             "No hay archivos WAV en voice_samples/. "
@@ -160,7 +172,7 @@ def verify_voice_samples() -> None:
 
 
 def audio_test() -> None:
-    print_step("7/10 Test rapido de audio (grabacion + reproduccion)...")
+    print_step("8/11 Test rapido de audio (grabacion + reproduccion)...")
     import sounddevice as sd  # noqa: PLC0415
     import soundfile as sf  # noqa: PLC0415
 
@@ -179,7 +191,7 @@ def audio_test() -> None:
 
 
 def wake_word_test() -> None:
-    print_step("8/10 Test de carga de wake word model...")
+    print_step("9/11 Test de carga de wake word model...")
     from openwakeword.model import Model  # noqa: PLC0415
     from openwakeword.utils import download_models  # noqa: PLC0415
 
@@ -188,7 +200,7 @@ def wake_word_test() -> None:
 
 
 def llm_test(base_url: str, model_name: str) -> None:
-    print_step("9/10 Test de respuesta LLM local...")
+    print_step("10/11 Test de respuesta LLM local...")
     payload: dict[str, Any] = {
         "model": model_name,
         "stream": False,
@@ -227,7 +239,7 @@ def _http_post_json(url: str, payload: dict[str, Any], timeout: int = 10) -> dic
 
 
 def final_message() -> None:
-    print_step("10/10 Todo correcto.")
+    print_step("11/11 Todo correcto.")
     print("Sistema listo. Ejecuta: python main.py")
 
 
@@ -241,6 +253,7 @@ def main() -> None:
     ensure_model(ollama_url, model_name, ollama_cmd)
     install_requirements()
     warmup_xtts(xtts_model)
+    normalize_voice_samples_step()
     verify_voice_samples()
     audio_test()
     wake_word_test()

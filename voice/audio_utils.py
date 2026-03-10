@@ -17,7 +17,16 @@ import webrtcvad
 LOGGER = logging.getLogger(__name__)
 
 _MIC_HINTS = ("mic", "microphone", "array", "frontmic", "input")
-_BAD_INPUT_HINTS = ("stereo mix", "output", "speaker", "loopback", "mapper")
+_BAD_INPUT_HINTS = (
+    "stereo mix",
+    "output",
+    "speaker",
+    "loopback",
+    "mapper",
+    "controlador primario",
+    "primary sound capture",
+    "microsoft sound mapper",
+)
 
 
 def get_audio_devices() -> list[dict[str, Any]]:
@@ -101,6 +110,46 @@ def _can_open_input_device(index: int | None, sample_rate: int, channels: int) -
         pa.terminate()
 
 
+def _probe_input_rms(
+    index: int | None,
+    sample_rate: int,
+    channels: int,
+    probe_seconds: float = 0.4,
+) -> float:
+    pa = pyaudio.PyAudio()
+    stream = None
+    try:
+        chunk = 512
+        loops = max(1, int((sample_rate * probe_seconds) / chunk))
+        stream = pa.open(
+            format=pyaudio.paInt16,
+            channels=channels,
+            rate=sample_rate,
+            input=True,
+            frames_per_buffer=chunk,
+            input_device_index=index,
+        )
+
+        rms_values: list[float] = []
+        for _ in range(loops):
+            frame = stream.read(chunk, exception_on_overflow=False)
+            pcm = np.frombuffer(frame, dtype=np.int16).astype(np.float32)
+            if pcm.size == 0:
+                continue
+            rms_values.append(float(np.sqrt(np.mean(np.square(pcm)))))
+
+        if not rms_values:
+            return 0.0
+        return float(np.median(np.asarray(rms_values, dtype=np.float32)))
+    except Exception:
+        return 0.0
+    finally:
+        if stream is not None:
+            stream.stop_stream()
+            stream.close()
+        pa.terminate()
+
+
 def resolve_input_device(
     preferred_index: int | None,
     sample_rate: int = 16000,
@@ -111,21 +160,21 @@ def resolve_input_device(
     Return a working microphone index.
 
     Priority:
-    1) Explicit index from config (if valid and usable).
-    2) PortAudio default input device (if usable).
-    3) Best scored available input device.
-    4) None (let PortAudio decide).
+    1) Keep preferred/default only if they are usable.
+    2) Score all usable input devices.
+    3) Probe the top candidates and pick one with actual signal.
+    4) Fallback to top score when signal probing is inconclusive.
     """
-    if preferred_index is not None:
-        if _can_open_input_device(preferred_index, sample_rate=sample_rate, channels=channels):
-            return int(preferred_index)
+    if preferred_index is not None and not _can_open_input_device(
+        preferred_index,
+        sample_rate=sample_rate,
+        channels=channels,
+    ):
         LOGGER.warning(
             "Configured input_device=%s is not usable. Falling back to auto selection.",
             preferred_index,
         )
-
-    if not auto_select:
-        return None
+        preferred_index = None
 
     pa = pyaudio.PyAudio()
     try:
@@ -137,42 +186,113 @@ def resolve_input_device(
     finally:
         pa.terminate()
 
-    if default_index is not None and _can_open_input_device(
-        default_index,
-        sample_rate=sample_rate,
-        channels=channels,
-    ):
-        default_device = get_audio_device(default_index)
-        if default_device is not None:
-            default_score = _score_input_device(
-                default_device,
-                target_sample_rate=sample_rate,
-                channels=channels,
-            )
-            if default_score >= 0:
-                return default_index
+    if not auto_select:
+        return preferred_index if preferred_index is not None else default_index
 
     devices = get_audio_devices()
-    candidates = [
-        device
-        for device in devices
-        if int(device.get("max_input_channels", 0)) >= channels
-    ]
-    candidates.sort(
-        key=lambda item: _score_input_device(
-            item,
+    scored_candidates: list[tuple[float, int]] = []
+    for device in devices:
+        if int(device.get("max_input_channels", 0)) < channels:
+            continue
+
+        index = int(device["index"])
+        if not _can_open_input_device(index, sample_rate=sample_rate, channels=channels):
+            continue
+
+        score = _score_input_device(
+            device,
             target_sample_rate=sample_rate,
             channels=channels,
-        ),
-        reverse=True,
-    )
+        )
+        if index == preferred_index:
+            score += 8.0
+        if index == default_index:
+            score += 4.0
+        scored_candidates.append((score, index))
 
-    for device in candidates:
-        index = int(device["index"])
-        if _can_open_input_device(index, sample_rate=sample_rate, channels=channels):
-            return index
+    if not scored_candidates:
+        if preferred_index is not None:
+            return preferred_index
+        return default_index
 
-    return None
+    scored_candidates.sort(key=lambda item: item[0], reverse=True)
+
+    # Probe top candidates and pick one with actual signal.
+    # This avoids selecting devices that open but stay silent (common in Windows virtual inputs).
+    top = scored_candidates[: min(5, len(scored_candidates))]
+    best_by_signal: tuple[float, int] | None = None
+    for _, index in top:
+        rms = _probe_input_rms(
+            index=index,
+            sample_rate=sample_rate,
+            channels=channels,
+            probe_seconds=0.45,
+        )
+        LOGGER.info(
+            "Input probe index=%s rms=%.2f",
+            index,
+            rms,
+        )
+        if best_by_signal is None or rms > best_by_signal[0]:
+            best_by_signal = (rms, index)
+
+    if best_by_signal is not None and best_by_signal[0] >= 3.0:
+        return best_by_signal[1]
+
+    return scored_candidates[0][1]
+
+
+def check_microphone_capture(
+    input_device_index: int | None,
+    sample_rate: int = 16000,
+    channels: int = 1,
+    probe_seconds: float = 0.8,
+) -> tuple[bool, float, str]:
+    """
+    Validate microphone capture and return (ok, rms, message).
+    """
+    pa = pyaudio.PyAudio()
+    stream = None
+    try:
+        chunk = 512
+        loops = max(1, int((sample_rate * probe_seconds) / chunk))
+        stream = pa.open(
+            format=pyaudio.paInt16,
+            channels=channels,
+            rate=sample_rate,
+            input=True,
+            frames_per_buffer=chunk,
+            input_device_index=input_device_index,
+        )
+
+        rms_values: list[float] = []
+        for _ in range(loops):
+            frame = stream.read(chunk, exception_on_overflow=False)
+            pcm = np.frombuffer(frame, dtype=np.int16).astype(np.float32)
+            if pcm.size == 0:
+                continue
+            rms_values.append(float(np.sqrt(np.mean(np.square(pcm)))))
+
+        if not rms_values:
+            return (False, 0.0, "No se recibieron frames de audio del dispositivo.")
+
+        rms = float(np.median(np.asarray(rms_values, dtype=np.float32)))
+        if rms < 1.0:
+            return (
+                False,
+                rms,
+                "El microfono abre pero llega silencio constante. "
+                "Puede estar bloqueado por permisos de Windows o por otro software.",
+            )
+
+        return (True, rms, "Microfono operativo.")
+    except Exception as exc:
+        return (False, 0.0, f"No se pudo abrir/capturar audio del microfono: {exc}")
+    finally:
+        if stream is not None:
+            stream.stop_stream()
+            stream.close()
+        pa.terminate()
 
 
 def play_beep(
@@ -242,6 +362,7 @@ def record_until_silence(
     vad = webrtcvad.Vad(vad_mode)
     chunk_size = int(sample_rate * frame_duration_ms / 1000)
     frame_seconds = chunk_size / sample_rate
+    max_frames = max(1, int(max_record_seconds / frame_seconds))
 
     pa = pyaudio.PyAudio()
     stream = pa.open(
@@ -258,11 +379,31 @@ def record_until_silence(
     trailing_silence = 0.0
     collected_frames: list[bytes] = []
     start_time = time.monotonic()
+    expected_audio_seconds = 0.0
+    frames_read = 0
 
     try:
-        while time.monotonic() - start_time < max_record_seconds:
+        while frames_read < max_frames:
+            # Some Windows drivers can return frames much faster than realtime.
+            # Keep capture pace near realtime to avoid collecting huge stale buffers.
+            elapsed = time.monotonic() - start_time
+            lead = expected_audio_seconds - elapsed
+            if lead > frame_seconds:
+                time.sleep(min(lead - frame_seconds, frame_seconds))
+
             frame = stream.read(chunk_size, exception_on_overflow=False)
-            is_speech = vad.is_speech(frame, sample_rate)
+            frames_read += 1
+            expected_audio_seconds += frame_seconds
+            frame_int16 = np.frombuffer(frame, dtype=np.int16)
+            if frame_int16.size > 1:
+                # Reduce low-frequency rumble/DC that can trigger false VAD positives.
+                hp = frame_int16.astype(np.int32)
+                hp[1:] = hp[1:] - hp[:-1]
+                hp = np.clip(hp, -32768, 32767).astype(np.int16)
+                vad_frame = hp.tobytes()
+            else:
+                vad_frame = frame
+            is_speech = vad.is_speech(vad_frame, sample_rate)
 
             if is_speech:
                 speech_started = True

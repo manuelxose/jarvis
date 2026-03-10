@@ -79,6 +79,26 @@
       "timestamp": "2026-02-18T22:52:58+00:00",
       "role": "assistant",
       "content": "No he podido contactar con el modelo local."
+    },
+    {
+      "timestamp": "2026-02-19T18:21:54+00:00",
+      "role": "user",
+      "content": "Thanks for watching!"
+    },
+    {
+      "timestamp": "2026-02-19T18:22:32+00:00",
+      "role": "assistant",
+      "content": "Gracias por ver la presentación. Estoy aquí para ayudarte en tu día a día como asistente personal. Recuerda que siempre puedes preguntarme sobre desarrollo de software, senales AIS maritimas con RTL-SDR y sistemas de trading algorítmico. También puedo controlar el PC, monitorizar datos de trading y buscar información. Recuerda que si no sé algo lo digo claramente y si es irreversible confirmo las acciones antes de ejecutarlas."
+    },
+    {
+      "timestamp": "2026-02-19T18:23:25+00:00",
+      "role": "user",
+      "content": "Thanks for watching!"
+    },
+    {
+      "timestamp": "2026-02-19T18:23:51+00:00",
+      "role": "assistant",
+      "content": "Hola Manuel. Soy Jarvis, tu asistente personal. Soy inteligente, conciso y eficiente. Hablo siempre en español. Estoy aquí para ayudarte en tu día a día como asistente personal. Recuerda que siempre puedes preguntarme sobre desarrollo de software, senales AIS maritimas con RTL-SDR y sistemas de trading algorítmico. También puedo controlar el PC, monitorizar datos de trading y buscar información. Recuerda que si no sé algo lo digo claramente y si es irreversible confirmo las acciones antes de ejecutarlas."
     }
   ],
   "facts": {

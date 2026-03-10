@@ -1,0 +1,134 @@
+2026-02-19 19:38:22 | INFO     | voice.tts | COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.
+2026-02-19 19:38:22 | INFO     | voice.tts | Loading XTTS model 'tts_models/multilingual/multi-dataset/xtts_v2' on CPU...
+2026-02-19 19:38:22 | INFO     | TTS.utils.manage | tts_models/multilingual/multi-dataset/xtts_v2 is already downloaded.
+2026-02-19 19:38:23 | INFO     | TTS.tts.models | Using model: xtts
+2026-02-19 19:38:56 | INFO     | jarvis.main | Input audio device selected: index=5, name=Varios micrÃ³fonos (IntelÂ® Smart Sound Technology for Digital Microphones)
+2026-02-19 19:38:56 | INFO     | jarvis.main | Microphone check OK (rms=12794.47)
+2026-02-19 19:38:56 | INFO     | voice.stt | Loading faster-whisper model 'tiny' on cpu (int8)...
+2026-02-19 19:38:57 | INFO     | jarvis.main | OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').
+2026-02-19 19:38:57 | INFO     | jarvis.main | Modo escucha continua STT activo (sin wake word).
+2026-02-19 19:38:59 | INFO     | jarvis.main | Jarvis listo. Esperando wake word...
+2026-02-19 19:39:01 | INFO     | voice.stt | STT captured 1.77s audio in 1.88s (samples=28320, sample_rate=16000).
+2026-02-19 19:39:01 | INFO     | voice.stt | STT transcription finished in 0.31s (chars=0).
+2026-02-19 19:39:01 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:06 | INFO     | voice.stt | STT captured 3.99s audio in 4.08s (samples=63840, sample_rate=16000).
+2026-02-19 19:39:06 | INFO     | voice.stt | STT transcription finished in 0.16s (chars=0).
+2026-02-19 19:39:06 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:10 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=63840, sample_rate=16000).
+2026-02-19 19:39:10 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:39:10 | WARNING  | jarvis.main | STT vacio repetido (3 intentos). Cambiando sample_rate de captura a 48000 Hz.
+2026-02-19 19:39:10 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:14 | INFO     | voice.stt | STT captured 3.99s audio in 4.11s (samples=191520, sample_rate=48000).
+2026-02-19 19:39:14 | INFO     | voice.stt | STT transcription finished in 0.16s (chars=0).
+2026-02-19 19:39:14 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:18 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=191520, sample_rate=48000).
+2026-02-19 19:39:18 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:39:18 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:23 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=191520, sample_rate=48000).
+2026-02-19 19:39:23 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:39:23 | WARNING  | jarvis.main | STT vacio repetido (6 intentos). Cambiando sample_rate de captura a 32000 Hz.
+2026-02-19 19:39:23 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:27 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=127680, sample_rate=32000).
+2026-02-19 19:39:27 | INFO     | voice.stt | STT transcription finished in 0.17s (chars=0).
+2026-02-19 19:39:27 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:31 | INFO     | voice.stt | STT captured 3.99s audio in 4.16s (samples=127680, sample_rate=32000).
+2026-02-19 19:39:31 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:39:31 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:35 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=127680, sample_rate=32000).
+2026-02-19 19:39:36 | INFO     | voice.stt | STT transcription finished in 0.17s (chars=0).
+2026-02-19 19:39:36 | WARNING  | jarvis.main | STT vacio repetido (9 intentos). Cambiando sample_rate de captura a 16000 Hz.
+2026-02-19 19:39:36 | WARNING  | jarvis.main | STT vacio persistente (9 intentos). Cambiando input_device a index=0, name=Asignador de sonido Microsoft - Input.
+2026-02-19 19:39:36 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:37 | INFO     | voice.stt | STT captured 1.38s audio in 1.56s (samples=22080, sample_rate=16000).
+2026-02-19 19:39:38 | INFO     | voice.stt | STT transcription finished in 0.91s (chars=12).
+2026-02-19 19:39:38 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Julián Otas.
+2026-02-19 19:39:42 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
+2026-02-19 19:39:42 | INFO     | voice.stt | STT transcription finished in 0.11s (chars=0).
+2026-02-19 19:39:42 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:46 | INFO     | voice.stt | STT captured 3.33s audio in 3.53s (samples=53280, sample_rate=16000).
+2026-02-19 19:39:47 | INFO     | voice.stt | STT transcription finished in 0.92s (chars=19).
+2026-02-19 19:39:47 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Abre a lo de notas.
+2026-02-19 19:39:51 | INFO     | voice.stt | STT captured 3.99s audio in 4.20s (samples=63840, sample_rate=16000).
+2026-02-19 19:39:51 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:39:51 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:39:55 | INFO     | voice.stt | STT captured 3.99s audio in 4.16s (samples=63840, sample_rate=16000).
+2026-02-19 19:39:56 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:39:56 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:00 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:01 | INFO     | voice.stt | STT transcription finished in 0.86s (chars=4).
+2026-02-19 19:40:01 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Y...
+2026-02-19 19:40:04 | INFO     | voice.stt | STT captured 3.60s audio in 3.83s (samples=57600, sample_rate=16000).
+2026-02-19 19:40:05 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:40:05 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:09 | INFO     | voice.stt | STT captured 3.99s audio in 4.17s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:09 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:40:09 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:13 | INFO     | voice.stt | STT captured 3.99s audio in 4.17s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:14 | INFO     | voice.stt | STT transcription finished in 0.94s (chars=6).
+2026-02-19 19:40:14 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Pues!
+2026-02-19 19:40:18 | INFO     | voice.stt | STT captured 3.99s audio in 4.22s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:18 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:40:18 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:23 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:23 | INFO     | voice.stt | STT transcription finished in 0.89s (chars=5).
+2026-02-19 19:40:23 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Chi!
+2026-02-19 19:40:28 | INFO     | voice.stt | STT captured 3.99s audio in 4.22s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:28 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:40:28 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:32 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:34 | INFO     | voice.stt | STT transcription finished in 1.91s (chars=1023).
+2026-02-19 19:40:34 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Y el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer
+2026-02-19 19:40:38 | INFO     | voice.stt | STT captured 3.99s audio in 4.20s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:38 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:40:38 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:41 | INFO     | voice.stt | STT captured 2.19s audio in 2.38s (samples=35040, sample_rate=16000).
+2026-02-19 19:40:41 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:40:41 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:45 | INFO     | voice.stt | STT captured 3.99s audio in 4.22s (samples=63840, sample_rate=16000).
+2026-02-19 19:40:45 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:40:45 | WARNING  | jarvis.main | STT vacio repetido (3 intentos). Cambiando sample_rate de captura a 48000 Hz.
+2026-02-19 19:40:45 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:49 | INFO     | voice.stt | STT captured 2.85s audio in 4.17s (samples=136800, sample_rate=48000).
+2026-02-19 19:40:49 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:40:49 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:54 | INFO     | voice.stt | STT captured 3.93s audio in 4.17s (samples=188640, sample_rate=48000).
+2026-02-19 19:40:54 | INFO     | voice.stt | STT transcription finished in 0.16s (chars=0).
+2026-02-19 19:40:54 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:40:58 | INFO     | voice.stt | STT captured 0.00s audio in 4.16s (samples=0, sample_rate=48000).
+2026-02-19 19:40:58 | INFO     | voice.stt | STT transcription finished in 0.00s (chars=0).
+2026-02-19 19:40:58 | WARNING  | jarvis.main | STT vacio repetido (6 intentos). Cambiando sample_rate de captura a 32000 Hz.
+2026-02-19 19:40:58 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:02 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=127680, sample_rate=32000).
+2026-02-19 19:41:02 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:41:02 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:06 | INFO     | voice.stt | STT captured 3.99s audio in 4.20s (samples=127680, sample_rate=32000).
+2026-02-19 19:41:06 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:41:06 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:11 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=127680, sample_rate=32000).
+2026-02-19 19:41:11 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:41:11 | WARNING  | jarvis.main | STT vacio repetido (9 intentos). Cambiando sample_rate de captura a 16000 Hz.
+2026-02-19 19:41:11 | WARNING  | jarvis.main | STT vacio persistente (9 intentos). Cambiando input_device a index=1, name=Varios micrÃ³fonos (IntelÂ® Smart.
+2026-02-19 19:41:11 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:15 | INFO     | voice.stt | STT captured 3.99s audio in 4.16s (samples=63840, sample_rate=16000).
+2026-02-19 19:41:15 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:41:15 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:19 | INFO     | voice.stt | STT captured 3.99s audio in 4.17s (samples=63840, sample_rate=16000).
+2026-02-19 19:41:20 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
+2026-02-19 19:41:20 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:24 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
+2026-02-19 19:41:24 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:41:24 | WARNING  | jarvis.main | STT vacio repetido (12 intentos). Cambiando sample_rate de captura a 48000 Hz.
+2026-02-19 19:41:24 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:27 | INFO     | voice.stt | STT captured 2.49s audio in 3.58s (samples=119520, sample_rate=48000).
+2026-02-19 19:41:28 | INFO     | voice.stt | STT transcription finished in 0.86s (chars=23).
+2026-02-19 19:41:28 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: A ver el blog de Notas.
+2026-02-19 19:41:32 | INFO     | voice.stt | STT captured 0.00s audio in 4.20s (samples=0, sample_rate=48000).
+2026-02-19 19:41:32 | INFO     | voice.stt | STT transcription finished in 0.00s (chars=0).
+2026-02-19 19:41:32 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:37 | INFO     | voice.stt | STT captured 0.99s audio in 4.14s (samples=47520, sample_rate=48000).
+2026-02-19 19:41:37 | INFO     | voice.stt | STT transcription finished in 0.81s (chars=14).
+2026-02-19 19:41:37 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: A ver, bloque.
+2026-02-19 19:41:42 | INFO     | voice.stt | STT captured 2.76s audio in 4.19s (samples=132480, sample_rate=48000).
+2026-02-19 19:41:42 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
+2026-02-19 19:41:42 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
+2026-02-19 19:41:43 | INFO     | jarvis.main | Interrupcion recibida. Cerrando Jarvis...
