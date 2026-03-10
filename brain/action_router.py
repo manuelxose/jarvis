@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from typing import Any
 
 from actions.ais_monitor import AISMonitor
@@ -14,6 +15,14 @@ from brain.llm import OllamaClient
 LOGGER = logging.getLogger(__name__)
 
 INTENTS = {"PC_CONTROL", "AIS_MONITOR", "TRADING", "WEB_SEARCH", "CONVERSATION"}
+
+
+def _normalize_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", text)
+    without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    lowered = without_accents.lower()
+    cleaned = re.sub(r"[^a-z0-9\s]+", " ", lowered)
+    return " ".join(cleaned.split())
 
 
 class ActionRouter:
@@ -34,9 +43,24 @@ class ActionRouter:
         self.web_search = web_search
 
     def classify_intent(self, text: str) -> str:
-        lower = text.lower().strip()
+        lower = _normalize_text(text)
 
-        pc_keywords = ["abre ", "cierra ", "ejecuta ", "captura", "explorador", "estado del sistema"]
+        pc_keywords = [
+            "abre ",
+            "abrir ",
+            "abreme ",
+            "cierra ",
+            "cerrar ",
+            "ejecuta ",
+            "ejecutar ",
+            "captura",
+            "explorador",
+            "estado del sistema",
+            "bloc de notas",
+            "blog de notas",
+            "notepad",
+            "editor de texto",
+        ]
         ais_keywords = ["barcos", "ais", "puerto", "trafico maritimo", "senal ais"]
         trading_keywords = ["trading", "oro", "xau", "mt4", "mt5", "portfolio", "cartera"]
         web_keywords = ["busca en internet", "busca web", "investiga", "busca en la web"]
@@ -99,21 +123,21 @@ class ActionRouter:
         if not self.pc_control:
             return "El modulo de control del PC no esta disponible."
 
-        lower = text.lower().strip()
+        lower = _normalize_text(text)
 
-        open_match = re.search(r"\babre\s+(.+)$", lower)
+        open_match = re.search(r"\b(?:abre|abrir|abreme)\s+(?:el|la|los|las)?\s*(.+)$", lower)
         if open_match:
             target = open_match.group(1).strip()
             ok = self.pc_control.open_application(target)
             return "Comando ejecutado." if ok else "No pude abrir la aplicacion solicitada."
 
-        close_match = re.search(r"\bcierra\s+(.+)$", lower)
+        close_match = re.search(r"\b(?:cierra|cerrar)\s+(?:el|la|los|las)?\s*(.+)$", lower)
         if close_match:
             target = close_match.group(1).strip()
             ok = self.pc_control.close_application(target)
             return "Comando ejecutado." if ok else "No pude cerrar la aplicacion solicitada."
 
-        command_match = re.search(r"\bejecuta\s+(.+)$", text, re.IGNORECASE)
+        command_match = re.search(r"\b(?:ejecuta|ejecutar)\s+(.+)$", text, re.IGNORECASE)
         if command_match:
             command = command_match.group(1).strip()
             output = self.pc_control.run_command(command)
@@ -136,6 +160,13 @@ class ActionRouter:
                 f"RAM al {status['ram_percent']:.1f} por ciento, "
                 f"disco libre {status['disk_free_gb']:.1f} gigas."
             )
+
+        # Common voice pattern: saying only app name after wake phrase.
+        candidate = re.sub(r"\bpor favor\b", "", lower).strip()
+        candidate = re.sub(r"^(?:el|la|los|las)\s+", "", candidate).strip()
+        if candidate in self.pc_control.app_map:
+            ok = self.pc_control.open_application(candidate)
+            return "Comando ejecutado." if ok else "No pude abrir la aplicacion solicitada."
 
         return "No reconoci una accion de control del PC concreta."
 
@@ -181,4 +212,3 @@ class ActionRouter:
         query = query.strip() or text.strip()
         results = self.web_search.search(query, max_results=5)
         return self.web_search.format_search_results(results)
-
