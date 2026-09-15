@@ -27,6 +27,12 @@ class RuntimeStateTests(unittest.TestCase):
         with self.assertRaises(InvalidTransition):
             transition(RuntimeState.FAILED, RuntimeState.SPEAKING)
 
+    def test_allows_stopping_to_failed_for_required_shutdown_failure(self):
+        self.assertEqual(
+            RuntimeState.FAILED,
+            transition(RuntimeState.STOPPING, RuntimeState.FAILED),
+        )
+
     def test_health_contract_and_events_are_typed_records(self):
         report = HealthReport("audio", HealthStatus.DEGRADED, "unavailable", False, True)
 

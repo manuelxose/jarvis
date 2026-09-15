@@ -48,9 +48,15 @@ class Supervisor:
         reports = await asyncio.gather(
             *(self._start_component(component) for component in self._components)
         )
+        if self._stopped:
+            return
         self._health = {report.name: report for report in reports}
         for report in reports:
+            if self._stopped:
+                return
             await self._publish(HealthChanged(report))
+        if self._stopped:
+            return
         await self._set_state(self._aggregate_state(reports))
 
     async def stop(self) -> None:
@@ -74,11 +80,7 @@ class Supervisor:
                 await self._publish(HealthChanged(report))
                 shutdown_failed = shutdown_failed or component.required
         if shutdown_failed:
-            # STOPPING is terminal in the shared transition table; a required
-            # shutdown failure is the lifecycle exception that must surface as failed.
-            previous = self._state
-            self._state = RuntimeState.FAILED
-            await self._publish(RuntimeStateChanged(previous, self._state))
+            await self._set_state(RuntimeState.FAILED)
 
     async def run_until_stopped(self) -> None:
         await self.start()
