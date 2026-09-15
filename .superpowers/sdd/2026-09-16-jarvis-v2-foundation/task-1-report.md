@@ -44,3 +44,28 @@ No application tests were run: this task made no runtime changes, and the verifi
 
 - `.planning/` is ignored by repository configuration. The exact requested `git add` was rejected, so only the five explicit task artifacts were force-added with `git add -f` before the planning commit.
 - The report itself is committed separately because the required planning commit hash must be recorded after that commit exists.
+
+## Fix round 1 — architectural boundaries
+
+### Changed files
+
+- `.planning/REQUIREMENTS.md` — added V-12 and extended FND-01/PRV-01 with the mandated Phase 01 runtime boundaries: GSD Pi is development-only and absent from the runtime; coordination is in-process with standard-library primitives and excludes brokers, microservices, and speculative registries/abstractions; provider SDKs and Windows APIs remain adapter-only and never import into orchestration or domain modules.
+- `.superpowers/sdd/2026-09-16-jarvis-v2-foundation/task-1-report.md` — appended this fix evidence.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `rg -n 'FND-01|PRV-01|V-12|GSD Pi|in-process|standard-library|event broker|microservice|speculative registr|Provider SDK|orchestration|domain modules' .planning/REQUIREMENTS.md` | Exit 0; V-12, FND-01, and PRV-01 explicitly contain every required boundary and Phase 01 verification reference. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+| `git status --short` | Confirmed `.planning/REQUIREMENTS.md` was the only fix artifact before commit. |
+
+No application tests were run: this is a planning-only requirements correction with no runtime code changes.
+
+### Commit
+
+`17d11fe docs: define Jarvis runtime boundaries`
+
+### Concern
+
+`.planning/` remains ignored by repository configuration, so the explicitly scoped requirements file required `git add -f`.
