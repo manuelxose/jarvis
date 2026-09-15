@@ -44,7 +44,7 @@ _TRANSITIONS: dict[RuntimeState, frozenset[RuntimeState]] = {
         {RuntimeState.READY, RuntimeState.FAILED, RuntimeState.STOPPING}
     ),
     RuntimeState.FAILED: frozenset({RuntimeState.STOPPING}),
-    RuntimeState.STOPPING: frozenset(),
+    RuntimeState.STOPPING: frozenset({RuntimeState.FAILED}),
 }
 
 

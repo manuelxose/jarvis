@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.core.contracts import HealthReport, HealthStatus
+from jarvis.core.events import HealthChanged, RuntimeStateChanged
 from jarvis.core.lifecycle import Supervisor, SupervisorPolicy
 from jarvis.core.state import RuntimeState
 
@@ -63,6 +64,14 @@ class BlockingComponent(FakeComponent):
         self.starts += 1
         self.entered.set()
         await self.release.wait()
+
+
+class RecordingEventSink:
+    def __init__(self) -> None:
+        self.events: list[HealthChanged | RuntimeStateChanged] = []
+
+    async def publish(self, event: HealthChanged | RuntimeStateChanged) -> None:
+        self.events.append(event)
 
 
 class SupervisorTests(unittest.IsolatedAsyncioTestCase):
@@ -134,6 +143,20 @@ class SupervisorTests(unittest.IsolatedAsyncioTestCase):
         await supervisor.stop()
         await task
 
+    async def test_stop_during_startup_leaves_supervisor_stopping(self) -> None:
+        release = asyncio.Event()
+        component = BlockingComponent("blocked", release)
+        supervisor = Supervisor([component])
+        task = asyncio.create_task(supervisor.run_until_stopped())
+
+        await asyncio.wait_for(component.entered.wait(), timeout=0.01)
+        await supervisor.stop()
+        release.set()
+        await task
+
+        self.assertEqual(RuntimeState.STOPPING, supervisor.state)
+        self.assertEqual(1, component.stops)
+
     async def test_required_shutdown_failure_marks_the_supervisor_failed(self) -> None:
         supervisor = Supervisor([FakeComponent("stuck", stop_fails=True)])
         await supervisor.start()
@@ -142,6 +165,27 @@ class SupervisorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(RuntimeState.FAILED, supervisor.state)
         self.assertEqual(HealthStatus.FAILED, supervisor.health_snapshot()["stuck"].status)
+
+    async def test_publishes_typed_startup_and_shutdown_events(self) -> None:
+        sink = RecordingEventSink()
+        supervisor = Supervisor([FakeComponent("audio")], event_sink=sink)
+
+        await supervisor.start()
+        await supervisor.stop()
+
+        self.assertEqual([HealthChanged, RuntimeStateChanged, RuntimeStateChanged], [
+            type(event) for event in sink.events
+        ])
+        self.assertEqual("audio", sink.events[0].report.name)
+        self.assertEqual(HealthStatus.HEALTHY, sink.events[0].report.status)
+        self.assertEqual(
+            (RuntimeState.STARTING, RuntimeState.READY),
+            (sink.events[1].previous, sink.events[1].current),
+        )
+        self.assertEqual(
+            (RuntimeState.READY, RuntimeState.STOPPING),
+            (sink.events[2].previous, sink.events[2].current),
+        )
 
 
 if __name__ == "__main__":
