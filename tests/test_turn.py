@@ -2,12 +2,20 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.core.events import TurnCompleted, TurnStarted
 from jarvis.core.turn import CancellationToken, TurnCancelled, TurnContext
+from jarvis.config import (
+    MemorySettings,
+    ProviderSettings,
+    RuntimeConfig,
+    RuntimeSettings,
+    SecuritySettings,
+)
 
 
 class CancellationTokenTests(unittest.TestCase):
@@ -30,6 +38,24 @@ class CancellationTokenTests(unittest.TestCase):
 
 
 class TurnContextTests(unittest.TestCase):
+    def test_from_config_creates_deadline_trace_and_fresh_cancellation(self):
+        config = RuntimeConfig(
+            runtime=RuntimeSettings(command_deadline_ms=250),
+            providers=ProviderSettings(),
+            memory=MemorySettings(),
+            security=SecuritySettings(),
+        )
+
+        with patch("jarvis.core.turn.time.monotonic", return_value=10.0):
+            context = TurnContext.from_config(config, "conversation")
+            other_context = TurnContext.from_config(config, "other-conversation")
+
+        self.assertEqual(context.deadline_monotonic, 10.25)
+        self.assertEqual(context.conversation_id, "conversation")
+        self.assertRegex(context.trace_id, r"[0-9a-f]{32}")
+        self.assertFalse(context.cancellation.cancelled)
+        self.assertIsNot(context.cancellation, other_context.cancellation)
+
     def test_expired_deadline_is_observable(self):
         context = TurnContext(
             trace_id="trace",
