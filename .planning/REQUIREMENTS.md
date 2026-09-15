@@ -13,14 +13,15 @@
 - **V-09:** Hermes failure → degraded mode → local actions continue → recovery.
 - **V-10:** healthy startup → calibrated double clap → music/phrase → `LISTENING`.
 - **V-11:** production acceptance on actual microphone, speakers/headphones, network, configured API providers, local fallback, Hermes process, persisted memory, and Windows actions.
+- **V-12:** Phase 01 architecture-boundary check: GSD Pi is absent from runtime imports and packages; runtime coordination uses in-process standard-library primitives with no external event broker or microservice deployment; provider SDK imports occur only in adapters, never orchestration or domain modules; and no speculative registries or abstractions are introduced.
 
 ## Requirements
 
 | ID | Requirement | Phase | Verification |
 | --- | --- | --- | --- |
-| FND-01 | Establish the Windows-first runtime foundation: typed configuration, lifecycle/state transitions, bounded runtime messages, cancellation, health checks, and graceful shutdown. | Phase 01 — Foundation | Unit lifecycle/state/configuration checks; V-10 |
+| FND-01 | Establish the Windows-first runtime foundation: typed configuration, lifecycle/state transitions, bounded runtime messages, cancellation, health checks, and graceful shutdown. GSD Pi remains development-only and is not imported by or bundled with the runtime; coordination uses in-process standard-library primitives, with no external event broker, microservice deployment, or speculative registries/abstractions. | Phase 01 — Foundation | Unit lifecycle/state/configuration checks; V-10, V-12 |
 | VOI-01 | Provide a streaming voice path and measure `speech_end_to_first_audio_ms` at p50 and p95. | Phase 03 — Voice vertical slice; Phase 11 — Performance | V-01, V-03, V-07, V-11 |
-| PRV-01 | Keep STT, TTS, LLM, and routing providers neutral behind capability, timeout, cancellation, and fallback contracts; use hybrid cloud-first selection with local fallback only after measurement. | Phase 02 — Provider bake-off; Phase 07 — Provider routing and failover | Provider-contract checks; V-03, V-08, V-11 |
+| PRV-01 | Keep STT, TTS, LLM, and routing providers neutral behind capability, timeout, cancellation, and fallback contracts; use hybrid cloud-first selection with local fallback only after measurement. Provider SDKs and Windows APIs stay in adapters and are never imported by orchestration or domain modules. | Phase 01 — Foundation; Phase 02 — Provider bake-off; Phase 07 — Provider routing and failover | Architecture-boundary and provider-contract checks; V-03, V-08, V-11, V-12 |
 | HRM-01 | Supervise managed Hermes as a local child process with health, restart, shutdown, cancellation, and degraded local-operation behavior. | Phase 05 — Hermes integration; Phase 12 — Reliability | Hermes process-management integration checks; V-04, V-09, V-11 |
 | MEM-01 | Keep persistent memory local and user-controlled: inspect, correct, delete, and configure retention; bound retrieval and write consolidation; exclude sensitive values from logs and commits. | Phase 06 — Memory | SQLite persistence checks; V-05, V-06, V-11 |
 | TOL-01 | Route all system actions through a validated, allowlisted Tool Gateway with typed inputs, timeout/cancellation, redacted audit metadata, and trace-bound expiring confirmation for destructive or externally visible actions. | Phase 09 — Tools and integrations | Tool validation/permission checks; V-02, V-04, V-11 |
