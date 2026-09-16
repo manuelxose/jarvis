@@ -14,18 +14,18 @@ import argparse
 import asyncio
 import json
 import logging
+import signal
 import sys
 import tempfile
 from dataclasses import replace
 from pathlib import Path
 from typing import Sequence, TextIO
 
+from jarvis.application.runtime import JarvisRuntime, build_runtime
 from jarvis.config import load_config
 from jarvis.core.contracts import HealthStatus
 from jarvis.core.state import RuntimeState
 from jarvis.observability.logging import configure_logging
-
-from .runtime import FoundationRuntime, create_foundation_runtime
 
 
 class _ParserExit(Exception):
@@ -68,15 +68,30 @@ def _parser(stdout: TextIO, stderr: TextIO) -> _Parser:
         "--check-only", action="store_true", help="run health checks without entering the runtime"
     )
     parser.add_argument("--json", action="store_true", help="emit output as JSON")
+    parser.add_argument(
+        "--use-fakes",
+        action="store_true",
+        help="compose the offline fake-adapter runtime",
+    )
     return parser
 
 
-async def _check(runtime: FoundationRuntime, *, run: bool = False) -> dict[str, object]:
+async def _check(runtime: JarvisRuntime, *, run: bool = False) -> dict[str, object]:
     try:
-        await runtime.check()
+        await runtime.start()
         checked_state = runtime.state
         if run and checked_state is RuntimeState.READY:
-            await runtime.supervisor.run_until_stopped()
+            loop = asyncio.get_running_loop()
+
+            def stop_runtime() -> None:
+                loop.create_task(runtime.stop())
+
+            for shutdown_signal in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(shutdown_signal, stop_runtime)
+                except (NotImplementedError, RuntimeError, ValueError):
+                    pass
+            await runtime.run_until_stopped()
     finally:
         await runtime.stop()
     report = runtime.diagnostics()
@@ -102,6 +117,26 @@ def _write_report(report: dict[str, object], stdout: TextIO, as_json: bool) -> N
         assert isinstance(health, dict)
         detail = health["detail"]
         stdout.write(f"{name}: {health['status']}" + (f" ({detail})" if detail else "") + "\n")
+
+    metrics = report.get("metrics", {})
+    if isinstance(metrics, dict):
+        if metrics:
+            summary = ", ".join(
+                f"{name}: count={values.get('count')}, p50={values.get('p50')}, p95={values.get('p95')}"
+                for name, values in metrics.items()
+                if isinstance(values, dict)
+            )
+            stdout.write(f"metrics: {summary or 'none'}\n")
+        else:
+            stdout.write("metrics: none\n")
+
+    audio_queue = report.get("audio_queue", {})
+    if isinstance(audio_queue, dict):
+        stdout.write(
+            "audio_queue: "
+            + ", ".join(f"{name}={value}" for name, value in audio_queue.items())
+            + "\n"
+        )
 
 
 def _temp_config(config):
@@ -184,7 +219,7 @@ def main(
         return _run_benchmark_command(config, output, args.json)
 
     configure_logging(logging.getLogger("jarvis.cli"), stream=errors)
-    runtime = create_foundation_runtime(config)
+    runtime = build_runtime(config, use_fakes=args.use_fakes)
     try:
         report = asyncio.run(_check(runtime, run=args.command == "run" and not args.check_only))
     except Exception as error:

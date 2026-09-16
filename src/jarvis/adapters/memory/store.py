@@ -78,6 +78,12 @@ class MemoryStore:
                     INSERT INTO records_fts(records_fts, rowid, content)
                     VALUES ('delete', old.id, old.content);
                 END;
+                CREATE TRIGGER IF NOT EXISTS records_au AFTER UPDATE OF content ON records BEGIN
+                    INSERT INTO records_fts(records_fts, rowid, content)
+                    VALUES ('delete', old.id, old.content);
+                    INSERT INTO records_fts(rowid, content)
+                    VALUES (new.id, new.content);
+                END;
                 """
             )
             self._conn.commit()
@@ -241,11 +247,11 @@ class MemoryStore:
             return cursor.rowcount > 0
 
     def cleanup(self, retention_days: int) -> int:
-        """Remove conversation/episodic records older than the retention window."""
+        """Remove conversation/episodic records whose last_used predates retention."""
         cutoff = time.time() - retention_days * 86400
         with self._lock:
             cursor = self._conn.execute(
-                "DELETE FROM records WHERE tier = 'conversation' AND created_at < ?", (cutoff,)
+                "DELETE FROM records WHERE tier = 'conversation' AND last_used < ?", (cutoff,)
             )
             self._conn.commit()
             return cursor.rowcount

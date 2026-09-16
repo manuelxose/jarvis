@@ -11,6 +11,12 @@ from jarvis.core.turn import TurnCancelled, TurnContext
 
 
 class AudioQueueTests(unittest.IsolatedAsyncioTestCase):
+    def test_rejects_non_positive_queue_limits(self):
+        with self.assertRaises(ValueError):
+            AudioOutputQueue(max_pending=0)
+        with self.assertRaises(ValueError):
+            AudioOutputQueue(render_timeout_seconds=0)
+
     async def test_plays_chunks_in_order_with_turn_tags(self):
         played = []
         async def render(turn_id, chunk):
@@ -79,6 +85,100 @@ class AudioQueueTests(unittest.IsolatedAsyncioTestCase):
 
         await queue.play(audio(), context)
         self.assertEqual(2, queue.state()["played"])
+        self.assertEqual(2, queue.state()["render_errors"])
+
+    async def test_renderer_timeout_does_not_wedge_queue(self):
+        async def render(turn_id, chunk):
+            await asyncio.Event().wait()
+
+        queue = AudioOutputQueue(render=render, render_timeout_seconds=0.01)
+        context = TurnContext.fresh("c")
+
+        async def audio():
+            yield b"a"
+            yield b"b"
+
+        await queue.play(audio(), context)
+        self.assertEqual(2, queue.state()["played"])
+        self.assertEqual(2, queue.state()["render_timeouts"])
+
+    async def test_play_waits_for_active_chunk_to_finish(self):
+        started = asyncio.Event()
+        released = asyncio.Event()
+
+        async def render(turn_id, chunk):
+            started.set()
+            await released.wait()
+
+        queue = AudioOutputQueue(render=render)
+        context = TurnContext.fresh("c")
+
+        async def audio():
+            yield b"a"
+
+        task = asyncio.create_task(queue.play(audio(), context))
+        await started.wait()
+        self.assertFalse(task.done())
+        self.assertEqual(context.trace_id, queue.state()["current_turn"])
+
+        released.set()
+        await task
+        self.assertIsNone(queue.state()["current_turn"])
+
+    async def test_cancellation_while_draining_flushes_pending_audio(self):
+        started = asyncio.Event()
+        released = asyncio.Event()
+        played = []
+
+        async def render(turn_id, chunk):
+            played.append(chunk)
+            started.set()
+            await released.wait()
+
+        queue = AudioOutputQueue(render=render)
+        context = TurnContext.fresh("c")
+
+        async def audio():
+            yield b"a"
+            yield b"b"
+
+        task = asyncio.create_task(queue.play(audio(), context))
+        await started.wait()
+        context.cancellation.cancel()
+
+        with self.assertRaises(TurnCancelled):
+            await task
+        self.assertEqual(0, queue.state()["pending"])
+        self.assertNotIn(b"b", played)
+
+        released.set()
+        await asyncio.sleep(0)
+
+    async def test_backpressures_a_fast_producer_when_device_is_blocked(self):
+        started = asyncio.Event()
+        released = asyncio.Event()
+
+        async def render(turn_id, chunk):
+            started.set()
+            await released.wait()
+
+        queue = AudioOutputQueue(render=render, max_pending=1)
+        context = TurnContext.fresh("c")
+
+        async def audio():
+            yield b"a"
+            yield b"b"
+            yield b"c"
+
+        task = asyncio.create_task(queue.play(audio(), context))
+        await started.wait()
+        await asyncio.sleep(0.01)
+        self.assertFalse(task.done())
+        self.assertEqual(1, queue.state()["pending"])
+        self.assertEqual(1, queue.state()["capacity"])
+
+        released.set()
+        await task
 
 
 if __name__ == "__main__":

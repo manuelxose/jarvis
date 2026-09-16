@@ -14,19 +14,25 @@ routes upward rather than guessing.
 
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Mapping, Protocol
+from typing import Mapping
 
 from jarvis.core.contracts import IntentClassifier, TurnContext
 
+logger = logging.getLogger(__name__)
+
+
+# URLs are matched against the raw text: normalize strips the `://` scheme.
+_URL_COMMAND = re.compile(
+    r"\b(?:abre|abrir|open|go to|navega a)\s+(https?://\S+|www\.\S+\.\S+)",
+    re.IGNORECASE,
+)
+
 
 # Ordered (pattern, tool, argument extractor). First match wins.
-def _digit(match: re.Match[str]) -> str:
-    return match.group(1)
-
-
 _COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str, str, float], ...] = (
     # open application
     (
@@ -34,13 +40,6 @@ _COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str, str, float], ...] = (
         "open_application",
         "application",
         0.92,
-    ),
-    # open URL
-    (
-        re.compile(r"\b(?:abre|abrir|open|go to|navega a)\s+(https?://\S+|www\.\S+\.\S+)"),
-        "open_url",
-        "url",
-        0.95,
     ),
     # volume up
     (re.compile(r"\b(?:sube|subir|aumenta|más alto|mas alto)\s+(?:el\s+)?(?:volumen)\b"), "volume_up", "", 0.95),
@@ -121,7 +120,16 @@ class FastCommandClassifier:
     """Deterministic, conservative fast-command matcher."""
 
     def match(self, text: str) -> FastCommandMatch | None:
-        normalized = normalize(text)
+        raw = (text or "").strip()
+        url = _URL_COMMAND.search(raw)
+        if url is not None:
+            return FastCommandMatch(
+                name="open_url",
+                arguments={"url": url.group(1)},
+                confidence=0.95,
+                reason="matched deterministic pattern for open_url",
+            )
+        normalized = normalize(raw)
         if not normalized:
             return None
         for pattern, tool, argument_key, confidence in _COMMAND_PATTERNS:
@@ -145,7 +153,7 @@ class Router:
 
     AGENT_CUES = (
         "planifica", "planificar", "investiga", "investigar", "multipaso", "multistep",
-        "autonomo", "autonomo", "tarea larga", "orquesta", "research", "plan ",
+        "autonomo", "tarea larga", "orquesta", "research", "plan ",
         "haz una tarea", "pasos", "ejecuta la tarea", "workflow",
     )
 
@@ -171,6 +179,9 @@ class Router:
             try:
                 intent = await self._intent_classifier.classify(text, context)
             except Exception:
+                logger.warning(
+                    "intent classifier failed; falling back to fast_model", exc_info=True
+                )
                 intent = "fast_model"
             if intent in {"hermes", "agent"}:
                 return RouteDecision(
