@@ -25,7 +25,8 @@ class InteractionTraceTests(unittest.TestCase):
             trace.as_dict(),
             {
                 "trace_id": "trace-123",
-                "stages_ms": {"speech_end": 20.0, "playback_start_ms": 50.0},
+                "speech_end": 20.0,
+                "playback_start_ms": 50.0,
                 "speech_end_to_first_audio_ms": 30.0,
             },
         )
@@ -53,7 +54,17 @@ class InteractionTraceTests(unittest.TestCase):
         for stage in required_stages:
             trace.mark(stage)
 
-        self.assertEqual(set(trace.as_dict()["stages_ms"]), required_stages)
+        self.assertEqual(set(trace.as_dict()) - {"trace_id", "speech_end_to_first_audio_ms"}, required_stages)
+
+    def test_explicit_timestamps_and_playback_alias_preserve_flat_metrics(self):
+        with patch("jarvis.observability.tracing.time.perf_counter", return_value=0.0):
+            trace = InteractionTrace("trace-explicit")
+            trace.mark("speech_end", at=0.0)
+            trace.mark("playback_start", 0.125)
+        self.assertEqual(trace.elapsed_ms("speech_end", "playback_start"), 125.0)
+        self.assertEqual(trace.as_dict()["playback_start_ms"], 125.0)
+        self.assertEqual(trace.as_dict()["speech_end_to_first_audio_ms"], 125.0)
+        self.assertTrue(all(isinstance(value, (float, str)) for value in trace.as_dict().values()))
 
     def test_rejects_unknown_stages(self):
         with self.assertRaisesRegex(ValueError, "Unsupported trace stage"):
@@ -67,6 +78,51 @@ class InteractionTraceTests(unittest.TestCase):
 
 
 class LoggingTests(unittest.TestCase):
+    def test_redacts_dictionary_messages_and_format_arguments(self):
+        stream = io.StringIO()
+        logger = configure_logging(logging.getLogger("jarvis.test_structured"), stream=stream)
+        secret = {"fast_model_api_key": "model-secret", "Authorization": "Bearer auth-secret"}
+        logger.info(secret)
+        logger.info("details=%s", secret)
+        logger.info("key=%(fast_model_api_key)s auth=%(Authorization)s", secret)
+        logger.info("Authorization: %s; api_key=%s", "Bearer positional-secret", "api-secret")
+        logger.info("API-Key: %s", "hyphen-secret")
+        for value in ("model-secret", "auth-secret", "positional-secret", "api-secret", "hyphen-secret"):
+            self.assertNotIn(value, stream.getvalue())
+        self.assertEqual(len(stream.getvalue().splitlines()), 5)
+        for line in stream.getvalue().splitlines():
+            self.assertIn("<redacted>", json.loads(line)["message"])
+        self.assertEqual(secret["fast_model_api_key"], "model-secret")
+
+    def test_config_secret_field_is_redacted_in_extras(self):
+        stream = io.StringIO()
+        logger = configure_logging(logging.getLogger("jarvis.test_config_secret"), stream=stream)
+        logger.info("config", extra={"fast_model_api_key": "config-secret"})
+        self.assertEqual(json.loads(stream.getvalue())["fast_model_api_key"], "<redacted>")
+
+    def test_descendant_records_do_not_reach_parent_or_root_handlers(self):
+        parent = logging.getLogger("jarvis.logging_ancestors")
+        boundary = logging.getLogger(f"{parent.name}.boundary")
+        root = logging.getLogger()
+        stream = io.StringIO()
+        leaked = []
+
+        class Capture(logging.Handler):
+            def emit(self, record):
+                leaked.append(record)
+
+        for logger in (parent, boundary, root):
+            self.addCleanup(setattr, logger, "handlers", logger.handlers[:])
+            self.addCleanup(setattr, logger, "propagate", logger.propagate)
+            self.addCleanup(setattr, logger, "level", logger.level)
+        parent.addHandler(Capture())
+        root.addHandler(Capture())
+        configure_logging(boundary, stream=stream)
+        child = logging.getLogger(f"{boundary.name}.child")
+        child.info({"token": "raw-child-secret"})
+        self.assertEqual(leaked, [])
+        self.assertNotIn("raw-child-secret", stream.getvalue())
+
     def test_logging_recursively_redacts_secret_fields(self):
         stream = io.StringIO()
         logger = logging.getLogger("jarvis.test_observability")

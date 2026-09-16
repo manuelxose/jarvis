@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import enum
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, AsyncIterator, Mapping, Protocol, TypeAlias
 
 
 if TYPE_CHECKING:
     from jarvis.config import RuntimeConfig
-    from .turn import TurnContext
+
+# Re-exported at runtime so adapters can import TurnContext from contracts
+# without a circular import (turn imports config only under TYPE_CHECKING).
+from .turn import TurnContext
 
 
 class HealthStatus(str, enum.Enum):
@@ -27,12 +30,37 @@ class HealthReport:
     retryable: bool = False
 
 
+@dataclass(frozen=True)
+class Transcript:
+    text: str
+    is_final: bool = False
+
+
+@dataclass(frozen=True)
+class AgentToken:
+    text: str
+
+
+@dataclass(frozen=True)
+class AgentToolRequest:
+    name: str
+    arguments: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class AgentStatus:
+    detail: str
+
+
+AgentEvent: TypeAlias = AgentToken | AgentToolRequest | AgentStatus
+
+
 class AudioCapture(Protocol):
-    async def capture(self, context: TurnContext) -> bytes: ...
+    def capture(self, context: TurnContext) -> AsyncIterator[bytes]: ...
 
 
 class AudioPlayer(Protocol):
-    async def play(self, audio: bytes, context: TurnContext) -> None: ...
+    async def play(self, audio: AsyncIterator[bytes], context: TurnContext) -> None: ...
 
 
 class VoiceActivityDetector(Protocol):
@@ -44,11 +72,11 @@ class WakeDetector(Protocol):
 
 
 class SpeechToText(Protocol):
-    async def transcribe(self, audio: bytes, context: TurnContext) -> str: ...
+    def transcribe(self, audio: AsyncIterator[bytes], context: TurnContext) -> AsyncIterator[Transcript]: ...
 
 
 class TextToSpeech(Protocol):
-    async def synthesize(self, text: str, context: TurnContext) -> bytes: ...
+    def synthesize(self, text: AsyncIterator[str], context: TurnContext) -> AsyncIterator[bytes]: ...
 
 
 class IntentClassifier(Protocol):
@@ -56,7 +84,7 @@ class IntentClassifier(Protocol):
 
 
 class AgentRuntime(Protocol):
-    async def respond(self, text: str, context: TurnContext) -> str: ...
+    def respond(self, text: str, context: TurnContext) -> AsyncIterator[AgentEvent]: ...
 
 
 class MemoryProvider(Protocol):
@@ -64,7 +92,7 @@ class MemoryProvider(Protocol):
 
 
 class ModelProvider(Protocol):
-    async def generate(self, prompt: str, context: TurnContext) -> str: ...
+    def generate(self, prompt: str, context: TurnContext) -> AsyncIterator[str]: ...
 
 
 class Tool(Protocol):

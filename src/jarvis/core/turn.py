@@ -57,6 +57,16 @@ class TurnContext:
             cancellation=CancellationToken(),
         )
 
+    @classmethod
+    def fresh(cls, conversation_id: str, timeout_seconds: float = 30.0) -> "TurnContext":
+        """Create a turn context without requiring full runtime config."""
+        return cls(
+            trace_id=uuid.uuid4().hex,
+            conversation_id=conversation_id,
+            deadline_monotonic=time.monotonic() + timeout_seconds,
+            cancellation=CancellationToken(),
+        )
+
     @property
     def expired(self) -> bool:
         return time.monotonic() >= self.deadline_monotonic

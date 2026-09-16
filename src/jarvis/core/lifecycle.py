@@ -31,72 +31,108 @@ class Supervisor:
         self._state = RuntimeState.STARTING
         self._stop_event = asyncio.Event()
         self._health: dict[str, HealthReport] = {}
-        self._started = False
-        self._stopped = False
+        self._start_task: asyncio.Task[None] | None = None
+        self._stop_task: asyncio.Task[None] | None = None
+        self._active: dict[str, ManagedComponent] = {}
 
     @property
     def state(self) -> RuntimeState:
         return self._state
 
-    def health_snapshot(self) -> dict[str, HealthReport]:
-        return dict(self._health)
+    def health_snapshot(self) -> tuple[HealthReport, ...]:
+        return tuple(self._health.values())
 
     async def start(self) -> None:
-        if self._started:
+        if self._stop_task is not None:
+            await asyncio.shield(self._stop_task)
             return
-        self._started = True
-        reports = await asyncio.gather(
-            *(self._start_component(component) for component in self._components)
-        )
-        if self._stopped:
+        if self._start_task is None:
+            self._start_task = asyncio.create_task(self._start())
+        await asyncio.shield(self._start_task)
+
+    async def _start(self) -> None:
+        try:
+            await asyncio.gather(
+                *(self._start_component(component) for component in self._components)
+            )
+        except asyncio.CancelledError:
+            # Only stop() cancels this owned task. gather has awaited its children,
+            # including adapters which finish an acquisition during cancellation.
             return
-        self._health = {report.name: report for report in reports}
-        for report in reports:
-            if self._stopped:
+        for report in self.health_snapshot():
+            if self._stop_task is not None:
                 return
             await self._publish(HealthChanged(report))
-        if self._stopped:
+        if self._stop_task is not None:
             return
-        await self._set_state(self._aggregate_state(reports))
+        await self._set_state(self._aggregate_state(self._health.values()))
 
     async def stop(self) -> None:
-        if self._stopped:
-            return
-        self._stopped = True
-        self._stop_event.set()
+        if self._stop_task is None:
+            self._stop_task = asyncio.create_task(self._stop())
+        try:
+            await asyncio.shield(self._stop_task)
+        except asyncio.CancelledError:
+            # Cancelling a waiter must not cancel or abandon shared cleanup.
+            await asyncio.shield(self._stop_task)
+            raise
+
+    async def _stop(self) -> None:
+        if self._start_task is not None and not self._start_task.done():
+            self._start_task.cancel()
+            await asyncio.gather(self._start_task, return_exceptions=True)
         await self._set_state(RuntimeState.STOPPING)
         shutdown_failed = False
         for component in reversed(self._components):
-            try:
-                await component.stop()
-            except Exception as error:
-                report = HealthReport(
-                    component.name,
-                    HealthStatus.FAILED,
-                    str(error),
-                    required=component.required,
-                )
-                self._health[component.name] = report
-                await self._publish(HealthChanged(report))
+            if component.name in self._active and not await self._stop_component(component):
+                await self._publish(HealthChanged(self._health[component.name]))
                 shutdown_failed = shutdown_failed or component.required
-        if shutdown_failed:
+        if shutdown_failed or "event_sink" in self._health:
             await self._set_state(RuntimeState.FAILED)
+        self._stop_event.set()
+
+    async def _stop_component(self, component: ManagedComponent) -> bool:
+        try:
+            await component.stop()
+        except (Exception, asyncio.CancelledError) as error:
+            previous = self._health.get(component.name)
+            detail = f"stop: {str(error) or type(error).__name__}"
+            if previous is not None and previous.detail:
+                detail = f"{previous.detail}; {detail}"
+            self._health[component.name] = HealthReport(
+                component.name, HealthStatus.FAILED, detail, required=component.required,
+            )
+            return False
+        self._active.pop(component.name, None)
+        return True
 
     async def run_until_stopped(self) -> None:
-        await self.start()
-        await self._stop_event.wait()
+        try:
+            await self.start()
+            await self._stop_event.wait()
+        finally:
+            await self.stop()
 
     async def _start_component(self, component: ManagedComponent) -> HealthReport:
+        self._health[component.name] = HealthReport(
+            component.name, HealthStatus.DEGRADED, "startup pending", required=component.required,
+        )
         for attempt in range(self._policy.retries + 1):
+            # start() may acquire resources before it raises or is cancelled.
+            self._active[component.name] = component
             try:
                 await component.start()
                 report = await component.health()
             except Exception as error:
                 report = await self._failure_report(component, error)
+            self._health[component.name] = report
             if report.status is HealthStatus.HEALTHY or not report.retryable:
                 return report
-            if attempt < self._policy.retries and self._policy.backoff_seconds:
-                await asyncio.sleep(min(self._policy.backoff_seconds, 0.25))
+            if attempt < self._policy.retries:
+                if not await self._stop_component(component):
+                    return self._health[component.name]
+                if self._policy.backoff_seconds:
+                    await asyncio.sleep(min(self._policy.backoff_seconds, 0.25))
         return report
 
     async def _failure_report(
@@ -131,4 +167,14 @@ class Supervisor:
 
     async def _publish(self, event: HealthChanged | RuntimeStateChanged) -> None:
         if self._event_sink is not None:
-            await self._event_sink.publish(event)
+            try:
+                await self._event_sink.publish(event)
+            except (Exception, asyncio.CancelledError) as error:
+                previous = self._health.get("event_sink")
+                detail = str(error) or type(error).__name__
+                if previous is not None:
+                    detail = previous.detail if detail in previous.detail else f"{previous.detail}; {detail}"
+                self._health["event_sink"] = HealthReport("event_sink", HealthStatus.FAILED, detail)
+                # Do not publish recursively through a failed sink.
+                if self._state is not RuntimeState.FAILED:
+                    self._state = transition(self._state, RuntimeState.FAILED)
