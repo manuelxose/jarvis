@@ -48,4 +48,5 @@ def configure_logging(
     logger.handlers.clear()
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
+    logger.propagate = False
     return logger
