@@ -1,4 +1,4 @@
-"""Foundation CLI diagnostics tests."""
+"""CLI diagnostics tests."""
 
 from __future__ import annotations
 
@@ -10,10 +10,44 @@ import unittest
 from unittest.mock import patch
 
 from jarvis.apps.cli import main
-from jarvis.apps.runtime import FoundationRuntime
 from jarvis.core.contracts import HealthReport, HealthStatus
 from jarvis.core.lifecycle import Supervisor
-from jarvis.observability import InteractionTrace
+from jarvis.core.state import RuntimeState
+
+
+class _StubRuntime:
+    """Minimal JarvisRuntime-compatible lifecycle double for CLI tests."""
+
+    def __init__(self, supervisor: Supervisor) -> None:
+        self.supervisor = supervisor
+
+    @property
+    def state(self) -> RuntimeState:
+        return self.supervisor.state
+
+    async def start(self) -> None:
+        await self.supervisor.start()
+
+    async def stop(self) -> None:
+        await self.supervisor.stop()
+
+    async def run_until_stopped(self) -> None:
+        await self.supervisor.run_until_stopped()
+
+    def diagnostics(self) -> dict[str, object]:
+        return {
+            "state": self.state.value,
+            "components": {
+                report.name: {
+                    "status": report.status.value,
+                    "detail": report.detail,
+                    "required": report.required,
+                }
+                for report in self.supervisor.health_snapshot()
+            },
+            "metrics": {},
+            "audio_queue": {},
+        }
 
 
 class CliTests(unittest.TestCase):
@@ -33,8 +67,9 @@ class CliTests(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertIn("run", stdout.getvalue())
         self.assertIn("doctor", stdout.getvalue())
+        self.assertIn("--use-fakes", stdout.getvalue())
 
-    def test_doctor_json_reports_state_and_component_health(self) -> None:
+    def test_doctor_real_reports_honest_degraded(self) -> None:
         stdout = io.StringIO()
 
         result = main(
@@ -46,9 +81,44 @@ class CliTests(unittest.TestCase):
         report = json.loads(stdout.getvalue())
         self.assertEqual(1, result)
         self.assertEqual("degraded", report["state"])
-        self.assertIn("audio input", report["components"])
-        self.assertEqual("degraded", report["components"]["audio input"]["status"])
-        self.assertIn("unavailable", report["components"]["audio input"]["detail"])
+        self.assertIn("fast model", report["components"])
+        self.assertEqual("degraded", report["components"]["fast model"]["status"])
+        self.assertTrue(
+            any(
+                component["detail"] in {
+                    "no model providers configured",
+                    "adapter dependency unavailable",
+                }
+                for component in report["components"].values()
+            )
+        )
+
+    def test_doctor_use_fakes_json_reports_ready(self) -> None:
+        stdout = io.StringIO()
+
+        result = main(
+            ["doctor", "--config", str(self.config_path), "--use-fakes", "--json"],
+            stdout=stdout,
+            stderr=io.StringIO(),
+        )
+
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual("ready", report["state"])
+        self.assertIn("metrics", report)
+        self.assertIn("audio_queue", report)
+
+    def test_run_check_only_use_fakes_reports_ready(self) -> None:
+        stdout = io.StringIO()
+
+        result = main(
+            ["run", "--config", str(self.config_path), "--check-only", "--use-fakes"],
+            stdout=stdout,
+            stderr=io.StringIO(),
+        )
+
+        self.assertEqual(0, result)
+        self.assertIn("ready", stdout.getvalue())
 
     def test_invalid_config_returns_actionable_error(self) -> None:
         invalid_path = Path(self.temp_dir.name) / "invalid.json"
@@ -93,25 +163,33 @@ class CliTests(unittest.TestCase):
 
         for args in (["doctor", "--json"], ["run", "--check-only"], ["run"]):
             with self.subTest(args=args):
-                supervisor = Supervisor([FailsOnStop()])
-                runtime = FoundationRuntime(None, supervisor, InteractionTrace("shutdown"))
-                async def run_until_stopped():
-                    await supervisor.stop()
+                runtime = _StubRuntime(Supervisor([FailsOnStop()]))
+
+                async def run_until_stopped() -> None:
+                    await runtime.supervisor.stop()
+
                 stdout = io.StringIO()
-                with patch("jarvis.apps.cli.create_foundation_runtime", return_value=runtime), patch.object(
-                    supervisor, "run_until_stopped", side_effect=run_until_stopped
+                with patch("jarvis.apps.cli.build_runtime", return_value=runtime), patch.object(
+                    runtime, "run_until_stopped", side_effect=run_until_stopped
                 ):
-                    result = main([*args, "--config", str(self.config_path)], stdout=stdout, stderr=io.StringIO())
+                    result = main(
+                        [*args, "--config", str(self.config_path)],
+                        stdout=stdout,
+                        stderr=io.StringIO(),
+                    )
                 self.assertEqual(result, 1)
                 self.assertIn("failed", stdout.getvalue())
                 self.assertIn("release failed", stdout.getvalue())
 
     def test_healthy_doctor_still_returns_success_after_normal_shutdown(self):
-        runtime = FoundationRuntime(None, Supervisor([]), InteractionTrace("healthy"))
+        runtime = _StubRuntime(Supervisor([]))
         stdout = io.StringIO()
-        with patch("jarvis.apps.cli.create_foundation_runtime", return_value=runtime):
-            result = main(["doctor", "--json", "--config", str(self.config_path)],
-                          stdout=stdout, stderr=io.StringIO())
+        with patch("jarvis.apps.cli.build_runtime", return_value=runtime):
+            result = main(
+                ["doctor", "--json", "--config", str(self.config_path)],
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(stdout.getvalue())["state"], "ready")
 

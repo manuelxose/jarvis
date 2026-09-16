@@ -6,7 +6,7 @@ import asyncio
 from typing import AsyncIterator, Callable, Optional
 
 from jarvis.core.contracts import ModelProvider, TurnContext
-from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
+from jarvis.core.errors import ProviderConfigError, ProviderError, ProviderUnavailable
 from jarvis.core.turn import TurnCancelled
 
 
@@ -28,7 +28,7 @@ class ProviderChain:
     ) -> None:
         self._providers = providers
         self._retries = max(0, retries)
-        self._backoff_seconds = backoff_seconds
+        self._backoff_seconds = max(0.0, backoff_seconds)
         self._on_select = on_select
 
     @property
@@ -55,17 +55,22 @@ class ProviderChain:
                 except ProviderConfigError as error:
                     last_error = error
                     break  # misconfigured: skip, do not retry
-                except ProviderUnavailable as error:
+                except ProviderError as error:
                     last_error = error
                     if got_first:
                         # Mid-stream failure after partial output cannot restart cleanly.
                         raise
+                    if not error.transient:
+                        break
                     attempts += 1
                     if attempts > self._retries:
                         break
-                    await asyncio.sleep(min(self._backoff_seconds, 1.0))
+                    # ponytail: Cap retries at one second; add per-provider policy only
+                    # when provider-specific rate-limit guidance requires it.
+                    delay = min(self._backoff_seconds * (2 ** (attempts - 1)), 1.0)
+                    await asyncio.sleep(delay)
                 except (TurnCancelled, asyncio.CancelledError):
                     raise
         raise ProviderUnavailable(
             f"all model providers failed: {last_error}"
-        )
+        ) from last_error

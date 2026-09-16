@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Optional
+import asyncio
+from collections.abc import Mapping
+from contextlib import suppress
+from typing import AsyncIterator, Generator
 
-from jarvis.core.contracts import AudioCapture, TurnContext
+from jarvis.core.contracts import TurnContext
 from jarvis.core.errors import ProviderUnavailable
 
 
 class MicCapture:
     """Capture int16 PCM frames from the default (or selected) input device."""
 
-    def __init__(self, *, sample_rate: int = 16000, channels: int = 1, device: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        device: int | str | None = None,
+    ) -> None:
+        if sample_rate <= 0:
+            raise ValueError("sample_rate must be positive")
+        if channels <= 0:
+            raise ValueError("channels must be positive")
         self.sample_rate = sample_rate
         self.channels = channels
         self.device = device
@@ -24,9 +37,7 @@ class MicCapture:
                 "sounddevice is not installed; audio capture unavailable", provider="audio"
             ) from error
 
-        import numpy as np  # noqa: PLC0415
-
-        def _stream():
+        def _stream() -> Generator[bytes, None, None]:
             with sd.InputStream(
                 samplerate=self.sample_rate,
                 channels=self.channels,
@@ -37,18 +48,29 @@ class MicCapture:
                     frames, _ = stream.read(self.sample_rate // 10)
                     yield frames.tobytes()
 
-        import asyncio
+        def _next_frame(iterator: Generator[bytes, None, None]) -> tuple[bool, bytes]:
+            try:
+                return True, next(iterator)
+            except StopIteration:
+                return False, b""
 
         loop = asyncio.get_running_loop()
-
-        async def _capture() -> AsyncIterator[bytes]:
-            iterator = _stream()
+        iterator = _stream()
+        try:
             while not context.cancellation.cancelled:
-                chunk = await loop.run_in_executor(None, next, iterator)
-                yield chunk
-
-        async for chunk in _capture():
-            yield chunk
+                try:
+                    has_frame, chunk = await loop.run_in_executor(None, _next_frame, iterator)
+                except Exception as error:
+                    raise ProviderUnavailable(
+                        "sounddevice capture failed; check the selected input device", provider="audio"
+                    ) from error
+                if not has_frame:
+                    return
+                if not context.cancellation.cancelled and chunk:
+                    yield chunk
+        finally:
+            with suppress(Exception):
+                iterator.close()
 
 
 def list_devices() -> list[dict[str, object]]:
@@ -57,14 +79,31 @@ def list_devices() -> list[dict[str, object]]:
         import sounddevice as sd  # noqa: PLC0415
     except ImportError:
         return []
+    try:
+        reported_devices = sd.query_devices()
+    except Exception:
+        return []
+
+    try:
+        device_entries = iter(reported_devices)
+    except TypeError:
+        return []
+
     devices: list[dict[str, object]] = []
-    for index, device in enumerate(sd.query_devices()):
+    for index, device in enumerate(device_entries):
+        if not isinstance(device, Mapping):
+            continue
+        try:
+            input_channels = int(device.get("max_input_channels", 0))
+            output_channels = int(device.get("max_output_channels", 0))
+        except (TypeError, ValueError):
+            continue
         devices.append(
             {
                 "index": index,
                 "name": device.get("name"),
-                "max_input_channels": int(device.get("max_input_channels", 0)),
-                "max_output_channels": int(device.get("max_output_channels", 0)),
+                "max_input_channels": input_channels,
+                "max_output_channels": output_channels,
             }
         )
     return devices
