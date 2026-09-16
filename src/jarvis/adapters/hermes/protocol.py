@@ -8,10 +8,11 @@ terminal text.
 from __future__ import annotations
 
 import json
+import math
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any, Iterable, Iterator, Mapping, Optional
 
 # Outbound event types (child -> Jarvis).
 STARTED = "started"
@@ -60,19 +61,43 @@ def encode_message(
 
 
 def parse_message(line: str) -> Optional[HermesMessage]:
+    """Parse one JSON-lines record, ignoring malformed transport input."""
     line = line.strip()
     if not line:
         return None
     try:
         obj = json.loads(line)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, TypeError, ValueError):
         return None
     if not isinstance(obj, dict):
         return None
+
+    request_id = obj.get("request_id")
+    turn_id = obj.get("turn_id")
+    event_type = obj.get("event_type")
+    payload = obj.get("payload")
+    timestamp = obj.get("timestamp")
+    if (
+        not all(isinstance(value, str) and value for value in (request_id, turn_id, event_type))
+        or not isinstance(payload, dict)
+        or isinstance(timestamp, bool)
+        or not isinstance(timestamp, (int, float))
+        or not math.isfinite(timestamp)
+    ):
+        return None
+
     return HermesMessage(
-        request_id=str(obj.get("request_id", "")),
-        turn_id=str(obj.get("turn_id", "")),
-        event_type=str(obj.get("event_type", "")),
-        payload=obj.get("payload") if isinstance(obj.get("payload"), dict) else {},
-        timestamp=float(obj.get("timestamp", time.time())),
+        request_id=request_id,
+        turn_id=turn_id,
+        event_type=event_type,
+        payload=payload,
+        timestamp=float(timestamp),
     )
+
+
+def parse_messages(lines: Iterable[str]) -> Iterator[HermesMessage]:
+    """Yield valid Hermes events from a streaming JSON-lines source."""
+    for line in lines:
+        message = parse_message(line)
+        if message is not None:
+            yield message

@@ -17,6 +17,8 @@ class ConversationWindow:
     """Tracks whether the follow-up window is open after a recent turn."""
 
     def __init__(self, timeout_seconds: float = 8.0) -> None:
+        if timeout_seconds < 0:
+            raise ValueError("timeout_seconds must not be negative")
         self.timeout_seconds = timeout_seconds
         self._last_activity = 0.0
 
@@ -42,8 +44,13 @@ class ActivationManager:
         cooldown_seconds: float = 1.2,
         conversation_timeout_seconds: float = 8.0,
     ) -> None:
+        if cooldown_seconds < 0:
+            raise ValueError("cooldown_seconds must not be negative")
+        normalized_wake_word = wake_word.strip().lower()
+        if not normalized_wake_word:
+            raise ValueError("wake_word must not be empty")
         self.mode = ActivationMode(mode if mode in {m.value for m in ActivationMode} else "wake_word")
-        self.wake_word = wake_word.lower()
+        self.wake_word = normalized_wake_word
         self.cooldown_seconds = cooldown_seconds
         self._window = ConversationWindow(conversation_timeout_seconds)
         self._last_activation = 0.0

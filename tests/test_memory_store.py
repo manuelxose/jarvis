@@ -62,6 +62,36 @@ class MemoryStoreTests(unittest.TestCase):
         self.store.set_preference("idioma", "es")
         self.assertEqual({"idioma": "es"}, self.store.get_preferences())
 
+    def test_correct_updates_fts_index(self):
+        record_id = self.store.add("el gato es gris", tier="conversation")
+        self.store.correct(record_id, "el perro es marron")
+        self.assertFalse(self.store.recall("gato"))
+        by_new = self.store.recall("perro")
+        self.assertTrue(any(r.id == record_id for r in by_new))
+
+    def test_unknown_tier_raises(self):
+        with self.assertRaises(MemoryError):
+            self.store.add("dato", tier="no_existe")
+
+    def test_recall_without_meaningful_tokens_returns_empty(self):
+        self.store.add("el usuario vive en Chipiona", tier="long_term")
+        self.assertEqual([], self.store.recall(""))
+        self.assertEqual([], self.store.recall("!!! ... 123") )
+
+    def test_cleanup_keys_on_last_used_not_created_at(self):
+        import time
+
+        old = time.time() - 86400 * 400
+        keep_id = self.store.add("creado hace tiempo pero usado recientemente", tier="conversation")
+        drop_id = self.store.add("creado ahora pero nunca usado", tier="conversation")
+        with self.store._conn:
+            self.store._conn.execute("UPDATE records SET created_at = ? WHERE id = ?", (old, keep_id))
+            self.store._conn.execute("UPDATE records SET last_used = ? WHERE id = ?", (old, drop_id))
+        deleted = self.store.cleanup(retention_days=30)
+        self.assertEqual(1, deleted)
+        self.assertIsNotNone(self.store.get(keep_id))
+        self.assertIsNone(self.store.get(drop_id))
+
 
 if __name__ == "__main__":
     unittest.main()

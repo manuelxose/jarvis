@@ -47,20 +47,20 @@ def main() -> int:
             message = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(message, dict):
+            continue
+        request_id = message.get("request_id")
+        turn_id = message.get("turn_id")
         event_type = message.get("event_type")
+        payload = message.get("payload")
+        if not all(isinstance(value, str) and value for value in (request_id, turn_id, event_type)):
+            continue
+        if not isinstance(payload, dict):
+            continue
         if event_type == "request":
-            handle(
-                str(message.get("request_id", "")),
-                str(message.get("turn_id", "")),
-                str((message.get("payload") or {}).get("text", "")),
-            )
+            handle(request_id, turn_id, str(payload.get("text", "")))
         elif event_type == "cancel":
-            emit(
-                str(message.get("request_id", "")),
-                str(message.get("turn_id", "")),
-                "cancelled",
-                {},
-            )
+            emit(request_id, turn_id, "cancelled", {})
     return 0
 
 

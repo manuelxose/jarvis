@@ -34,7 +34,19 @@ async def stream_lines(
     provider: str,
 ) -> AsyncIterator[str]:
     """Yield one decoded line of the streaming response at a time."""
+    context.cancellation.raise_if_cancelled()
     queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def _put(value: Optional[str]) -> None:
+        """Deliver worker output to the event loop that owns ``queue``."""
+        if loop.is_closed():
+            return
+        try:
+            loop.call_soon_threadsafe(queue.put_nowait, value)
+        except RuntimeError:
+            # A timed-out/cancelled consumer may have already closed its loop.
+            return
 
     def _produce() -> None:
         request = _build_request(url, payload, headers, timeout)
@@ -43,27 +55,27 @@ async def stream_lines(
                 status = getattr(response, "status", 200)
                 if status >= 400:
                     body = response.read(512).decode("utf-8", "replace")
-                    queue.put_nowait(f"__HTTP_ERROR__{status}__{body}")
+                    _put(f"__HTTP_ERROR__{status}__{body}")
                     return
                 for raw in response:
                     if context.cancellation.cancelled:
                         break
                     line = raw.decode("utf-8", "replace").strip()
                     if line:
-                        queue.put_nowait(line)
+                        _put(line)
         except urllib.error.HTTPError as error:
             body = ""
             try:
                 body = error.read(512).decode("utf-8", "replace")
             except Exception:
                 pass
-            queue.put_nowait(f"__HTTP_ERROR__{error.code}__{body}")
+            _put(f"__HTTP_ERROR__{error.code}__{body}")
         except urllib.error.URLError as error:
-            queue.put_nowait(f"__NETWORK_ERROR__{error.reason}")
+            _put(f"__NETWORK_ERROR__{error.reason}")
         except Exception as error:
-            queue.put_nowait(f"__ERROR__{type(error).__name__}:{error}")
+            _put(f"__ERROR__{type(error).__name__}:{error}")
         finally:
-            queue.put_nowait(None)
+            _put(None)
 
     thread = __import__("threading").Thread(target=_produce, daemon=True)
     thread.start()
