@@ -1,3 +1,5 @@
+"""Explicit legacy provisioning; never invoked by foundation packaging."""
+
 from __future__ import annotations
 
 import subprocess

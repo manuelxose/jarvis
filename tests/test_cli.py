@@ -7,8 +7,13 @@ import json
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from jarvis.apps.cli import main
+from jarvis.apps.runtime import FoundationRuntime
+from jarvis.core.contracts import HealthReport, HealthStatus
+from jarvis.core.lifecycle import Supervisor
+from jarvis.observability import InteractionTrace
 
 
 class CliTests(unittest.TestCase):
@@ -71,6 +76,44 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(1, result)
         self.assertIn("degraded", stdout.getvalue())
+
+    def test_shutdown_failure_is_in_final_report_and_exit_status(self):
+        class FailsOnStop:
+            name = "required cleanup"
+            required = True
+
+            async def start(self):
+                pass
+
+            async def health(self):
+                return HealthReport(self.name, HealthStatus.HEALTHY)
+
+            async def stop(self):
+                raise RuntimeError("release failed")
+
+        for args in (["doctor", "--json"], ["run", "--check-only"], ["run"]):
+            with self.subTest(args=args):
+                supervisor = Supervisor([FailsOnStop()])
+                runtime = FoundationRuntime(None, supervisor, InteractionTrace("shutdown"))
+                async def run_until_stopped():
+                    await supervisor.stop()
+                stdout = io.StringIO()
+                with patch("jarvis.apps.cli.create_foundation_runtime", return_value=runtime), patch.object(
+                    supervisor, "run_until_stopped", side_effect=run_until_stopped
+                ):
+                    result = main([*args, "--config", str(self.config_path)], stdout=stdout, stderr=io.StringIO())
+                self.assertEqual(result, 1)
+                self.assertIn("failed", stdout.getvalue())
+                self.assertIn("release failed", stdout.getvalue())
+
+    def test_healthy_doctor_still_returns_success_after_normal_shutdown(self):
+        runtime = FoundationRuntime(None, Supervisor([]), InteractionTrace("healthy"))
+        stdout = io.StringIO()
+        with patch("jarvis.apps.cli.create_foundation_runtime", return_value=runtime):
+            result = main(["doctor", "--json", "--config", str(self.config_path)],
+                          stdout=stdout, stderr=io.StringIO())
+        self.assertEqual(result, 0)
+        self.assertEqual(json.loads(stdout.getvalue())["state"], "ready")
 
 
 if __name__ == "__main__":
