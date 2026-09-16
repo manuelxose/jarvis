@@ -3,10 +3,11 @@
 ## Current status
 
 - **Workflow:** Jarvis v2 foundation plan.
-- **Phase:** Phase 00 legacy extraction complete; Phase 01 — Foundation is next.
+- **Phase:** Phase 00 legacy extraction complete; Phase 01 — Foundation verified.
 - **Approved design:** `docs/superpowers/specs/2026-09-16-jarvis-v2-design.md` at commit `1c0165999bdaa4a557883f2f90b3b3c33e48bddd`.
 - **Plan:** `docs/superpowers/plans/2026-09-16-jarvis-v2-foundation.md`.
 - **Evidence:** `.planning/research/legacy-extraction.md` records verified source and Graphify findings only.
+- **Foundation gate:** `.planning/phases/01-foundation/VERIFICATION.md` records the committed Tasks 1–6, local CI-equivalent checks, degraded-mode CLI smoke check, and local-only Graphify refresh.
 
 ## Decisions and constraints
 
@@ -24,4 +25,4 @@
 
 ## Next command
 
-`gsd execute-phase 01`
+`gsd plan-phase 02`
