@@ -8,15 +8,21 @@ from typing import Any
 
 _STAGES = frozenset(
     {
+        "wake_ms",
         "speech_start",
         "speech_end",
-        "transcript_ready",
-        "model_start",
-        "first_token",
-        "response_ready",
-        "synthesis_start",
-        "playback_start",
-        "playback_end",
+        "vad_finalize_ms",
+        "stt_first_partial_ms",
+        "stt_final_ms",
+        "routing_ms",
+        "memory_lookup_ms",
+        "provider_selection_ms",
+        "agent_first_token_ms",
+        "agent_total_ms",
+        "tts_first_audio_ms",
+        "tts_total_ms",
+        "playback_start_ms",
+        "total_request_ms",
     }
 )
 
@@ -44,7 +50,7 @@ class InteractionTrace:
     def as_dict(self) -> dict[str, Any]:
         """Return scalar trace data suitable for JSON serialization."""
         result: dict[str, Any] = {"trace_id": self.trace_id, "stages_ms": dict(self._stages_ms)}
-        first_audio = self.elapsed_ms("speech_end", "playback_start")
+        first_audio = self.elapsed_ms("speech_end", "playback_start_ms")
         if first_audio is not None:
             result["speech_end_to_first_audio_ms"] = first_audio
         return result
