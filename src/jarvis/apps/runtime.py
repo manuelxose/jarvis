@@ -50,13 +50,13 @@ class FoundationRuntime:
 
     def diagnostics(self) -> dict[str, object]:
         components = {
-            name: {
+            report.name: {
                 "status": report.status.value,
                 "detail": report.detail,
                 "required": report.required,
                 "retryable": report.retryable,
             }
-            for name, report in self.supervisor.health_snapshot().items()
+            for report in self.supervisor.health_snapshot()
         }
         return {
             "state": self.state.value,

@@ -1,13 +1,17 @@
 import sys
 import time
 import unittest
+from dataclasses import fields, FrozenInstanceError
 from pathlib import Path
 from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from jarvis.core.events import TurnCompleted, TurnStarted
+from jarvis.core.contracts import HealthReport, HealthStatus
+from jarvis.core.events import HealthChanged, RuntimeStateChanged, TurnCompleted, TurnStarted
+from jarvis.core.events import TurnCancelled as TurnCancelledEvent
+from jarvis.core.state import RuntimeState
 from jarvis.core.turn import CancellationToken, TurnCancelled, TurnContext
 from jarvis.config import (
     MemorySettings,
@@ -78,6 +82,17 @@ class TurnContextTests(unittest.TestCase):
         self.assertEqual(TurnCompleted(context, 12.5).elapsed_ms, 12.5)
         with self.assertRaises(AttributeError):
             TurnStarted(context).context = context
+
+        events = (
+            TurnStarted(context), TurnCompleted(context, 12.5), TurnCancelledEvent(context),
+            RuntimeStateChanged(RuntimeState.STARTING, RuntimeState.READY),
+            HealthChanged(HealthReport("audio", HealthStatus.HEALTHY)),
+        )
+        for event in events:
+            for field in fields(event):
+                with self.subTest(event=type(event).__name__, field=field.name):
+                    with self.assertRaises(FrozenInstanceError):
+                        setattr(event, field.name, getattr(event, field.name))
 
 
 if __name__ == "__main__":

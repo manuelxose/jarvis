@@ -70,6 +70,11 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_config(self.path, {})
 
+    def test_rejects_negative_command_deadline(self):
+        self.write_config({"runtime": {"command_deadline_ms": -1}})
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            load_config(self.path, {})
+
 
 if __name__ == "__main__":
     unittest.main()

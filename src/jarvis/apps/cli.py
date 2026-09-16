@@ -1,4 +1,12 @@
-"""Command-line diagnostics for the Jarvis foundation runtime."""
+"""Command-line entry points for the Jarvis runtime.
+
+Commands::
+
+    jarvis doctor    -- health diagnostics
+    jarvis run       -- start the runtime and report state
+    jarvis demo      -- headless end-to-end acceptance demo (fake adapters)
+    jarvis benchmark -- offline latency benchmark (fake adapters)
+"""
 
 from __future__ import annotations
 
@@ -7,10 +15,13 @@ import asyncio
 import json
 import logging
 import sys
+import tempfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Sequence, TextIO
 
 from jarvis.config import load_config
+from jarvis.core.contracts import HealthStatus
 from jarvis.core.state import RuntimeState
 from jarvis.observability.logging import configure_logging
 
@@ -45,35 +56,38 @@ class _Parser(argparse.ArgumentParser):
 def _parser(stdout: TextIO, stderr: TextIO) -> _Parser:
     parser = _Parser(
         prog="jarvis",
-        description="Jarvis foundation runtime diagnostics.",
+        description="Jarvis voice assistant runtime.",
         stdout=stdout,
         stderr=stderr,
     )
-    parser.add_argument("command", choices=("run", "doctor"), help="command to execute")
+    parser.add_argument(
+        "command", choices=("run", "doctor", "demo", "benchmark"), help="command to execute"
+    )
     parser.add_argument("--config", default="config.json", help="path to JSON configuration")
     parser.add_argument(
         "--check-only", action="store_true", help="run health checks without entering the runtime"
     )
-    parser.add_argument("--json", action="store_true", help="emit diagnostics as JSON")
+    parser.add_argument("--json", action="store_true", help="emit output as JSON")
     return parser
 
 
-async def _check(runtime: FoundationRuntime) -> dict[str, object]:
+async def _check(runtime: FoundationRuntime, *, run: bool = False) -> dict[str, object]:
     try:
-        return await runtime.check()
-    finally:
-        await runtime.stop()
-
-
-async def _run(runtime: FoundationRuntime) -> dict[str, object]:
-    try:
-        report = await runtime.check()
-        if runtime.state is RuntimeState.READY:
+        await runtime.check()
+        checked_state = runtime.state
+        if run and checked_state is RuntimeState.READY:
             await runtime.supervisor.run_until_stopped()
-            report = runtime.diagnostics()
-        return report
     finally:
         await runtime.stop()
+    report = runtime.diagnostics()
+    if runtime.state is RuntimeState.STOPPING:
+        if checked_state is RuntimeState.READY and any(
+            health.status is not HealthStatus.HEALTHY
+            for health in runtime.supervisor.health_snapshot()
+        ):
+            checked_state = RuntimeState.DEGRADED
+        report["state"] = checked_state.value
+    return report
 
 
 def _write_report(report: dict[str, object], stdout: TextIO, as_json: bool) -> None:
@@ -88,6 +102,52 @@ def _write_report(report: dict[str, object], stdout: TextIO, as_json: bool) -> N
         assert isinstance(health, dict)
         detail = health["detail"]
         stdout.write(f"{name}: {health['status']}" + (f" ({detail})" if detail else "") + "\n")
+
+
+def _temp_config(config):
+    """Point memory at a temporary database so demo/benchmark do not pollute the repo."""
+    return replace(
+        config, memory=replace(config.memory, db_path=str(Path(tempfile.mkdtemp()) / "jarvis.db"))
+    )
+
+
+def _run_demo_command(config, stdout: TextIO, as_json: bool) -> int:
+    from jarvis.application.demo import run_demo
+
+    config = _temp_config(config)
+    result = run_demo(config)
+    if as_json:
+        json.dump(result, stdout, sort_keys=True, ensure_ascii=False)
+        stdout.write("\n")
+    else:
+        _print_demo(result, stdout)
+    return 0 if result["startup_state"] == "ready" else 1
+
+
+def _print_demo(result: dict, stdout: TextIO) -> None:
+    stdout.write(f"startup_state: {result['startup_state']}\n")
+    stdout.write(f"shutdown_state: {result['shutdown_state']}\n")
+    for turn in result["turns"]:
+        stdout.write(f"turn {turn['route']}: {turn['text']!r} -> {turn['response']!r}\n")
+    stdout.write(f"memory_recall: {result['memory_recall']}\n")
+
+
+def _run_benchmark_command(config, stdout: TextIO, as_json: bool) -> int:
+    from jarvis.benchmarks import run_benchmarks
+
+    config = _temp_config(config)
+    result = run_benchmarks(config)
+    if as_json:
+        json.dump(result, stdout, sort_keys=True, ensure_ascii=False)
+        stdout.write("\n")
+    else:
+        stdout.write(f"cold_startup_ms: {result['cold_startup_ms']}\n")
+        stdout.write(f"barge_in_ms: {result['barge_in_ms']}\n")
+        for turn in result["turns"]:
+            stdout.write(
+                f"turn {turn['route']}: {turn['text']!r} -> {turn['elapsed_ms']} ms\n"
+            )
+    return 0
 
 
 def main(
@@ -118,10 +178,15 @@ def main(
         errors.write(f"error: invalid configuration: {error}\n")
         return 2
 
+    if args.command == "demo":
+        return _run_demo_command(config, output, args.json)
+    if args.command == "benchmark":
+        return _run_benchmark_command(config, output, args.json)
+
     configure_logging(logging.getLogger("jarvis.cli"), stream=errors)
     runtime = create_foundation_runtime(config)
     try:
-        report = asyncio.run(_check(runtime) if args.command == "doctor" or args.check_only else _run(runtime))
+        report = asyncio.run(_check(runtime, run=args.command == "run" and not args.check_only))
     except Exception as error:
         errors.write(f"error: runtime failure: {error}\n")
         return 1
