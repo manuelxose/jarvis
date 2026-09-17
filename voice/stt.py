@@ -8,6 +8,7 @@ import numpy as np
 from faster_whisper import WhisperModel
 
 from voice.audio_utils import record_until_silence
+from voice.runtime_support import timed_phase
 
 
 LOGGER = logging.getLogger(__name__)
@@ -84,11 +85,12 @@ class STTService:
             self.device,
             self.compute_type,
         )
-        self.model = WhisperModel(
-            self.model_size,
-            device=self.device,
-            compute_type=self.compute_type,
-        )
+        with timed_phase(LOGGER, "stt_model_load"):
+            self.model = WhisperModel(
+                self.model_size,
+                device=self.device,
+                compute_type=self.compute_type,
+            )
 
     def transcribe_audio(self, audio_data: np.ndarray) -> str:
         if audio_data.size == 0:
@@ -115,7 +117,8 @@ class STTService:
             kwargs["initial_prompt"] = self.initial_prompt
 
         try:
-            segments, _ = self.model.transcribe(prepared, **kwargs)
+            with timed_phase(LOGGER, "transcription"):
+                segments, _ = self.model.transcribe(prepared, **kwargs)
         except ValueError as exc:
             # When auto language detection receives no speech probabilities,
             # faster-whisper can raise "max() arg is an empty sequence".
@@ -125,29 +128,44 @@ class STTService:
         text = " ".join(segment.text.strip() for segment in segments if segment.text).strip()
         return _clean_text(text)
 
-    def transcribe_from_mic(self) -> str:
-        """Record from mic until silence and return transcription."""
+    def capture_from_mic(self) -> np.ndarray:
+        """Record from mic until silence."""
         try:
             capture_start = time.monotonic()
-            audio_data = record_until_silence(
-                sample_rate=self.capture_sample_rate,
-                channels=self.channels,
-                silence_threshold=self.silence_duration,
-                min_speech_duration=self.min_speech_duration,
-                max_record_seconds=self.max_record_seconds,
-                vad_mode=self.vad_mode,
-                input_device_index=self.input_device,
-            )
+            with timed_phase(LOGGER, "microphone_capture"):
+                    audio_data = record_until_silence(
+                    sample_rate=self.capture_sample_rate,
+                    channels=self.channels,
+                    silence_threshold=self.silence_duration,
+                    min_speech_duration=self.min_speech_duration,
+                    max_record_seconds=self.max_record_seconds,
+                    vad_mode=self.vad_mode,
+                    input_device_index=self.input_device,
+                )
             capture_elapsed = time.monotonic() - capture_start
             audio_seconds = float(audio_data.size) / float(self.capture_sample_rate) if audio_data.size else 0.0
+            capture_rms = (
+                float(np.sqrt(np.mean(np.square(audio_data)))) * 32768.0
+                if audio_data.size
+                else 0.0
+            )
             LOGGER.info(
-                "STT captured %.2fs audio in %.2fs (samples=%d, sample_rate=%d).",
+                "STT captured %.2fs audio in %.2fs (samples=%d, sample_rate=%d, rms=%.0f).",
                 audio_seconds,
                 capture_elapsed,
                 int(audio_data.size),
                 self.capture_sample_rate,
+                capture_rms,
             )
+            return audio_data
+        except Exception as exc:
+            LOGGER.exception("STT capture failed: %s", exc)
+            return np.array([], dtype=np.float32)
 
+    def transcribe_from_mic(self) -> str:
+        """Record from mic until silence and return transcription."""
+        try:
+            audio_data = self.capture_from_mic()
             transcribe_start = time.monotonic()
             text = self.transcribe_audio(audio_data)
             transcribe_elapsed = time.monotonic() - transcribe_start

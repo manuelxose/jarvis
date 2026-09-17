@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from dataclasses import dataclass
 from typing import Any, Generator
+
+from voice.runtime_support import timed_phase
 
 import requests
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class OllamaPreflight:
+    available: bool
+    message: str
+    elapsed_seconds: float
 
 
 class OllamaClient:
@@ -24,6 +35,32 @@ class OllamaClient:
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
+
+    def preflight(self, timeout: float = 2.0) -> OllamaPreflight:
+        """Check the local service and configured model before the first turn."""
+        started = time.monotonic()
+        try:
+            response = requests.get(f"{self.base_url}/api/tags", timeout=timeout)
+            response.raise_for_status()
+            payload = response.json()
+            names = {str(item.get("name", "")) for item in payload.get("models", [])}
+            if self.model not in names:
+                message = (
+                    f"Ollama is running but model '{self.model}' is missing. "
+                    f"Run: ollama pull {self.model}"
+                )
+                result = OllamaPreflight(False, message, time.monotonic() - started)
+            else:
+                result = OllamaPreflight(True, f"Ollama ready with model '{self.model}'.", time.monotonic() - started)
+        except Exception as exc:
+            result = OllamaPreflight(
+                False,
+                f"Ollama is unavailable at {self.base_url}. Run: ollama serve "
+                f"and verify the local service. Detail: {exc}",
+                time.monotonic() - started,
+            )
+        LOGGER.info("Ollama preflight available=%s elapsed_seconds=%.3f message=%s", result.available, result.elapsed_seconds, result.message)
+        return result
 
     def check_availability(self) -> bool:
         try:
@@ -59,14 +96,15 @@ class OllamaClient:
     def chat(self, messages: list[dict[str, str]], system_prompt: str) -> str:
         payload = self._build_payload(messages=messages, system_prompt=system_prompt, stream=False)
         try:
-            response = requests.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data.get("message", {}).get("content", "").strip()
+            with timed_phase(LOGGER, "ollama_request"):
+                response = requests.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("message", {}).get("content", "").strip()
         except Exception as exc:
             raise RuntimeError(
                 "Ollama chat request failed. Verify Ollama is running and model is available."

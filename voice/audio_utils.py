@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import io
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any
+
+from voice.runtime_support import CaptureBackend
 
 import numpy as np
 import pyaudio
@@ -66,6 +69,48 @@ def format_audio_device(index: int | None) -> str:
     return f"index={index}, name={info.get('name')}"
 
 
+def resolve_capture_backend(
+    preferred_index: int | None = None,
+    sample_rate: int = 16000,
+    channels: int = 1,
+) -> CaptureBackend:
+    """Resolve the backend used by both microphone checks and STT capture."""
+    reason: str | None = None
+    if sys.platform == "win32":
+        try:
+            hostapis = list(sd.query_hostapis())
+            wasapi_index, wasapi = next(
+                (i, host) for i, host in enumerate(hostapis)
+                if "WASAPI" in str(host.get("name", "")).upper()
+            )
+            candidate = preferred_index
+            if candidate is None or candidate < 0:
+                candidate = int(wasapi["default_input_device"])
+            device = sd.query_devices(candidate)
+            if int(device.get("hostapi", -1)) != wasapi_index or int(device.get("max_input_channels", 0)) < channels:
+                candidate = int(wasapi["default_input_device"])
+                device = sd.query_devices(candidate)
+            if candidate < 0 or int(device.get("max_input_channels", 0)) < channels:
+                raise RuntimeError("WASAPI has no usable input device")
+            native_rate = int(float(device.get("default_samplerate", sample_rate)))
+            backend = CaptureBackend("WASAPI", candidate, str(device.get("name", "unknown")), native_rate)
+            LOGGER.info("Audio capture resolved: %s", backend.describe())
+            return backend
+        except Exception as exc:
+            reason = f"WASAPI unavailable: {exc}"
+            LOGGER.warning("Audio capture fallback requested: %s", reason)
+    backend = CaptureBackend("PyAudio", preferred_index, "PyAudio fallback", sample_rate, reason if sys.platform == "win32" else None)
+    LOGGER.info("Audio capture resolved: %s", backend.describe())
+    return backend
+
+
+def _wasapi_default_input() -> tuple[int, int] | None:
+    backend = resolve_capture_backend() if sys.platform == "win32" else None
+    if backend is None or not backend.is_wasapi or backend.device_index is None:
+        return None
+    return (backend.device_index, backend.sample_rate)
+
+
 def _score_input_device(device: dict[str, Any], target_sample_rate: int, channels: int) -> float:
     if int(device.get("max_input_channels", 0)) < channels:
         return float("-inf")
@@ -74,7 +119,7 @@ def _score_input_device(device: dict[str, Any], target_sample_rate: int, channel
     score = 0.0
 
     if any(hint in name for hint in _BAD_INPUT_HINTS):
-        score -= 60.0
+        return float("-inf")
     if any(hint in name for hint in _MIC_HINTS):
         score += 50.0
 
@@ -165,6 +210,11 @@ def resolve_input_device(
     3) Probe the top candidates and pick one with actual signal.
     4) Fallback to top score when signal probing is inconclusive.
     """
+    if sys.platform == "win32":
+        backend = resolve_capture_backend(preferred_index, sample_rate, channels)
+        if backend.is_wasapi:
+            return backend.device_index
+
     if preferred_index is not None and not _can_open_input_device(
         preferred_index,
         sample_rate=sample_rate,
@@ -204,6 +254,8 @@ def resolve_input_device(
             target_sample_rate=sample_rate,
             channels=channels,
         )
+        if score == float("-inf"):
+            continue
         if index == preferred_index:
             score += 8.0
         if index == default_index:
@@ -251,6 +303,28 @@ def check_microphone_capture(
     """
     Validate microphone capture and return (ok, rms, message).
     """
+    backend = resolve_capture_backend(input_device_index, sample_rate, channels)
+    if backend.is_wasapi and backend.device_index is not None:
+        device_index, capture_rate = backend.device_index, backend.sample_rate
+        try:
+            audio = sd.rec(
+                max(1, int(capture_rate * probe_seconds)),
+                samplerate=capture_rate,
+                channels=channels,
+                dtype="int16",
+                device=device_index,
+                blocking=True,
+            )
+            rms = float(np.sqrt(np.mean(np.square(audio.astype(np.float32)))))
+            if rms < 1.0:
+                return (False, rms, "La entrada predeterminada WASAPI llega en silencio.")
+            return (True, rms, f"Microfono WASAPI operativo ({backend.describe()}).")
+        except Exception as exc:
+            fallback_index = input_device_index
+            backend = CaptureBackend("PyAudio", fallback_index, "PyAudio fallback", sample_rate, f"WASAPI health check failed: {exc}")
+            LOGGER.warning("Microphone health fallback: %s", backend.describe())
+            input_device_index = fallback_index
+
     pa = pyaudio.PyAudio()
     stream = None
     try:
@@ -285,7 +359,7 @@ def check_microphone_capture(
                 "Puede estar bloqueado por permisos de Windows o por otro software.",
             )
 
-        return (True, rms, "Microfono operativo.")
+        return (True, rms, f"Microfono operativo ({backend.describe()}).")
     except Exception as exc:
         return (False, 0.0, f"No se pudo abrir/capturar audio del microfono: {exc}")
     finally:
@@ -341,6 +415,17 @@ def play_audio(
     thread.start()
 
 
+def _resample_pcm16(samples: np.ndarray, source_rate: int, target_rate: int) -> np.ndarray:
+    if source_rate == target_rate or samples.size == 0:
+        return samples.astype(np.int16, copy=False)
+
+    output_size = max(1, round(samples.size * target_rate / source_rate))
+    source_positions = np.arange(samples.size, dtype=np.float64)
+    target_positions = np.arange(output_size, dtype=np.float64) * source_rate / target_rate
+    target_positions = np.minimum(target_positions, samples.size - 1)
+    return np.rint(np.interp(target_positions, source_positions, samples)).astype(np.int16)
+
+
 def record_until_silence(
     sample_rate: int = 16000,
     channels: int = 1,
@@ -360,19 +445,49 @@ def record_until_silence(
         raise ValueError("frame_duration_ms must be 10, 20 or 30")
 
     vad = webrtcvad.Vad(vad_mode)
-    chunk_size = int(sample_rate * frame_duration_ms / 1000)
-    frame_seconds = chunk_size / sample_rate
+    frame_seconds = frame_duration_ms / 1000
     max_frames = max(1, int(max_record_seconds / frame_seconds))
 
-    pa = pyaudio.PyAudio()
-    stream = pa.open(
-        format=pyaudio.paInt16,
-        channels=channels,
-        rate=sample_rate,
-        input=True,
-        frames_per_buffer=chunk_size,
-        input_device_index=input_device_index,
-    )
+    backend = resolve_capture_backend(input_device_index, sample_rate, channels)
+    pa = None
+    stream = None
+    if backend.is_wasapi and backend.device_index is not None:
+        try:
+            capture_rate = backend.sample_rate
+            chunk_size = int(capture_rate * frame_seconds)
+            stream = sd.InputStream(
+                samplerate=capture_rate,
+                channels=channels,
+                dtype="int16",
+                blocksize=chunk_size,
+                device=backend.device_index,
+            )
+            stream.start()
+            LOGGER.info("STT capture started: %s", backend.describe())
+        except Exception as exc:
+            backend = CaptureBackend("PyAudio", input_device_index, "PyAudio fallback", sample_rate, f"WASAPI capture failed: {exc}")
+            LOGGER.warning("%s", backend.describe())
+            stream = None
+    if stream is None:
+        pa = pyaudio.PyAudio()
+        capture_rate = sample_rate
+        if input_device_index is not None:
+            try:
+                device_info = pa.get_device_info_by_index(input_device_index)
+                capture_rate = int(device_info.get("defaultSampleRate", sample_rate))
+            except Exception:
+                capture_rate = sample_rate
+        if capture_rate <= 0:
+            capture_rate = sample_rate
+        chunk_size = int(capture_rate * frame_seconds)
+        stream = pa.open(
+            format=pyaudio.paInt16,
+            channels=channels,
+            rate=capture_rate,
+            input=True,
+            frames_per_buffer=chunk_size,
+            input_device_index=input_device_index,
+        )
 
     speech_started = False
     speech_duration = 0.0
@@ -391,10 +506,15 @@ def record_until_silence(
             if lead > frame_seconds:
                 time.sleep(min(lead - frame_seconds, frame_seconds))
 
-            frame = stream.read(chunk_size, exception_on_overflow=False)
+            if backend.is_wasapi and stream is not None:
+                frame, _ = stream.read(chunk_size)
+                input_frame = np.asarray(frame[:, 0], dtype=np.int16)
+            else:
+                frame = stream.read(chunk_size, exception_on_overflow=False)
+                input_frame = np.frombuffer(frame, dtype=np.int16)
             frames_read += 1
             expected_audio_seconds += frame_seconds
-            frame_int16 = np.frombuffer(frame, dtype=np.int16)
+            frame_int16 = _resample_pcm16(input_frame, capture_rate, sample_rate)
             if frame_int16.size > 1:
                 # Reduce low-frequency rumble/DC that can trigger false VAD positives.
                 hp = frame_int16.astype(np.int32)
@@ -402,27 +522,31 @@ def record_until_silence(
                 hp = np.clip(hp, -32768, 32767).astype(np.int16)
                 vad_frame = hp.tobytes()
             else:
-                vad_frame = frame
+                vad_frame = frame_int16.tobytes()
             is_speech = vad.is_speech(vad_frame, sample_rate)
 
             if is_speech:
                 speech_started = True
                 speech_duration += frame_seconds
                 trailing_silence = 0.0
-                collected_frames.append(frame)
+                collected_frames.append(frame_int16.tobytes())
                 continue
 
             if not speech_started:
                 continue
 
             trailing_silence += frame_seconds
-            collected_frames.append(frame)
+            collected_frames.append(frame_int16.tobytes())
             if speech_duration >= min_speech_duration and trailing_silence >= silence_threshold:
                 break
     finally:
-        stream.stop_stream()
+        if backend.is_wasapi and stream is not None:
+            stream.stop()
+        else:
+            stream.stop_stream()
         stream.close()
-        pa.terminate()
+        if pa is not None:
+            pa.terminate()
 
     if not collected_frames:
         return np.array([], dtype=np.float32)

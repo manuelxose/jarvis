@@ -165,7 +165,7 @@ try:
         warn    = "  [MIC SIN SEÑAL?]" if silent_chunks > 80 else ""
 
         print(
-            f"\r[{bar}] {score:.3f}  peak={peak_score:.3f}"
+            f"\r[{bar}] {score:.3f}  peak={detection_stats.peak_score:.3f}"
             f"  rms={rms:.0f}/{peak_rms:.0f}{status}{warn}   ",
             end="",
             flush=True,
