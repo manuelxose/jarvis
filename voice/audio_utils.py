@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+import enum
 import io
 import logging
 import threading
@@ -27,6 +29,96 @@ _BAD_INPUT_HINTS = (
     "primary sound capture",
     "microsoft sound mapper",
 )
+
+
+class Backend(enum.Enum):
+    """Capture backend identifiers shared by mic health checks and recording."""
+
+    WASAPI = "wasapi"
+    PYAUDIO = "pyaudio"
+
+
+@dataclasses.dataclass(frozen=True)
+class CaptureBackend:
+    """Single capture descriptor shared by microphone checks and recording."""
+
+    backend: Backend
+    device_index: int | None
+    sample_rate: int
+    channels: int
+    device_name: str | None = None
+    fallback_reason: str | None = None
+
+
+class MonotonicTimer:
+    """Stopwatch over ``time.monotonic`` for phase-duration diagnostics."""
+
+    def __init__(self) -> None:
+        self._start = time.monotonic()
+
+    def elapsed(self) -> float:
+        return time.monotonic() - self._start
+
+    def reset(self) -> None:
+        self._start = time.monotonic()
+
+
+def _find_wasapi_hostapi(hostapis: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for hostapi in hostapis:
+        if "wasapi" in str(hostapi.get("name", "")).lower():
+            return hostapi
+    return None
+
+
+def _query_hostapis() -> list[dict[str, Any]] | None:
+    """Return sounddevice hostapis, or None when sounddevice is unavailable."""
+    try:
+        import sounddevice as sd  # lazy import: keeps Linux/CI dependency-light
+    except ImportError:
+        return None
+    try:
+        return list(sd.query_hostapis())
+    except Exception:
+        return None
+
+
+def resolve_capture_backend(
+    preferred_index: int | None = None,
+    sample_rate: int = 16000,
+    channels: int = 1,
+) -> CaptureBackend:
+    """
+    Resolve the single capture backend descriptor used by mic checks and recording.
+
+    Prefers Windows WASAPI via sounddevice and falls back to PyAudio with an
+    explicit fallback reason. Pure resolution: no device is opened here.
+    """
+    hostapis = _query_hostapis()
+    if hostapis is None:
+        fallback_reason = "WASAPI (sounddevice) unavailable; falling back to PyAudio."
+    else:
+        wasapi = _find_wasapi_hostapi(hostapis)
+        if wasapi is not None:
+            device_index = (
+                preferred_index
+                if preferred_index is not None
+                else wasapi.get("default_input_device")
+            )
+            return CaptureBackend(
+                backend=Backend.WASAPI,
+                device_index=device_index,
+                sample_rate=sample_rate,
+                channels=channels,
+            )
+        fallback_reason = "WASAPI hostapi not found; falling back to PyAudio."
+
+    return CaptureBackend(
+        backend=Backend.PYAUDIO,
+        device_index=preferred_index,
+        sample_rate=sample_rate,
+        channels=channels,
+        fallback_reason=fallback_reason,
+    )
 
 
 def get_audio_devices() -> list[dict[str, Any]]:
