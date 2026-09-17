@@ -11,6 +11,7 @@ from TTS.api import TTS
 
 from cache.audio_cache import AudioCache, pregenerate_common_responses
 from voice.audio_utils import play_audio
+from voice.runtime_support import timed_phase
 
 
 LOGGER = logging.getLogger(__name__)
@@ -54,23 +55,31 @@ class TTSService:
             os.environ["COQUI_TOS_AGREED"] = "1"
             LOGGER.info("COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.")
 
-        LOGGER.info("Loading XTTS model '%s' on CPU...", self.model_name)
-        self.engine = TTS(self.model_name)
-        try:
-            self.engine.to("cpu")
-        except Exception:
-            # Some TTS builds do not expose .to() for this model.
-            LOGGER.debug("TTS engine .to('cpu') not available; continuing with default device.")
+        self.engine = None
+        LOGGER.info("XTTS model deferred until first synthesis: %s", self.model_name)
+
+    def _ensure_engine(self) -> None:
+        if self.engine is not None:
+            return
+        with timed_phase(LOGGER, "tts_model_load"):
+            LOGGER.info("Loading XTTS model '%s' on CPU...", self.model_name)
+            self.engine = TTS(self.model_name)
+            try:
+                self.engine.to("cpu")
+            except Exception:
+                LOGGER.debug("TTS engine .to('cpu') not available; continuing with default device.")
 
     def synthesize_to_file(self, text: str, output_path: Path) -> Path:
         clean_text = sanitize_voice_text(text)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.engine.tts_to_file(
-            text=clean_text,
-            file_path=str(output_path),
-            speaker_wav=[str(wav) for wav in self.speaker_wavs],
-            language=self.language,
-        )
+        self._ensure_engine()
+        with timed_phase(LOGGER, "synthesis"):
+                self.engine.tts_to_file(
+                text=clean_text,
+                file_path=str(output_path),
+                speaker_wav=[str(wav) for wav in self.speaker_wavs],
+                language=self.language,
+            )
         return output_path
 
     def generate_speech(self, text: str) -> Path:

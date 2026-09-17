@@ -59,6 +59,53 @@ class WakeWordDiagnosticTests(unittest.TestCase):
 
         self.assertEqual([1], filter_input_candidates(devices, [17, 1]))
 
+    def test_shared_input_selector_rejects_primary_capture_controller(self) -> None:
+        source = (Path(__file__).parents[1] / "voice" / "audio_utils.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'if any(hint in name for hint in _BAD_INPUT_HINTS):\n'
+            '        return float("-inf")',
+            source,
+        )
+        self.assertIn('if score == float("-inf"):\n            continue', source)
+
+    def test_stt_capture_uses_the_device_native_rate(self) -> None:
+        source = (Path(__file__).parents[1] / "voice" / "audio_utils.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('capture_rate = int(device_info.get("defaultSampleRate", sample_rate))', source)
+        self.assertIn("rate=capture_rate", source)
+        self.assertIn("_resample_pcm16", source)
+        self.assertIn("_wasapi_default_input", source)
+        self.assertIn("sd.InputStream", source)
+
+    def test_raw_audio_diagnostic_bypasses_stt_and_resampling(self) -> None:
+        diagnostic = Path(__file__).parents[1] / "diagnostico_audio_raw.py"
+        self.assertTrue(diagnostic.exists(), "falta el diagnóstico de audio crudo")
+        source = diagnostic.read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("default_sample_rate", source)
+        self.assertIn("diagnostico_audio_raw.wav", source)
+        self.assertIn("time.monotonic", source)
+        self.assertIn("JARVIS_DIAG_CHANNELS", source)
+        self.assertIn('== "max"', source)
+        self.assertNotIn("STTService", source)
+        self.assertNotIn("resample", source)
+
+    def test_wasapi_audio_diagnostic_uses_the_wasapi_default_input(self) -> None:
+        diagnostic = Path(__file__).parents[1] / "diagnostico_audio_wasapi.py"
+        self.assertTrue(diagnostic.exists(), "falta el diagnóstico WASAPI")
+        source = diagnostic.read_text(encoding="utf-8")
+
+        self.assertIn("Windows WASAPI", source)
+        self.assertIn("default_input_device", source)
+        self.assertIn("diagnostico_audio_wasapi.wav", source)
+
     def test_native_chunk_size_keeps_80ms_model_frames(self) -> None:
         self.assertEqual(1280, native_chunk_size(16000))
         self.assertEqual(3528, native_chunk_size(44100))
@@ -79,9 +126,39 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertIn("JARVIS_DIAG_THRESHOLD", source)
         self.assertIn("resample_to_16khz", source)
         self.assertIn("DetectionStats", source)
+        self.assertIn("peak={detection_stats.peak_score:.3f}", source)
         self.assertNotIn("audioop", source)
         self.assertNotIn("voice.audio_utils", source)
         self.assertNotIn("selected_device = candidate", source)
+        self.assertNotIn("peak={peak_score:.3f}", source)
+
+    def test_speech_diagnostic_transcribes_a_normal_phrase(self) -> None:
+        diagnostic = Path(__file__).parents[1] / "diagnostico_stt.py"
+        self.assertTrue(diagnostic.exists(), "falta el diagnóstico de transcripción")
+        source = diagnostic.read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("resolve_input_device", source)
+        self.assertIn("STTService", source)
+        self.assertIn("capture_from_mic", source)
+        self.assertIn("transcribe_audio(audio_data)", source)
+        self.assertIn("TRANSCRIPCION", source)
+        self.assertIn("logging.basicConfig", source)
+        self.assertIn("JARVIS_DIAG_STT_DISABLE_VAD", source)
+        self.assertIn("diagnostico_stt.wav", source)
+        self.assertIn("wave.open", source)
+        stt_source = (Path(__file__).parents[1] / "voice" / "stt.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("rms=%.0f", stt_source)
+
+    def test_whisper_vad_is_disabled_after_capture_vad(self) -> None:
+        config = (Path(__file__).parents[1] / "config.yaml").read_text(encoding="utf-8")
+
+        self.assertIn('model: "small"', config)
+        self.assertIn("whisper_vad_filter: false", config)
+        self.assertIn("auto_select_input: true", config)
 
 
 if __name__ == "__main__":

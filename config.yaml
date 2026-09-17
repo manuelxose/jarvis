@@ -21,7 +21,7 @@ wake_word:
   continuous_require_keyword: true
 
 stt:
-  model: "tiny"
+  model: "small"
   device: "cpu"
   compute_type: "int8"
   language: "es"
@@ -33,7 +33,7 @@ stt:
   min_speech_duration: 0.3
   max_record_seconds: 4
   vad_mode: 1
-  whisper_vad_filter: true
+  whisper_vad_filter: false
   whisper_beam_size: 1
 
 llm:
@@ -54,7 +54,7 @@ audio:
   sample_rate: 16000
   channels: 1
   chunk_size: 1024
-  auto_select_input: false
+  auto_select_input: true
   input_device: 5
   output_device: null
 
