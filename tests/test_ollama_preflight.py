@@ -12,6 +12,8 @@ Ollama install. They are written "tests first" to pin the preflight contract
 before T02 wires it into ``main.py`` startup logging and routing.
 """
 
+import sys
+import types
 import unittest
 from unittest import mock
 
@@ -23,6 +25,48 @@ from brain.llm import (
     OllamaClient,
     OllamaPreflight,
 )
+
+
+# ---------------------------------------------------------------------------
+# Stub heavy optional dependencies (colorlog, Coqui TTS, numpy, pyaudio,
+# openwakeword, ...) so the legacy ``main`` module can be imported in this
+# lightweight test environment (see AGENTS.md: "Use mocks/fakes around legacy
+# services"). ``run_ollama_preflight`` lives in ``main``, so the wiring tests
+# import it with the same stub set used by ``tests/test_runtime_performance.py``.
+# ---------------------------------------------------------------------------
+
+def _legacy_dependency_stubs() -> dict[str, types.ModuleType]:
+    stubs: dict[str, types.ModuleType] = {}
+    for name in (
+        "colorlog",
+        "TTS",
+        "TTS.api",
+        "numpy",
+        "psutil",
+        "pyautogui",
+        "pyaudio",
+        "sounddevice",
+        "soundfile",
+        "webrtcvad",
+        "faster_whisper",
+        "openwakeword",
+        "openwakeword.model",
+        "openwakeword.utils",
+    ):
+        stubs[name] = types.ModuleType(name)
+
+    stubs["colorlog"].ColoredFormatter = mock.Mock
+    stubs["colorlog"].StreamHandler = mock.Mock
+    stubs["TTS.api"].TTS = lambda *args, **kwargs: mock.Mock()
+    stubs["numpy"].int16 = object()
+    stubs["faster_whisper"].WhisperModel = mock.Mock
+    stubs["openwakeword.model"].Model = mock.Mock
+    stubs["openwakeword.utils"].download_models = mock.Mock
+    return stubs
+
+
+with mock.patch.dict(sys.modules, _legacy_dependency_stubs()):
+    import main  # noqa: E402
 
 
 class OllamaPreflightTests(unittest.TestCase):
@@ -133,6 +177,54 @@ class OllamaPreflightTests(unittest.TestCase):
 
     def test_default_preflight_timeout_is_bounded(self):
         self.assertEqual(5.0, OllamaClient().preflight_timeout)
+
+
+class MainPreflightWiringTests(unittest.TestCase):
+    """Pin that ``main.run_ollama_preflight`` drives startup via the bounded
+    preflight and logs the measured duration plus the exact local remediation.
+    """
+
+    def test_failed_preflight_logs_duration_and_exact_remediation(self):
+        result = OllamaPreflight(
+            ok=False,
+            error=MODEL_MISSING,
+            duration_seconds=0.042,
+            remediation="ollama pull mistral:7b-instruct",
+            detail="Model mistral:7b-instruct not present among 1 local model(s)",
+        )
+        client = mock.Mock()
+        client.preflight.return_value = result
+
+        with self.assertLogs("jarvis.main", level="INFO") as logs:
+            returned = main.run_ollama_preflight(client)
+
+        client.preflight.assert_called_once_with()
+        self.assertIs(returned, result)
+        combined = "\n".join(logs.output)
+        self.assertIn("duration=0.042s", combined)
+        self.assertIn(MODEL_MISSING, combined)
+        self.assertIn("ollama pull mistral:7b-instruct", combined)
+
+    def test_successful_preflight_logs_duration_without_remediation(self):
+        result = OllamaPreflight(
+            ok=True,
+            error=None,
+            duration_seconds=0.031,
+            remediation=None,
+            detail="Ollama ready: mistral:7b-instruct present",
+        )
+        client = mock.Mock()
+        client.preflight.return_value = result
+
+        with self.assertLogs("jarvis.main", level="INFO") as logs:
+            returned = main.run_ollama_preflight(client)
+
+        client.preflight.assert_called_once_with()
+        self.assertIs(returned, result)
+        combined = "\n".join(logs.output)
+        self.assertIn("ok=True", combined)
+        self.assertIn("duration=0.031s", combined)
+        self.assertTrue(all("Remediation:" not in line for line in logs.output))
 
 
 if __name__ == "__main__":

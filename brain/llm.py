@@ -126,27 +126,6 @@ class OllamaClient:
             detail=f"Ollama ready: {self.model} present",
         )
 
-    def check_availability(self) -> bool:
-        try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=self.timeout)
-            response.raise_for_status()
-            return True
-        except Exception as exc:
-            LOGGER.error("Ollama not reachable at %s: %s", self.base_url, exc)
-            return False
-
-    def check_model_available(self) -> bool:
-        try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=self.timeout)
-            response.raise_for_status()
-            payload = response.json()
-            models = payload.get("models", [])
-            names = {model.get("name", "") for model in models}
-            return self.model in names
-        except Exception as exc:
-            LOGGER.error("Could not verify Ollama model availability: %s", exc)
-            return False
-
     def _build_payload(self, messages: list[dict[str, str]], system_prompt: str, stream: bool) -> dict[str, Any]:
         ollama_messages = [{"role": "system", "content": system_prompt}]
         ollama_messages.extend(messages)

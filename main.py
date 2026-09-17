@@ -18,7 +18,7 @@ from actions.pc_control import PCController
 from actions.trading_monitor import TradingMonitor
 from actions.web_search import WebSearch
 from brain.action_router import ActionRouter
-from brain.llm import OllamaClient
+from brain.llm import OllamaClient, OllamaPreflight
 from brain.memory import MemoryStore
 from brain.prompt_builder import build_system_prompt
 from cache.audio_cache import AudioCache
@@ -161,6 +161,31 @@ def play_phrase(cache: AudioCache, tts: TTSService, phrase: str, blocking: bool 
     tts.speak(phrase, blocking=blocking)
 
 
+def run_ollama_preflight(ollama_client: OllamaClient) -> OllamaPreflight:
+    """Run the bounded startup preflight and log an actionable diagnostic.
+
+    Emits the measured duration and, on failure, the exact local remediation
+    command so startup reports a missing Ollama or a missing model early
+    (bounded by ``OllamaClient.preflight_timeout``) instead of failing later
+    during an opaque interaction.
+    """
+    preflight = ollama_client.preflight()
+    LOGGER.info(
+        "Ollama preflight: ok=%s, error=%s, duration=%.3fs",
+        preflight.ok,
+        preflight.error,
+        preflight.duration_seconds,
+    )
+    if not preflight.ok:
+        LOGGER.error(
+            "Ollama preflight failed (%s): %s. Remediation: %s",
+            preflight.error,
+            preflight.detail,
+            preflight.remediation,
+        )
+    return preflight
+
+
 def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
     llm_cfg = config["llm"]
     tts_cfg = config["tts"]
@@ -179,16 +204,8 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         temperature=float(llm_cfg.get("temperature", 0.7)),
         timeout=int(llm_cfg.get("timeout", 30)),
     )
-    ollama_ready = ollama_client.check_availability()
-    if not ollama_ready:
-        LOGGER.error("Ollama no esta disponible. Arrancalo y confirma el puerto 11434.")
-    elif not ollama_client.check_model_available():
-        LOGGER.error(
-            "Modelo %s no encontrado en Ollama. Ejecuta: ollama pull %s",
-            ollama_client.model,
-            ollama_client.model,
-        )
-        ollama_ready = False
+    preflight = run_ollama_preflight(ollama_client)
+    ollama_ready = preflight.ok
 
     audio_cache = AudioCache(base_dir / "cache" / "cached_responses")
 
