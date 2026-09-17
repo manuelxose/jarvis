@@ -6,7 +6,8 @@ jarvis:
 wake_word:
   openwakeword_enabled: false
   model: "hey_jarvis"
-  threshold: 0.04
+  threshold: 0.03
+  input_device: 6
   cooldown_seconds: 1.2
   hard_trigger_hits: 1
   soft_trigger_hits: 2

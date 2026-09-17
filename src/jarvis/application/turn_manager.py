@@ -167,8 +167,14 @@ class TurnManager:
                 decision.command.name, dict(decision.command.arguments), context
             )
         except ToolExecutionError as error:
-            return str(error)
-        return self._command_response(decision.command.name, result)
+            response = str(error)
+        else:
+            response = self._command_response(decision.command.name, result)
+        # A command result (or its error message) is spoken so the user hears the
+        # outcome rather than a silent execution; this is the milestone's spoken
+        # response guarantee for the fast-command path.
+        await self._speak_text(response, context)
+        return response
 
     def _command_response(self, name: str, result: Any) -> str:
         if isinstance(result, str):

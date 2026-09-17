@@ -12,15 +12,75 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 import inspect
+import io
+import wave
 from typing import Any, AsyncIterator, Callable, Optional
 
 from jarvis.core.contracts import AudioPlayer, TurnContext
+from jarvis.core.errors import ProviderUnavailable
 from jarvis.core.turn import TurnCancelled
 
 
 async def _silent_render(turn_id: str, chunk: bytes) -> None:
     """Default no-op renderer used when no audio device is available."""
     return None
+
+
+def decode_wav(data: bytes) -> tuple[bytes, int, int, int]:
+    """Decode a WAV blob into raw frames and its stream metadata.
+
+    Returns ``(frames, framerate, channels, sampwidth)`` using only the stdlib
+    ``wave`` module so the contract tier has no external dependency.
+    """
+    with wave.open(io.BytesIO(data), "rb") as wav:
+        return (
+            wav.readframes(wav.getnframes()),
+            wav.getframerate(),
+            wav.getnchannels(),
+            wav.getsampwidth(),
+        )
+
+
+def make_sounddevice_render(
+    device: int | str | None = None,
+) -> Callable[[str, bytes], Any]:
+    """Build an async renderer that plays decoded WAV frames on a device.
+
+    The blocking ``sounddevice``/``numpy`` calls are lazy-imported and offloaded
+    to a thread so the queue worker never blocks the event loop and the contract
+    tier stays importable without those optional dependencies.
+    """
+
+    def _blocking(chunk: bytes) -> None:
+        try:
+            import sounddevice as sd  # noqa: PLC0415
+        except (ImportError, OSError) as error:
+            # A sounddevice install without the PortAudio shared library raises
+            # OSError at import, so it must read as "unavailable" too.
+            raise ProviderUnavailable(
+                "sounddevice/PortAudio is unavailable; audio playback unavailable",
+                provider="audio",
+            ) from error
+        import numpy as np  # noqa: PLC0415
+
+        frames, rate, channels, sampwidth = decode_wav(chunk)
+        if sampwidth != 2:
+            raise ProviderUnavailable("unsupported WAV sample width", provider="audio")
+        samples = np.frombuffer(frames, dtype=np.int16).reshape(-1, channels)
+        try:
+            sd.play(samples, samplerate=rate, device=device, blocking=True)
+        except (sd.PortAudioError, OSError) as error:
+            # Device open/write failures (unplugged device, PortAudio error) must
+            # reach callers as ProviderUnavailable, not as a raw driver error.
+            raise ProviderUnavailable(
+                f"audio device playback failed: {error}", provider="audio"
+            ) from error
+
+    async def render(turn_id: str, chunk: bytes) -> None:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _blocking, chunk)
+
+    return render
 
 
 class AudioOutputQueue:

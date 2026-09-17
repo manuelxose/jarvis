@@ -15,9 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from jarvis.adapters.audio import EnergyVAD, OpenWakeWordDetector
 from jarvis.adapters.audio.activation import ActivationManager
 from jarvis.adapters.audio.input import MicCapture
-from jarvis.adapters.audio.output import AudioOutputQueue
+from jarvis.adapters.audio.output import AudioOutputQueue, make_sounddevice_render
 from jarvis.adapters.fakes import (
     EchoTTS,
     RecordingAudioPlayer,
@@ -26,6 +27,7 @@ from jarvis.adapters.fakes import (
     ScriptedMemory,
     ScriptedModel,
     ScriptedSTT,
+    ScriptedWakeDetector,
 )
 from jarvis.adapters.hermes.child import HermesChildAdapter
 from jarvis.adapters.memory.service import MemoryService
@@ -33,8 +35,8 @@ from jarvis.adapters.memory.store import MemoryStore
 from jarvis.adapters.models.fallback import ProviderChain
 from jarvis.adapters.models.ollama import OllamaProvider
 from jarvis.adapters.models.openai_compat import OpenAICompatProvider
-from jarvis.adapters.stt import WhisperSTT, whisper_available
-from jarvis.adapters.tts import LocalTTS, local_tts_available
+from jarvis.adapters.stt import resolve_stt, stt_available, stt_provider
+from jarvis.adapters.tts import resolve_tts, tts_available, tts_provider
 from jarvis.adapters.tools.gateway import Risk, Tool, ToolGateway
 from jarvis.adapters.tools.windows import build_windows_tools
 from jarvis.config import RuntimeConfig
@@ -52,6 +54,7 @@ from jarvis.observability.metrics import LatencyMetrics
 
 from .routing import Router
 from .turn_manager import TurnManager, TurnResult
+from .voice_loop import VoiceLoop
 
 
 @dataclass
@@ -62,6 +65,7 @@ class RuntimeComponents:
     tools: ToolGateway
     audio_output: AudioOutputQueue
     turn_manager: TurnManager
+    voice_loop: VoiceLoop
 
 
 class JarvisRuntime:
@@ -74,12 +78,14 @@ class JarvisRuntime:
         components: RuntimeComponents,
         *,
         activation: ActivationManager,
+        voice_loop: VoiceLoop,
         metrics: LatencyMetrics | None = None,
     ) -> None:
         self.config = config
         self.supervisor = supervisor
         self.components = components
         self.activation = activation
+        self.voice_loop = voice_loop
         self.metrics = metrics or LatencyMetrics()
 
     @property
@@ -90,10 +96,15 @@ class JarvisRuntime:
         await self.supervisor.start()
 
     async def stop(self) -> None:
+        self.voice_loop.request_stop()
         await self.supervisor.stop()
 
-    async def run_until_stopped(self) -> None:
-        await self.supervisor.run_until_stopped()
+    async def run_until_stopped(self, max_turns: int | None = None) -> None:
+        await self.supervisor.start()
+        try:
+            await self.voice_loop.run(max_turns=max_turns)
+        finally:
+            await self.supervisor.stop()
 
     async def handle(self, text: str, conversation_id: str = "demo") -> TurnResult:
         started = time.monotonic()
@@ -119,13 +130,24 @@ class JarvisRuntime:
             },
             "metrics": self.metrics.summary(),
             "audio_queue": self.components.audio_output.state(),
+            "voice_loop": self.voice_loop.state(),
         }
 
 
-def build_runtime(config: RuntimeConfig, *, use_fakes: bool = False) -> JarvisRuntime:
-    """Compose the runtime. ``use_fakes=True`` yields a fully-healthy offline runtime."""
+def build_runtime(
+    config: RuntimeConfig,
+    *,
+    use_fakes: bool = False,
+    fake_stt: Any = None,
+) -> JarvisRuntime:
+    """Compose the runtime. ``use_fakes=True`` yields a fully-healthy offline runtime.
+
+    ``fake_stt`` overrides the scripted STT transcript when ``use_fakes=True``,
+    so the hardware-acceptance harness can drive a specific utterance through
+    the voice loop without audio hardware or provider credentials.
+    """
     if use_fakes:
-        return _build_fake_runtime(config)
+        return _build_fake_runtime(config, stt=fake_stt)
     return _build_real_runtime(config)
 
 
@@ -138,14 +160,9 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         restart_max=config.hermes.restart_max,
     )
     tools = _build_tools(config, confirmer=None)
-    audio_output = AudioOutputQueue()
-    tts = LocalTTS(language=config.tts.language)
-    stt = WhisperSTT(
-        model=config.stt.model,
-        language=config.stt.language or None,
-        device=config.stt.device,
-        sample_rate=config.audio.sample_rate,
-    )
+    audio_output = AudioOutputQueue(render=make_sounddevice_render(device=config.audio.output_device))
+    tts = resolve_tts(config)
+    stt = resolve_stt(config)
     audio_input = MicCapture(
         sample_rate=config.audio.sample_rate,
         channels=config.audio.channels,
@@ -162,9 +179,8 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         hermes=hermes,
         memory=memory,
     )
-    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager)
 
-    health_components = _real_health_components(config, memory, model, hermes, stt, tts, audio_input, audio_output)
+    health_components = _real_health_components(config, memory, model, hermes, audio_input, audio_output)
     supervisor = Supervisor(health_components)
     activation = ActivationManager(
         mode=config.activation.mode,
@@ -172,18 +188,29 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         cooldown_seconds=config.activation.cooldown_seconds,
         conversation_timeout_seconds=config.activation.conversation_timeout_seconds,
     )
-    return JarvisRuntime(config, supervisor, components, activation=activation)
+    wake = OpenWakeWordDetector(sample_rate=config.audio.sample_rate)
+    vad = EnergyVAD()
+    voice_loop = VoiceLoop(
+        audio=audio_input,
+        wake=wake,
+        vad=vad,
+        stt=stt,
+        turn_manager=turn_manager,
+        activation=activation,
+    )
+    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop)
+    return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 
 
-def _build_fake_runtime(config: RuntimeConfig) -> JarvisRuntime:
+def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRuntime:
     memory = _build_memory(config)
     model = ScriptedModel({"": "Respuesta de demostracion."}, default="Respuesta de demostracion.")
     hermes = ScriptedHermes()
     tools = _build_tools(config, confirmer=_auto_approve)
     audio_output = AudioOutputQueue(render=_recording_render([]))
     tts = EchoTTS()
-    stt = ScriptedSTT([Transcript("hola jarvis", is_final=True)])
-    audio_input = ScriptedAudioInput()
+    stt = stt or ScriptedSTT([Transcript("hola jarvis", is_final=True)])
+    audio_input = ScriptedAudioInput(frames=[b"\x00\x00" * 8] * 7)
 
     router = Router()
     turn_manager = TurnManager(
@@ -195,7 +222,6 @@ def _build_fake_runtime(config: RuntimeConfig) -> JarvisRuntime:
         hermes=hermes,
         memory=memory,
     )
-    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager)
 
     health_components = _fake_health_components(config, memory)
     supervisor = Supervisor(health_components)
@@ -205,7 +231,18 @@ def _build_fake_runtime(config: RuntimeConfig) -> JarvisRuntime:
         cooldown_seconds=config.activation.cooldown_seconds,
         conversation_timeout_seconds=config.activation.conversation_timeout_seconds,
     )
-    return JarvisRuntime(config, supervisor, components, activation=activation)
+    wake = ScriptedWakeDetector([True])
+    vad = EnergyVAD()
+    voice_loop = VoiceLoop(
+        audio=audio_input,
+        wake=wake,
+        vad=vad,
+        stt=stt,
+        turn_manager=turn_manager,
+        activation=activation,
+    )
+    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop)
+    return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 
 
 def _build_memory(config: RuntimeConfig) -> MemoryService:
@@ -271,22 +308,75 @@ def _storage_report(config: RuntimeConfig) -> HealthReport:
     )
 
 
+def _stt_report(config: RuntimeConfig) -> HealthReport:
+    provider = stt_provider(config)
+    available = stt_available(config)
+    if provider == "sapi":
+        healthy_detail = "sapi adapter"
+        degraded_detail = "sapi adapter unavailable (comtypes)"
+    else:
+        healthy_detail = "whisper (faster-whisper)"
+        degraded_detail = "adapter dependency unavailable"
+    if available:
+        return HealthReport("STT", HealthStatus.HEALTHY, healthy_detail)
+    return HealthReport("STT", HealthStatus.DEGRADED, degraded_detail, required=False)
+
+
+def _tts_report(config: RuntimeConfig) -> HealthReport:
+    provider = tts_provider(config)
+    available = tts_available(config)
+    if provider == "sapi":
+        healthy_detail = "pyttsx3 adapter"
+        degraded_detail = "pyttsx3 adapter unavailable"
+    else:
+        healthy_detail = "coqui (XTTS-v2)"
+        degraded_detail = "adapter dependency unavailable"
+    if available:
+        return HealthReport("TTS", HealthStatus.HEALTHY, healthy_detail)
+    return HealthReport("TTS", HealthStatus.DEGRADED, degraded_detail, required=False)
+
+
+def _ollama_reachable(base_url: str, timeout_seconds: float = 1.5) -> bool:
+    """Best-effort synchronous probe of an Ollama ``/api/version`` endpoint.
+
+    Returns True only for a sub-400 HTTP status. Connection, DNS, timeout, and
+    malformed-URL errors all resolve to False so a configured-but-down Ollama
+    reads degraded rather than healthy.
+    """
+    import urllib.error
+    import urllib.request
+
+    url = f"{base_url.rstrip('/')}/api/version"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
+            return response.status < 400
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
 def _real_health_components(
     config: RuntimeConfig,
     memory: MemoryService,
     model: ModelProvider,
     hermes: HermesChildAdapter,
-    stt: WhisperSTT,
-    tts: LocalTTS,
     audio_input: MicCapture,
     audio_output: AudioOutputQueue,
 ) -> list[ManagedComponent]:
     def _model_report() -> HealthReport:
         chain = model if isinstance(model, ProviderChain) else None
         count = len(chain.providers) if chain else 0
-        if count:
-            return HealthReport("fast model", HealthStatus.HEALTHY, f"{count} provider(s)")
-        return HealthReport("fast model", HealthStatus.DEGRADED, "no model providers configured", required=False)
+        if not count:
+            return HealthReport("fast model", HealthStatus.DEGRADED, "no model providers configured", required=False)
+        ollama_providers = [
+            provider
+            for provider in (chain.providers if chain else ())
+            if isinstance(provider, OllamaProvider) and provider.base_url
+        ]
+        if ollama_providers and not any(
+            _ollama_reachable(provider.base_url) for provider in ollama_providers
+        ):
+            return HealthReport("fast model", HealthStatus.DEGRADED, "Ollama unreachable", required=False)
+        return HealthReport("fast model", HealthStatus.HEALTHY, f"{count} provider(s)")
 
     return [
         _StaticComponent("configuration", HealthReport("configuration", HealthStatus.HEALTHY, "configuration loaded"), required=True),
@@ -298,9 +388,17 @@ def _real_health_components(
             stop=memory.close,
         ),
         _StaticComponent("audio input", _availability_report("audio input", _audio_available()), required=False),
-        _StaticComponent("audio output", HealthReport("audio output", HealthStatus.HEALTHY, "playback queue ready"), required=False),
-        _StaticComponent("STT", _availability_report("STT", whisper_available()), required=False),
-        _StaticComponent("TTS", _availability_report("TTS", local_tts_available()), required=False),
+        _StaticComponent(
+            "audio output",
+            _availability_report(
+                "audio output",
+                _audio_output_available(),
+                detail="no PortAudio output device available",
+            ),
+            required=False,
+        ),
+        _StaticComponent("STT", _stt_report(config), required=False),
+        _StaticComponent("TTS", _tts_report(config), required=False),
         _StaticComponent("fast model", _model_report(), required=False),
         _StaticComponent(
             "Hermes",
@@ -332,13 +430,34 @@ def _availability_report(name: str, available: bool, detail: str = "adapter depe
     return HealthReport(name, HealthStatus.DEGRADED, detail, required=False)
 
 
-def _audio_available() -> bool:
-    try:
-        import sounddevice  # noqa: F401
+def _sounddevice():
+    """Return the sounddevice module, or None when the package/PortAudio is missing.
 
-        return True
-    except ImportError:
+    A sounddevice install without the PortAudio shared library raises OSError at
+    import, so that must read as "unavailable" too rather than crash doctor.
+    """
+    try:
+        import sounddevice as sd  # noqa: PLC0415
+
+        return sd
+    except (ImportError, OSError):
+        return None
+
+
+def _audio_available() -> bool:
+    return _sounddevice() is not None
+
+
+def _audio_output_available() -> bool:
+    """Probe a real output device so doctor cannot report a static HEALTHY."""
+    sd = _sounddevice()
+    if sd is None:
         return False
+    try:
+        sd.query_devices(kind="output")
+    except Exception:  # noqa: BLE001 - a probe that raises cannot confirm output either
+        return False
+    return True
 
 
 class _StaticComponent:

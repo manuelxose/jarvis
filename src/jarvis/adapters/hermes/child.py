@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+import os
 import sys
 import time
 from typing import AsyncIterator, Optional
@@ -44,10 +45,12 @@ class HermesChildAdapter:
         *,
         timeout_seconds: float = 300.0,
         restart_max: int = 3,
+        env: Optional[dict] = None,
     ) -> None:
         self._command = default_command() if command is None else list(command)
         self._timeout = timeout_seconds
         self._restart_max = max(0, restart_max)
+        self._env = env
         self._process: Optional[asyncio.subprocess.Process] = None
         self._restarts = 0
         self._last_error = ""
@@ -103,6 +106,7 @@ class HermesChildAdapter:
                 stdout=asyncio.subprocess.PIPE,
                 # Avoid an unconsumed stderr pipe blocking a noisy child.
                 stderr=asyncio.subprocess.DEVNULL,
+                env={**os.environ, **(self._env or {})},
             )
         except (OSError, FileNotFoundError) as error:
             self._last_error = f"failed to start Hermes child: {error}"
