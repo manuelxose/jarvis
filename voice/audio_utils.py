@@ -121,6 +121,106 @@ def resolve_capture_backend(
     )
 
 
+def format_capture_backend(capture: CaptureBackend) -> str:
+    """Render a single-line diagnostic summary of a resolved capture backend."""
+    fallback = (
+        f", fallback_reason={capture.fallback_reason!r}"
+        if capture.fallback_reason
+        else ""
+    )
+    return (
+        f"backend={capture.backend.value}, device_index={capture.device_index}, "
+        f"sample_rate={capture.sample_rate}, channels={capture.channels}{fallback}"
+    )
+
+
+def _normalize_backend(
+    backend: CaptureBackend | Backend | None,
+    device_index: int | None,
+    sample_rate: int,
+    channels: int,
+) -> CaptureBackend:
+    """Return a concrete ``CaptureBackend`` from a caller hint or auto-resolution."""
+    if isinstance(backend, CaptureBackend):
+        return backend
+    if isinstance(backend, Backend):
+        return CaptureBackend(
+            backend=backend,
+            device_index=device_index,
+            sample_rate=sample_rate,
+            channels=channels,
+        )
+    return resolve_capture_backend(
+        preferred_index=device_index,
+        sample_rate=sample_rate,
+        channels=channels,
+    )
+
+
+class _PyAudioInputStream:
+    """Uniform wrapper over a PyAudio input stream."""
+
+    def __init__(self, pa: Any, stream: Any) -> None:
+        self._pa = pa
+        self._stream = stream
+
+    def read(self, frames: int) -> bytes:
+        return self._stream.read(frames, exception_on_overflow=False)
+
+    def close(self) -> None:
+        try:
+            if self._stream.is_active():
+                self._stream.stop_stream()
+        finally:
+            self._stream.close()
+            self._pa.terminate()
+
+
+class _SoundDeviceInputStream:
+    """Uniform wrapper over a sounddevice (WASAPI) input stream."""
+
+    def __init__(self, stream: Any) -> None:
+        self._stream = stream
+
+    def read(self, frames: int) -> bytes:
+        data, _overflowed = self._stream.read(frames)
+        return data.tobytes()
+
+    def close(self) -> None:
+        try:
+            self._stream.stop()
+        finally:
+            self._stream.close()
+
+
+def _open_input_stream(capture: CaptureBackend, frames_per_buffer: int) -> Any:
+    """Open an input stream for the resolved capture backend."""
+    if capture.backend is Backend.WASAPI:
+        import sounddevice as sd  # lazy import: keeps Linux/CI dependency-light
+
+        stream = sd.InputStream(
+            samplerate=capture.sample_rate,
+            channels=capture.channels,
+            dtype="int16",
+            device=capture.device_index,
+        )
+        stream.start()
+        return _SoundDeviceInputStream(stream)
+
+    import pyaudio  # lazy import mirrors the sounddevice path above
+
+    pa = pyaudio.PyAudio()
+    stream = pa.open(
+        format=pyaudio.paInt16,
+        channels=capture.channels,
+        rate=capture.sample_rate,
+        input=True,
+        frames_per_buffer=frames_per_buffer,
+        input_device_index=capture.device_index,
+    )
+    return _PyAudioInputStream(pa, stream)
+
+
 def get_audio_devices() -> list[dict[str, Any]]:
     """Return available audio devices from PortAudio."""
     pa = pyaudio.PyAudio()
@@ -180,26 +280,22 @@ def _score_input_device(device: dict[str, Any], target_sample_rate: int, channel
     return score
 
 
-def _can_open_input_device(index: int | None, sample_rate: int, channels: int) -> bool:
-    pa = pyaudio.PyAudio()
+def _can_open_input_device(
+    index: int | None,
+    sample_rate: int,
+    channels: int,
+    backend: CaptureBackend | Backend | None = None,
+) -> bool:
+    capture = _normalize_backend(backend, index, sample_rate, channels)
     stream = None
     try:
-        stream = pa.open(
-            format=pyaudio.paInt16,
-            channels=channels,
-            rate=sample_rate,
-            input=True,
-            frames_per_buffer=512,
-            input_device_index=index,
-        )
+        stream = _open_input_stream(capture, frames_per_buffer=512)
         return True
     except Exception:
         return False
     finally:
         if stream is not None:
-            stream.stop_stream()
             stream.close()
-        pa.terminate()
 
 
 def _probe_input_rms(
@@ -207,24 +303,18 @@ def _probe_input_rms(
     sample_rate: int,
     channels: int,
     probe_seconds: float = 0.4,
+    backend: CaptureBackend | Backend | None = None,
 ) -> float:
-    pa = pyaudio.PyAudio()
+    capture = _normalize_backend(backend, index, sample_rate, channels)
     stream = None
     try:
         chunk = 512
         loops = max(1, int((sample_rate * probe_seconds) / chunk))
-        stream = pa.open(
-            format=pyaudio.paInt16,
-            channels=channels,
-            rate=sample_rate,
-            input=True,
-            frames_per_buffer=chunk,
-            input_device_index=index,
-        )
+        stream = _open_input_stream(capture, frames_per_buffer=chunk)
 
         rms_values: list[float] = []
         for _ in range(loops):
-            frame = stream.read(chunk, exception_on_overflow=False)
+            frame = stream.read(chunk)
             pcm = np.frombuffer(frame, dtype=np.int16).astype(np.float32)
             if pcm.size == 0:
                 continue
@@ -237,9 +327,7 @@ def _probe_input_rms(
         return 0.0
     finally:
         if stream is not None:
-            stream.stop_stream()
             stream.close()
-        pa.terminate()
 
 
 def resolve_input_device(
@@ -247,6 +335,7 @@ def resolve_input_device(
     sample_rate: int = 16000,
     channels: int = 1,
     auto_select: bool = True,
+    backend: CaptureBackend | Backend | None = None,
 ) -> int | None:
     """
     Return a working microphone index.
@@ -257,10 +346,13 @@ def resolve_input_device(
     3) Probe the top candidates and pick one with actual signal.
     4) Fallback to top score when signal probing is inconclusive.
     """
+    backend_kind = _normalize_backend(backend, preferred_index, sample_rate, channels).backend
+
     if preferred_index is not None and not _can_open_input_device(
         preferred_index,
         sample_rate=sample_rate,
         channels=channels,
+        backend=backend_kind,
     ):
         LOGGER.warning(
             "Configured input_device=%s is not usable. Falling back to auto selection.",
@@ -288,7 +380,9 @@ def resolve_input_device(
             continue
 
         index = int(device["index"])
-        if not _can_open_input_device(index, sample_rate=sample_rate, channels=channels):
+        if not _can_open_input_device(
+            index, sample_rate=sample_rate, channels=channels, backend=backend_kind
+        ):
             continue
 
         score = _score_input_device(
@@ -319,6 +413,7 @@ def resolve_input_device(
             sample_rate=sample_rate,
             channels=channels,
             probe_seconds=0.45,
+            backend=backend_kind,
         )
         LOGGER.info(
             "Input probe index=%s rms=%.2f",
@@ -339,27 +434,22 @@ def check_microphone_capture(
     sample_rate: int = 16000,
     channels: int = 1,
     probe_seconds: float = 0.8,
+    backend: CaptureBackend | Backend | None = None,
 ) -> tuple[bool, float, str]:
     """
     Validate microphone capture and return (ok, rms, message).
     """
-    pa = pyaudio.PyAudio()
+    capture = _normalize_backend(backend, input_device_index, sample_rate, channels)
+    LOGGER.info("Microphone check using %s", format_capture_backend(capture))
     stream = None
     try:
         chunk = 512
         loops = max(1, int((sample_rate * probe_seconds) / chunk))
-        stream = pa.open(
-            format=pyaudio.paInt16,
-            channels=channels,
-            rate=sample_rate,
-            input=True,
-            frames_per_buffer=chunk,
-            input_device_index=input_device_index,
-        )
+        stream = _open_input_stream(capture, frames_per_buffer=chunk)
 
         rms_values: list[float] = []
         for _ in range(loops):
-            frame = stream.read(chunk, exception_on_overflow=False)
+            frame = stream.read(chunk)
             pcm = np.frombuffer(frame, dtype=np.int16).astype(np.float32)
             if pcm.size == 0:
                 continue
@@ -382,9 +472,7 @@ def check_microphone_capture(
         return (False, 0.0, f"No se pudo abrir/capturar audio del microfono: {exc}")
     finally:
         if stream is not None:
-            stream.stop_stream()
             stream.close()
-        pa.terminate()
 
 
 def play_beep(
@@ -442,6 +530,7 @@ def record_until_silence(
     vad_mode: int = 2,
     frame_duration_ms: int = 30,
     input_device_index: int | None = None,
+    backend: CaptureBackend | Backend | None = None,
 ) -> np.ndarray:
     """
     Record from microphone and stop after trailing silence.
@@ -456,15 +545,9 @@ def record_until_silence(
     frame_seconds = chunk_size / sample_rate
     max_frames = max(1, int(max_record_seconds / frame_seconds))
 
-    pa = pyaudio.PyAudio()
-    stream = pa.open(
-        format=pyaudio.paInt16,
-        channels=channels,
-        rate=sample_rate,
-        input=True,
-        frames_per_buffer=chunk_size,
-        input_device_index=input_device_index,
-    )
+    capture = _normalize_backend(backend, input_device_index, sample_rate, channels)
+    LOGGER.info("Recording using %s", format_capture_backend(capture))
+    stream = _open_input_stream(capture, frames_per_buffer=chunk_size)
 
     speech_started = False
     speech_duration = 0.0
@@ -483,7 +566,7 @@ def record_until_silence(
             if lead > frame_seconds:
                 time.sleep(min(lead - frame_seconds, frame_seconds))
 
-            frame = stream.read(chunk_size, exception_on_overflow=False)
+            frame = stream.read(chunk_size)
             frames_read += 1
             expected_audio_seconds += frame_seconds
             frame_int16 = np.frombuffer(frame, dtype=np.int16)
@@ -512,9 +595,7 @@ def record_until_silence(
             if speech_duration >= min_speech_duration and trailing_silence >= silence_threshold:
                 break
     finally:
-        stream.stop_stream()
         stream.close()
-        pa.terminate()
 
     if not collected_frames:
         return np.array([], dtype=np.float32)

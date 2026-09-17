@@ -174,5 +174,166 @@ class MonotonicTimerTests(unittest.TestCase):
             self.assertAlmostEqual(0.5, timer.elapsed(), places=6)
 
 
+class FormatCaptureBackendTests(unittest.TestCase):
+    def test_renders_backend_device_rate_channels(self):
+        capture = audio_utils.CaptureBackend(
+            backend=audio_utils.Backend.WASAPI,
+            device_index=2,
+            sample_rate=16000,
+            channels=1,
+        )
+        rendered = audio_utils.format_capture_backend(capture)
+        self.assertIn("backend=wasapi", rendered)
+        self.assertIn("device_index=2", rendered)
+        self.assertIn("sample_rate=16000", rendered)
+        self.assertIn("channels=1", rendered)
+        self.assertNotIn("fallback_reason", rendered)
+
+    def test_includes_fallback_reason_when_present(self):
+        capture = audio_utils.CaptureBackend(
+            backend=audio_utils.Backend.PYAUDIO,
+            device_index=None,
+            sample_rate=16000,
+            channels=1,
+            fallback_reason="WASAPI hostapi not found",
+        )
+        rendered = audio_utils.format_capture_backend(capture)
+        self.assertIn("backend=pyaudio", rendered)
+        self.assertIn("fallback_reason='WASAPI hostapi not found'", rendered)
+
+
+class NormalizeBackendTests(unittest.TestCase):
+    def test_capture_backend_is_passed_through(self):
+        capture = audio_utils.CaptureBackend(
+            backend=audio_utils.Backend.WASAPI,
+            device_index=4,
+            sample_rate=48000,
+            channels=2,
+        )
+        self.assertIs(capture, audio_utils._normalize_backend(capture, 9, 16000, 1))
+
+    def test_backend_enum_builds_descriptor_with_given_device(self):
+        capture = audio_utils._normalize_backend(
+            audio_utils.Backend.WASAPI, 6, 32000, 1
+        )
+        self.assertIs(audio_utils.Backend.WASAPI, capture.backend)
+        self.assertEqual(6, capture.device_index)
+        self.assertEqual(32000, capture.sample_rate)
+        self.assertEqual(1, capture.channels)
+
+    def test_none_auto_resolves(self):
+        fake_sd = make_sounddevice(
+            [{"name": "Windows WASAPI", "default_input_device": 7}]
+        )
+        with mock.patch.dict(sys.modules, {"sounddevice": fake_sd}):
+            capture = audio_utils._normalize_backend(None, 7, 16000, 1)
+
+        self.assertIs(audio_utils.Backend.WASAPI, capture.backend)
+        self.assertEqual(7, capture.device_index)
+
+
+class _FakeSoundDeviceStream:
+    def __init__(self):
+        self.started = False
+        self.stopped = False
+        self.closed = False
+
+    def start(self):
+        self.started = True
+
+    def stop(self):
+        self.stopped = True
+
+    def close(self):
+        self.closed = True
+
+    def read(self, frames):
+        return (b"", False)
+
+
+class OpenInputStreamDispatchTests(unittest.TestCase):
+    def test_wasapi_backend_opens_sounddevice_stream(self):
+        fake_stream = _FakeSoundDeviceStream()
+        created = {}
+
+        def fake_input_stream(**kwargs):
+            created.update(kwargs)
+            return fake_stream
+
+        fake_sd = types.SimpleNamespace(InputStream=fake_input_stream)
+        capture = audio_utils.CaptureBackend(
+            backend=audio_utils.Backend.WASAPI,
+            device_index=3,
+            sample_rate=16000,
+            channels=1,
+        )
+        with mock.patch.dict(sys.modules, {"sounddevice": fake_sd}):
+            handle = audio_utils._open_input_stream(capture, frames_per_buffer=480)
+
+        self.assertTrue(fake_stream.started)
+        self.assertEqual(16000, created["samplerate"])
+        self.assertEqual(1, created["channels"])
+        self.assertEqual("int16", created["dtype"])
+        self.assertEqual(3, created["device"])
+
+        handle.close()
+        self.assertTrue(fake_stream.stopped)
+        self.assertTrue(fake_stream.closed)
+
+    def test_pyaudio_backend_opens_pyaudio_stream(self):
+        created = {}
+        opened = {}
+
+        class _FakePyAudioStream:
+            def __init__(self):
+                self.stopped = False
+                self.closed = False
+
+            def is_active(self):
+                return True
+
+            def stop_stream(self):
+                self.stopped = True
+
+            def close(self):
+                self.closed = True
+
+            def read(self, frames, exception_on_overflow=False):
+                return b"\x00\x00"
+
+        class _FakePyAudio:
+            def __init__(self):
+                self.terminated = False
+                opened["pa"] = self
+
+            def open(self, **kwargs):
+                created.update(kwargs)
+                stream = _FakePyAudioStream()
+                opened["stream"] = stream
+                return stream
+
+            def terminate(self):
+                self.terminated = True
+
+        fake_pa = types.SimpleNamespace(PyAudio=_FakePyAudio, paInt16="int16")
+        capture = audio_utils.CaptureBackend(
+            backend=audio_utils.Backend.PYAUDIO,
+            device_index=5,
+            sample_rate=16000,
+            channels=1,
+        )
+        with mock.patch.dict(sys.modules, {"pyaudio": fake_pa}):
+            handle = audio_utils._open_input_stream(capture, frames_per_buffer=512)
+
+        self.assertEqual(5, created["input_device_index"])
+        self.assertEqual(16000, created["rate"])
+        self.assertEqual("int16", created["format"])
+
+        handle.close()
+        self.assertTrue(opened["stream"].stopped)
+        self.assertTrue(opened["stream"].closed)
+        self.assertTrue(opened["pa"].terminated)
+
+
 if __name__ == "__main__":
     unittest.main()

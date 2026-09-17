@@ -77,6 +77,7 @@ class STTService:
         self.model_sample_rate = 16000
         self.channels = int(audio_config.get("channels", 1))
         self.input_device = audio_config.get("input_device")
+        self.capture_backend = audio_config.get("capture_backend")
 
         LOGGER.info(
             "Loading faster-whisper model '%s' on %s (%s)...",
@@ -84,10 +85,18 @@ class STTService:
             self.device,
             self.compute_type,
         )
+        model_load_start = time.monotonic()
         self.model = WhisperModel(
             self.model_size,
             device=self.device,
             compute_type=self.compute_type,
+        )
+        LOGGER.info(
+            "STT model '%s' loaded in %.2fs (%s/%s).",
+            self.model_size,
+            time.monotonic() - model_load_start,
+            self.device,
+            self.compute_type,
         )
 
     def transcribe_audio(self, audio_data: np.ndarray) -> str:
@@ -137,6 +146,7 @@ class STTService:
                 max_record_seconds=self.max_record_seconds,
                 vad_mode=self.vad_mode,
                 input_device_index=self.input_device,
+                backend=self.capture_backend,
             )
             capture_elapsed = time.monotonic() - capture_start
             audio_seconds = float(audio_data.size) / float(self.capture_sample_rate) if audio_data.size else 0.0
@@ -179,6 +189,7 @@ class STTService:
                 max_record_seconds=max_record_seconds,
                 vad_mode=self.vad_mode,
                 input_device_index=self.input_device,
+                backend=self.capture_backend,
             )
             return self.transcribe_audio(audio_data)
         except Exception as exc:

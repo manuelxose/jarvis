@@ -22,7 +22,15 @@ from brain.llm import OllamaClient
 from brain.memory import MemoryStore
 from brain.prompt_builder import build_system_prompt
 from cache.audio_cache import AudioCache
-from voice.audio_utils import check_microphone_capture, format_audio_device, get_audio_devices, play_audio, resolve_input_device
+from voice.audio_utils import (
+    check_microphone_capture,
+    format_audio_device,
+    format_capture_backend,
+    get_audio_devices,
+    play_audio,
+    resolve_capture_backend,
+    resolve_input_device,
+)
 from voice.stt import STTService
 from voice.tts import TTSService, sanitize_voice_text
 from voice.wake_word import WakeWordListener
@@ -201,11 +209,23 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
     )
     LOGGER.info("Input audio device selected: %s", format_audio_device(resolved_input_device))
 
+    capture_backend = resolve_capture_backend(
+        preferred_index=resolved_input_device,
+        sample_rate=sample_rate,
+        channels=channels,
+    )
+    LOGGER.info(
+        "Capture backend resolved: %s, device=%s",
+        format_capture_backend(capture_backend),
+        format_audio_device(capture_backend.device_index),
+    )
+
     mic_ok, mic_rms, mic_message = check_microphone_capture(
         input_device_index=resolved_input_device,
         sample_rate=sample_rate,
         channels=channels,
         probe_seconds=0.9,
+        backend=capture_backend,
     )
     if not mic_ok:
         LOGGER.error("Microphone check failed (rms=%.2f): %s", mic_rms, mic_message)
@@ -218,6 +238,7 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
 
     effective_audio_cfg = dict(audio_cfg)
     effective_audio_cfg["input_device"] = resolved_input_device
+    effective_audio_cfg["capture_backend"] = capture_backend
 
     stt_service = STTService(stt_config=stt_cfg, audio_config=effective_audio_cfg)
 
