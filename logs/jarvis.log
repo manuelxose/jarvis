@@ -132,3 +132,81 @@
 2026-02-19 19:41:42 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
 2026-02-19 19:41:42 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
 2026-02-19 19:41:43 | INFO     | jarvis.main | Interrupcion recibida. Cerrando Jarvis...
+2026-09-17 17:07:18 | INFO     | voice.tts | COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.
+2026-09-17 17:07:18 | INFO     | voice.tts | Loading XTTS model 'tts_models/multilingual/multi-dataset/xtts_v2' on CPU...
+2026-09-17 17:07:18 | INFO     | TTS.utils.manage | tts_models/multilingual/multi-dataset/xtts_v2 is already downloaded.
+2026-09-17 17:07:19 | INFO     | TTS.tts.models | Using model: xtts
+2026-09-17 17:08:03 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:08:03 | INFO     | TTS.utils.synthesizer | Input: ['Entendido']
+2026-09-17 17:08:12 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:08:14 | INFO     | voice.audio_utils | Input probe index=12 rms=69.31
+2026-09-17 17:08:16 | INFO     | voice.audio_utils | Input probe index=1 rms=366.14
+2026-09-17 17:08:17 | INFO     | voice.audio_utils | Input probe index=0 rms=345.72
+2026-09-17 17:08:18 | INFO     | voice.audio_utils | Input probe index=6 rms=6427.61
+2026-09-17 17:08:19 | INFO     | jarvis.main | Input audio device selected: index=6, name=Auriculares con micrÃ³fono (G435 Bluetooth Gaming Headset)
+2026-09-17 17:08:20 | INFO     | jarvis.main | Microphone check OK (rms=381.73)
+2026-09-17 17:08:20 | INFO     | voice.stt | Loading faster-whisper model 'small' on cpu (int8)...
+2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Processing time: 17.674
+2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.460
+2026-09-17 17:08:21 | INFO     | cache.audio_cache | Pre-generated cache audio: entendido.wav
+2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Input: ['En un momento']
+2026-09-17 17:08:28 | INFO     | jarvis.main | OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').
+2026-09-17 17:08:28 | INFO     | jarvis.main | Modo escucha continua STT activo (sin wake word).
+2026-09-17 17:08:28 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:08:28 | INFO     | TTS.utils.synthesizer | Input: ['Jarvis a tu servicio']
+2026-09-17 17:08:30 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Processing time: 14.460
+2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Real-time factor: 8.706
+2026-09-17 17:08:36 | INFO     | cache.audio_cache | Pre-generated cache audio: en_un_momento.wav
+2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Input: ['En que mas puedo ayudarte?']
+2026-09-17 17:08:45 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:08:48 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:09:00 | INFO     | TTS.utils.synthesizer | Processing time: 32.059
+2026-09-17 17:09:00 | INFO     | TTS.utils.synthesizer | Real-time factor: 14.452
+2026-09-17 17:09:02 | INFO     | jarvis.main | Jarvis listo. Esperando wake word...
+2026-09-17 17:09:04 | INFO     | voice.stt | STT captured 1.14s audio in 1.94s (samples=18240, sample_rate=16000, rms=129).
+2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Processing time: 34.057
+2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.501
+2026-09-17 17:09:10 | INFO     | cache.audio_cache | Pre-generated cache audio: en_que_mas_puedo_ayudarte.wav
+2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Input: ['Procesando tu solicitud']
+2026-09-17 17:09:12 | INFO     | voice.stt | STT transcription finished in 7.58s (chars=7).
+2026-09-17 17:09:12 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Durante
+2026-09-17 17:09:17 | INFO     | voice.stt | STT captured 3.96s audio in 4.88s (samples=63360, sample_rate=16000, rms=22).
+2026-09-17 17:09:19 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:09:24 | INFO     | voice.stt | STT transcription finished in 6.67s (chars=9).
+2026-09-17 17:09:24 | INFO     | jarvis.main | Wake detectado. Di tu comando...
+2026-09-17 17:09:28 | INFO     | voice.stt | STT captured 3.99s audio in 4.73s (samples=63840, sample_rate=16000, rms=14).
+2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Processing time: 20.223
+2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.571
+2026-09-17 17:09:30 | INFO     | cache.audio_cache | Pre-generated cache audio: procesando_tu_solicitud.wav
+2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Input: ['No he podido completar esa accion']
+2026-09-17 17:09:36 | INFO     | voice.stt | STT transcription finished in 7.64s (chars=8).
+2026-09-17 17:09:36 | INFO     | jarvis.main | Usuario: ¡Sigues!
+2026-09-17 17:09:39 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Processing time: 16.534
+2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Real-time factor: 6.979
+2026-09-17 17:09:47 | INFO     | cache.audio_cache | Pre-generated cache audio: no_he_podido_completar_esa_accion.wav
+2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Input: ['Busqueda completada']
+2026-09-17 17:09:55 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Processing time: 19.286
+2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.797
+2026-09-17 17:10:06 | INFO     | cache.audio_cache | Pre-generated cache audio: busqueda_completada.wav
+2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Input: ['Comando ejecutado']
+2026-09-17 17:10:15 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:10:26 | INFO     | TTS.utils.synthesizer | Processing time: 20.062
+2026-09-17 17:10:26 | INFO     | TTS.utils.synthesizer | Real-time factor: 6.855
+2026-09-17 17:10:26 | INFO     | cache.audio_cache | Pre-generated cache audio: comando_ejecutado.wav
+2026-09-17 17:10:40 | ERROR    | jarvis.main | LLM fallo: Ollama chat request failed. Verify Ollama is running and model is available.
+2026-09-17 17:10:40 | INFO     | jarvis.main | Jarvis: No he podido contactar con el modelo local.
+2026-09-17 17:10:40 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-17 17:10:40 | INFO     | TTS.utils.synthesizer | Input: ['No he podido contactar con el modelo local.']
+2026-09-17 17:10:48 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-17 17:11:00 | INFO     | TTS.utils.synthesizer | Processing time: 19.257
+2026-09-17 17:11:00 | INFO     | TTS.utils.synthesizer | Real-time factor: 5.778
+2026-09-17 17:11:06 | INFO     | jarvis.main | Interrupcion recibida. Cerrando Jarvis...

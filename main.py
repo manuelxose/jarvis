@@ -171,16 +171,10 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         temperature=float(llm_cfg.get("temperature", 0.7)),
         timeout=int(llm_cfg.get("timeout", 30)),
     )
-    ollama_ready = ollama_client.check_availability()
+    ollama_preflight = ollama_client.preflight(timeout=min(float(llm_cfg.get("preflight_timeout", 2.0)), 5.0))
+    ollama_ready = ollama_preflight.available
     if not ollama_ready:
-        LOGGER.error("Ollama no esta disponible. Arrancalo y confirma el puerto 11434.")
-    elif not ollama_client.check_model_available():
-        LOGGER.error(
-            "Modelo %s no encontrado en Ollama. Ejecuta: ollama pull %s",
-            ollama_client.model,
-            ollama_client.model,
-        )
-        ollama_ready = False
+        LOGGER.error("Ollama preflight failed: %s", ollama_preflight.message)
 
     audio_cache = AudioCache(base_dir / "cache" / "cached_responses")
 
@@ -189,7 +183,6 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         cache=audio_cache,
         base_dir=base_dir,
     )
-    tts_service.pregenerate_common_cache(background=True)
 
     sample_rate = int(audio_cfg.get("sample_rate", 16000))
     channels = int(audio_cfg.get("channels", 1))
@@ -199,7 +192,9 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         channels=channels,
         auto_select=bool(audio_cfg.get("auto_select_input", True)),
     )
-    LOGGER.info("Input audio device selected: %s", format_audio_device(resolved_input_device))
+    from voice.audio_utils import resolve_capture_backend
+    capture_backend = resolve_capture_backend(resolved_input_device, sample_rate, channels)
+    LOGGER.info("Input audio device selected: %s", capture_backend.describe())
 
     mic_ok, mic_rms, mic_message = check_microphone_capture(
         input_device_index=resolved_input_device,
@@ -245,7 +240,7 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         model_name=config["wake_word"].get("model", "hey_jarvis"),
         threshold=float(config["wake_word"].get("threshold", 0.35)),
         sample_rate=sample_rate,
-        input_device_index=resolved_input_device,
+        input_device_index=None if capture_backend.is_wasapi else resolved_input_device,
         cooldown_seconds=float(config["wake_word"].get("cooldown_seconds", 1.5)),
         hard_trigger_hits=int(config["wake_word"].get("hard_trigger_hits", 1)),
         soft_trigger_hits=int(config["wake_word"].get("soft_trigger_hits", 4)),
@@ -277,6 +272,7 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
 
 
 def run() -> None:
+    startup_start = time.monotonic()
     base_dir = Path(__file__).resolve().parent
     config = load_config(base_dir / "config.yaml")
     components = build_runtime_components(base_dir, config)
@@ -303,15 +299,16 @@ def run() -> None:
             stt_sample_rate_profiles.append(sr)
     stt_profile_index = 0
     stt_input_device_profiles: list[int | None] = [stt_service.input_device]
-    for device in get_audio_devices():
-        idx = int(device.get("index"))
-        if int(device.get("max_input_channels", 0)) < 1:
-            continue
-        name = str(device.get("name", "")).lower()
-        if any(bad in name for bad in ("stereo mix", "mezcla", "loopback", "output", "mapper")):
-            continue
-        if idx not in stt_input_device_profiles:
-            stt_input_device_profiles.append(idx)
+    if not capture_backend.is_wasapi:
+        for device in get_audio_devices():
+            idx = int(device.get("index"))
+            if int(device.get("max_input_channels", 0)) < 1:
+                continue
+            name = str(device.get("name", "")).lower()
+            if any(bad in name for bad in ("stereo mix", "mezcla", "loopback", "output", "mapper")):
+                continue
+            if idx not in stt_input_device_profiles:
+                stt_input_device_profiles.append(idx)
     stt_input_profile_index = 0
     empty_stt_streak = 0
     pending_keyword_command = False
@@ -322,9 +319,9 @@ def run() -> None:
         LOGGER.info("OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').")
         if continuous_listen_when_disabled:
             LOGGER.info("Modo escucha continua STT activo (sin wake word).")
+    LOGGER.info("Jarvis listo. Esperando wake word... readiness_elapsed_seconds=%.3f", time.monotonic() - startup_start)
+    # Greeting is deliberately after readiness and synchronous: it cannot compete with active STT.
     play_phrase(audio_cache, tts_service, "Jarvis a tu servicio", blocking=True)
-
-    LOGGER.info("Jarvis listo. Esperando wake word...")
     last_stt_wake_probe = 0.0
     try:
         while True:
@@ -373,10 +370,8 @@ def run() -> None:
                     continue
 
                 LOGGER.info("Wake STT fallback detected: %s", wake_text)
-                if inline_command:
-                    user_text = inline_command
-                else:
-                    user_text = stt_service.transcribe_from_mic()
+                user_text = inline_command or stt_service.transcribe_from_mic()
+                LOGGER.info("Wake fallback capture_count=%d", 1 if inline_command else 2)
             else:
                 continue
 

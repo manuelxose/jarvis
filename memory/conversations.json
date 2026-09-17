@@ -1,104 +1,14 @@
 {
   "conversations": [
     {
-      "timestamp": "2026-02-18T22:35:09+00:00",
+      "timestamp": "2026-09-17T15:09:36+00:00",
       "role": "user",
-      "content": "estado del sistema"
+      "content": "¡Sigues!"
     },
     {
-      "timestamp": "2026-02-18T22:35:09+00:00",
-      "role": "user",
-      "content": "estado del sistema"
-    },
-    {
-      "timestamp": "2026-02-18T22:35:10+00:00",
-      "role": "assistant",
-      "content": "CPU al 82.3 por ciento, RAM al 72.4 por ciento, disco libre 241.8 gigas."
-    },
-    {
-      "timestamp": "2026-02-18T22:35:10+00:00",
-      "role": "assistant",
-      "content": "CPU al 78.1 por ciento, RAM al 72.9 por ciento, disco libre 241.8 gigas."
-    },
-    {
-      "timestamp": "2026-02-18T22:35:53+00:00",
-      "role": "user",
-      "content": "¿Cómo estás?"
-    },
-    {
-      "timestamp": "2026-02-18T22:35:53+00:00",
-      "role": "user",
-      "content": "¿Cómo estás?"
-    },
-    {
-      "timestamp": "2026-02-18T22:35:54+00:00",
+      "timestamp": "2026-09-17T15:10:40+00:00",
       "role": "assistant",
       "content": "No he podido contactar con el modelo local."
-    },
-    {
-      "timestamp": "2026-02-18T22:35:55+00:00",
-      "role": "assistant",
-      "content": "No he podido contactar con el modelo local."
-    },
-    {
-      "timestamp": "2026-02-18T22:37:42+00:00",
-      "role": "user",
-      "content": "Abre Google."
-    },
-    {
-      "timestamp": "2026-02-18T22:37:42+00:00",
-      "role": "user",
-      "content": "Abre Google."
-    },
-    {
-      "timestamp": "2026-02-18T22:37:42+00:00",
-      "role": "assistant",
-      "content": "No pude abrir la aplicacion solicitada."
-    },
-    {
-      "timestamp": "2026-02-18T22:37:42+00:00",
-      "role": "assistant",
-      "content": "No pude abrir la aplicacion solicitada."
-    },
-    {
-      "timestamp": "2026-02-18T22:39:29+00:00",
-      "role": "user",
-      "content": "Especialmente suave. Rafa, rafa. Sí. No, no. Sí, es una... es una... es una... es una... es una... es una..."
-    },
-    {
-      "timestamp": "2026-02-18T22:40:23+00:00",
-      "role": "assistant",
-      "content": "No he podido contactar con el modelo local."
-    },
-    {
-      "timestamp": "2026-02-18T22:52:50+00:00",
-      "role": "user",
-      "content": "No, no, era la vida que reían."
-    },
-    {
-      "timestamp": "2026-02-18T22:52:58+00:00",
-      "role": "assistant",
-      "content": "No he podido contactar con el modelo local."
-    },
-    {
-      "timestamp": "2026-02-19T18:21:54+00:00",
-      "role": "user",
-      "content": "Thanks for watching!"
-    },
-    {
-      "timestamp": "2026-02-19T18:22:32+00:00",
-      "role": "assistant",
-      "content": "Gracias por ver la presentación. Estoy aquí para ayudarte en tu día a día como asistente personal. Recuerda que siempre puedes preguntarme sobre desarrollo de software, senales AIS maritimas con RTL-SDR y sistemas de trading algorítmico. También puedo controlar el PC, monitorizar datos de trading y buscar información. Recuerda que si no sé algo lo digo claramente y si es irreversible confirmo las acciones antes de ejecutarlas."
-    },
-    {
-      "timestamp": "2026-02-19T18:23:25+00:00",
-      "role": "user",
-      "content": "Thanks for watching!"
-    },
-    {
-      "timestamp": "2026-02-19T18:23:51+00:00",
-      "role": "assistant",
-      "content": "Hola Manuel. Soy Jarvis, tu asistente personal. Soy inteligente, conciso y eficiente. Hablo siempre en español. Estoy aquí para ayudarte en tu día a día como asistente personal. Recuerda que siempre puedes preguntarme sobre desarrollo de software, senales AIS maritimas con RTL-SDR y sistemas de trading algorítmico. También puedo controlar el PC, monitorizar datos de trading y buscar información. Recuerda que si no sé algo lo digo claramente y si es irreversible confirmo las acciones antes de ejecutarlas."
     }
   ],
   "facts": {
