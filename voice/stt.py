@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import logging
+import threading
 import time
 from typing import Any
 
@@ -49,10 +51,52 @@ def _resample_linear(audio_data: np.ndarray, source_rate: int, target_rate: int)
     return resampled
 
 
+class SttActivityGate:
+    """Coordinates background TTS/cache work around active speech-to-text.
+
+    STT capture/transcription always has priority: it enters the gate
+    unconditionally and only marks the gate idle again once the capture is
+    done. Background work (e.g. XTTS cache pre-generation) polls ``active`` or
+    ``wait_until_idle`` and pauses so it never contends with a live capture.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._depth = 0
+        self._idle_event = threading.Event()
+        self._idle_event.set()
+
+    def __enter__(self) -> "SttActivityGate":
+        with self._lock:
+            self._depth += 1
+            self._idle_event.clear()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        with self._lock:
+            self._depth = max(0, self._depth - 1)
+            if self._depth == 0:
+                self._idle_event.set()
+
+    @property
+    def active(self) -> bool:
+        with self._lock:
+            return self._depth > 0
+
+    def wait_until_idle(self, timeout: float | None = None) -> bool:
+        """Block until no STT capture is active; returns False on timeout."""
+        return self._idle_event.wait(timeout=timeout)
+
+
 class STTService:
     """Speech-to-text service using faster-whisper optimized for CPU."""
 
-    def __init__(self, stt_config: dict[str, Any], audio_config: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        stt_config: dict[str, Any],
+        audio_config: dict[str, Any],
+        activity_gate: SttActivityGate | None = None,
+    ) -> None:
         self.model_size = stt_config.get("model", "small")
         self.device = stt_config.get("device", "cpu")
         self.compute_type = stt_config.get("compute_type", "int8")
@@ -78,6 +122,7 @@ class STTService:
         self.channels = int(audio_config.get("channels", 1))
         self.input_device = audio_config.get("input_device")
         self.capture_backend = audio_config.get("capture_backend")
+        self.activity_gate = activity_gate
 
         LOGGER.info(
             "Loading faster-whisper model '%s' on %s (%s)...",
@@ -136,40 +181,43 @@ class STTService:
 
     def transcribe_from_mic(self) -> str:
         """Record from mic until silence and return transcription."""
-        try:
-            capture_start = time.monotonic()
-            audio_data = record_until_silence(
-                sample_rate=self.capture_sample_rate,
-                channels=self.channels,
-                silence_threshold=self.silence_duration,
-                min_speech_duration=self.min_speech_duration,
-                max_record_seconds=self.max_record_seconds,
-                vad_mode=self.vad_mode,
-                input_device_index=self.input_device,
-                backend=self.capture_backend,
-            )
-            capture_elapsed = time.monotonic() - capture_start
-            audio_seconds = float(audio_data.size) / float(self.capture_sample_rate) if audio_data.size else 0.0
-            LOGGER.info(
-                "STT captured %.2fs audio in %.2fs (samples=%d, sample_rate=%d).",
-                audio_seconds,
-                capture_elapsed,
-                int(audio_data.size),
-                self.capture_sample_rate,
-            )
+        gate = self.activity_gate
+        guard = gate if gate is not None else contextlib.nullcontext()
+        with guard:
+            try:
+                capture_start = time.monotonic()
+                audio_data = record_until_silence(
+                    sample_rate=self.capture_sample_rate,
+                    channels=self.channels,
+                    silence_threshold=self.silence_duration,
+                    min_speech_duration=self.min_speech_duration,
+                    max_record_seconds=self.max_record_seconds,
+                    vad_mode=self.vad_mode,
+                    input_device_index=self.input_device,
+                    backend=self.capture_backend,
+                )
+                capture_elapsed = time.monotonic() - capture_start
+                audio_seconds = float(audio_data.size) / float(self.capture_sample_rate) if audio_data.size else 0.0
+                LOGGER.info(
+                    "STT captured %.2fs audio in %.2fs (samples=%d, sample_rate=%d).",
+                    audio_seconds,
+                    capture_elapsed,
+                    int(audio_data.size),
+                    self.capture_sample_rate,
+                )
 
-            transcribe_start = time.monotonic()
-            text = self.transcribe_audio(audio_data)
-            transcribe_elapsed = time.monotonic() - transcribe_start
-            LOGGER.info(
-                "STT transcription finished in %.2fs (chars=%d).",
-                transcribe_elapsed,
-                len(text),
-            )
-            return text
-        except Exception as exc:
-            LOGGER.exception("STT pipeline failed: %s", exc)
-            return ""
+                transcribe_start = time.monotonic()
+                text = self.transcribe_audio(audio_data)
+                transcribe_elapsed = time.monotonic() - transcribe_start
+                LOGGER.info(
+                    "STT transcription finished in %.2fs (chars=%d).",
+                    transcribe_elapsed,
+                    len(text),
+                )
+                return text
+            except Exception as exc:
+                LOGGER.exception("STT pipeline failed: %s", exc)
+                return ""
 
     def transcribe_for_wake(
         self,
@@ -180,21 +228,24 @@ class STTService:
         """
         Lightweight mic capture for wake fallback by STT phrase matching.
         """
-        try:
-            audio_data = record_until_silence(
-                sample_rate=self.capture_sample_rate,
-                channels=self.channels,
-                silence_threshold=silence_duration,
-                min_speech_duration=min_speech_duration,
-                max_record_seconds=max_record_seconds,
-                vad_mode=self.vad_mode,
-                input_device_index=self.input_device,
-                backend=self.capture_backend,
-            )
-            return self.transcribe_audio(audio_data)
-        except Exception as exc:
-            LOGGER.debug("STT wake fallback failed: %s", exc)
-            return ""
+        gate = self.activity_gate
+        guard = gate if gate is not None else contextlib.nullcontext()
+        with guard:
+            try:
+                audio_data = record_until_silence(
+                    sample_rate=self.capture_sample_rate,
+                    channels=self.channels,
+                    silence_threshold=silence_duration,
+                    min_speech_duration=min_speech_duration,
+                    max_record_seconds=max_record_seconds,
+                    vad_mode=self.vad_mode,
+                    input_device_index=self.input_device,
+                    backend=self.capture_backend,
+                )
+                return self.transcribe_audio(audio_data)
+            except Exception as exc:
+                LOGGER.debug("STT wake fallback failed: %s", exc)
+                return ""
 
     def set_capture_sample_rate(self, sample_rate: int) -> None:
         self.capture_sample_rate = int(sample_rate)

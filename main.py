@@ -31,7 +31,7 @@ from voice.audio_utils import (
     resolve_capture_backend,
     resolve_input_device,
 )
-from voice.stt import STTService
+from voice.stt import STTService, SttActivityGate
 from voice.tts import TTSService, sanitize_voice_text
 from voice.wake_word import WakeWordListener
 
@@ -192,12 +192,16 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
 
     audio_cache = AudioCache(base_dir / "cache" / "cached_responses")
 
+    stt_activity_gate = SttActivityGate()
+
     tts_service = TTSService(
         tts_config=tts_cfg,
         cache=audio_cache,
         base_dir=base_dir,
+        stt_activity_gate=stt_activity_gate,
     )
     tts_service.pregenerate_common_cache(background=True)
+    LOGGER.info("TTS cache pre-generation deferred to background (won't block readiness).")
 
     sample_rate = int(audio_cfg.get("sample_rate", 16000))
     channels = int(audio_cfg.get("channels", 1))
@@ -240,7 +244,11 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
     effective_audio_cfg["input_device"] = resolved_input_device
     effective_audio_cfg["capture_backend"] = capture_backend
 
-    stt_service = STTService(stt_config=stt_cfg, audio_config=effective_audio_cfg)
+    stt_service = STTService(
+        stt_config=stt_cfg,
+        audio_config=effective_audio_cfg,
+        activity_gate=stt_activity_gate,
+    )
 
     pc_controller = PCController()
     ais_monitor = AISMonitor(
@@ -350,9 +358,12 @@ def run() -> None:
     try:
         while True:
             user_text = ""
+            turn_stt_calls = 0
             if openwakeword_enabled and wake_listener.wait_for_wake_word(timeout=0.2):
+                turn_stt_calls += 1
                 user_text = stt_service.transcribe_from_mic()
             elif (not openwakeword_enabled) and continuous_listen_when_disabled:
+                turn_stt_calls += 1
                 spoken_text = stt_service.transcribe_from_mic()
                 if pending_keyword_command:
                     if spoken_text:
@@ -385,6 +396,7 @@ def run() -> None:
                     continue
                 last_stt_wake_probe = now
 
+                turn_stt_calls += 1
                 wake_text = stt_service.transcribe_for_wake(max_record_seconds=wake_stt_max_record_seconds)
                 if not wake_text:
                     continue
@@ -397,6 +409,7 @@ def run() -> None:
                 if inline_command:
                     user_text = inline_command
                 else:
+                    turn_stt_calls += 1
                     user_text = stt_service.transcribe_from_mic()
             else:
                 continue
@@ -427,6 +440,7 @@ def run() -> None:
                 continue
             empty_stt_streak = 0
 
+            LOGGER.info("Turn STT transcriptions: %d", turn_stt_calls)
             LOGGER.info("Usuario: %s", user_text)
             memory_store.add_message("user", user_text)
 

@@ -4,6 +4,7 @@ import hashlib
 import logging
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -66,16 +67,24 @@ def pregenerate_common_responses(
     cache: AudioCache,
     phrases: Iterable[str] | None = None,
     background: bool = True,
+    is_busy: Callable[[], bool] | None = None,
 ) -> threading.Thread | None:
     """
     Pre-generate common responses.
 
     `synthesizer` receives (text, output_path).
+
+    When `is_busy` is provided, each phrase is gated behind it: the worker
+    pauses while it returns True so background TTS work never contends with
+    active speech-to-text capture.
     """
     common_phrases = list(phrases) if phrases is not None else COMMON_RESPONSES
 
     def _worker() -> None:
         for phrase in common_phrases:
+            if is_busy is not None:
+                while is_busy():
+                    time.sleep(0.05)
             cached = cache.get_cached_audio(phrase)
             if cached:
                 continue

@@ -31,6 +31,7 @@ class TTSService:
         tts_config: dict[str, Any],
         cache: AudioCache,
         base_dir: Path,
+        stt_activity_gate: Any = None,
     ) -> None:
         self.model_name = tts_config.get("model", "tts_models/multilingual/multi-dataset/xtts_v2")
         self.language = tts_config.get("language", "es")
@@ -49,6 +50,7 @@ class TTSService:
             )
 
         self.cache = cache
+        self.stt_activity_gate = stt_activity_gate
         if self.auto_accept_cpml:
             # XTTS-v2 is distributed under CPML terms. This enables non-interactive startup.
             os.environ["COQUI_TOS_AGREED"] = "1"
@@ -103,8 +105,10 @@ class TTSService:
         return audio_path
 
     def pregenerate_common_cache(self, background: bool = True) -> None:
+        gate = self.stt_activity_gate
         pregenerate_common_responses(
             synthesizer=lambda phrase, path: self.synthesize_to_file(phrase, path),
             cache=self.cache,
             background=background,
+            is_busy=(lambda: gate.active) if gate is not None else None,
         )

@@ -19,6 +19,7 @@ mocks/fakes around legacy services").
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 from pathlib import Path
@@ -72,6 +73,8 @@ def _legacy_dependency_stubs() -> dict[str, types.ModuleType]:
 with mock.patch.dict(sys.modules, _legacy_dependency_stubs()):
     import main  # noqa: E402
     import voice.tts as legacy_tts  # noqa: E402
+    import voice.stt as legacy_stt  # noqa: E402
+    from voice.stt import SttActivityGate  # noqa: E402
 
 
 def _runtime_config() -> dict:
@@ -216,6 +219,33 @@ class CachePregenerationDeferralTests(unittest.TestCase):
             thread.join(timeout=5)
             self.assertFalse(thread.is_alive())
 
+    def test_background_generation_pauses_while_stt_active(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = self._cache(tmp)
+            busy = threading.Event()
+            busy.set()
+            calls: list[str] = []
+
+            def synth(phrase: str, path: Path) -> None:
+                calls.append(phrase)
+
+            thread = pregenerate_common_responses(
+                synthesizer=synth,
+                cache=cache,
+                background=True,
+                is_busy=busy.is_set,
+            )
+
+            # While STT is "busy", the worker must not synthesize anything.
+            time.sleep(0.15)
+            self.assertEqual([], calls)
+            self.assertTrue(thread.is_alive())
+
+            busy.clear()
+            thread.join(timeout=5)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(len(COMMON_RESPONSES), len(calls))
+
 
 class ReadinessTests(unittest.TestCase):
     """Startup reaches ready without synchronously generating the TTS cache."""
@@ -257,6 +287,40 @@ class ReadinessTests(unittest.TestCase):
                 background=True
             )
 
+    def test_build_runtime_components_wires_shared_stt_activity_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            config = _runtime_config()
+
+            patches = mock.patch.multiple(
+                main,
+                MemoryStore=mock.Mock(),
+                OllamaClient=mock.Mock(),
+                PCController=mock.Mock(),
+                AISMonitor=mock.Mock(),
+                TradingMonitor=mock.Mock(),
+                WebSearch=mock.Mock(),
+                ActionRouter=mock.Mock(),
+                build_system_prompt=mock.Mock(return_value="system prompt"),
+                WakeWordListener=mock.Mock(),
+                resolve_input_device=mock.Mock(return_value=0),
+                resolve_capture_backend=mock.Mock(
+                    return_value=SimpleNamespace(device_index=0)
+                ),
+                check_microphone_capture=mock.Mock(return_value=(True, 0.05, "ok")),
+                format_audio_device=mock.Mock(return_value="device-0"),
+                format_capture_backend=mock.Mock(return_value="backend"),
+            )
+            with mock.patch.object(main, "TTSService") as tts_cls, mock.patch.object(
+                main, "STTService"
+            ) as stt_cls, patches:
+                main.build_runtime_components(base_dir, config)
+
+            tts_gate = tts_cls.call_args.kwargs.get("stt_activity_gate")
+            stt_gate = stt_cls.call_args.kwargs.get("activity_gate")
+            self.assertIsNotNone(tts_gate)
+            self.assertIs(tts_gate, stt_gate)
+
 
 class TTSServiceCacheDeferralTests(unittest.TestCase):
     """``TTSService`` forwards cache pre-generation in a deferrable way."""
@@ -290,6 +354,25 @@ class TTSServiceCacheDeferralTests(unittest.TestCase):
             self.assertIsNone(result)
             # Foreground generation actually drove the synthesizer once per phrase.
             self.assertEqual(len(COMMON_RESPONSES), tts.engine.tts_to_file.call_count)
+
+    def test_pregenerate_common_cache_passes_gate_as_is_busy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tts = self._make_tts(tmp)
+            gate = SttActivityGate()
+            tts.stt_activity_gate = gate
+            with mock.patch.object(
+                legacy_tts, "pregenerate_common_responses"
+            ) as pregen:
+                tts.pregenerate_common_cache()
+            is_busy = pregen.call_args.kwargs.get("is_busy")
+            self.assertIsNotNone(is_busy)
+            self.assertFalse(is_busy())
+            gate.__enter__()
+            try:
+                self.assertTrue(is_busy())
+            finally:
+                gate.__exit__(None, None, None)
+            self.assertFalse(is_busy())
 
 
 class InlineWakeCommandTests(unittest.TestCase):
@@ -331,6 +414,85 @@ class InlineWakeCommandTests(unittest.TestCase):
         detected, command = main._extract_command_from_wake("jarvix reproduce musica")
         self.assertTrue(detected)
         self.assertEqual("reproduce musica", command)
+
+
+class _FakeAudio:
+    size = 0
+
+
+class SttActivityGateTests(unittest.TestCase):
+    def test_idle_by_default(self):
+        gate = SttActivityGate()
+        self.assertFalse(gate.active)
+        self.assertTrue(gate.wait_until_idle(timeout=0))
+
+    def test_enter_exit_toggles_active_and_wait(self):
+        gate = SttActivityGate()
+        gate.__enter__()
+        self.assertTrue(gate.active)
+        self.assertFalse(gate.wait_until_idle(timeout=0.05))
+        gate.__exit__(None, None, None)
+        self.assertFalse(gate.active)
+        self.assertTrue(gate.wait_until_idle(timeout=0.05))
+
+    def test_nested_entries_keep_active_until_last_exit(self):
+        gate = SttActivityGate()
+        gate.__enter__()
+        gate.__enter__()
+        gate.__exit__(None, None, None)
+        self.assertTrue(gate.active)
+        gate.__exit__(None, None, None)
+        self.assertFalse(gate.active)
+
+
+class SttServiceGateTests(unittest.TestCase):
+    def _service(self, gate: SttActivityGate) -> legacy_stt.STTService:
+        return legacy_stt.STTService(
+            stt_config={"model": "base", "language": "es"},
+            audio_config={
+                "sample_rate": 16000,
+                "channels": 1,
+                "input_device": None,
+                "capture_backend": None,
+            },
+            activity_gate=gate,
+        )
+
+    def test_transcribe_from_mic_marks_gate_active(self):
+        gate = SttActivityGate()
+        observed = {"active_during_capture": False}
+        service = self._service(gate)
+
+        def capture(*args, **kwargs):
+            observed["active_during_capture"] = gate.active
+            return _FakeAudio()
+
+        with mock.patch.object(
+            legacy_stt, "record_until_silence", side_effect=capture
+        ), mock.patch.object(service, "transcribe_audio", return_value="hola"):
+            result = service.transcribe_from_mic()
+
+        self.assertEqual("hola", result)
+        self.assertTrue(observed["active_during_capture"])
+        self.assertFalse(gate.active)
+
+    def test_transcribe_for_wake_marks_gate_active(self):
+        gate = SttActivityGate()
+        observed = {"active_during_capture": False}
+        service = self._service(gate)
+
+        def capture(*args, **kwargs):
+            observed["active_during_capture"] = gate.active
+            return _FakeAudio()
+
+        with mock.patch.object(
+            legacy_stt, "record_until_silence", side_effect=capture
+        ), mock.patch.object(service, "transcribe_audio", return_value="jarvis"):
+            result = service.transcribe_for_wake()
+
+        self.assertEqual("jarvis", result)
+        self.assertTrue(observed["active_during_capture"])
+        self.assertFalse(gate.active)
 
 
 if __name__ == "__main__":
