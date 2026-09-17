@@ -32,8 +32,38 @@ _URL_COMMAND = re.compile(
 )
 
 
-# Ordered (pattern, tool, argument extractor). First match wins.
-_COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str, str, float], ...] = (
+# File paths are matched against the raw text for the same reason: normalize
+# folds punctuation and would turn "notas.txt" into "notas txt", losing the
+# extension. The path is captured verbatim so the file tool can resolve a real
+# filesystem path. Matched before open_application so "abre el archivo X"
+# resolves to the file tool (first match wins).
+_FILE_COMMAND = re.compile(
+    r"\b(?:lee|leeme|leer|abre)\s+(?:el\s+)?(?:archivo|fichero)\s+(.+)",
+    re.IGNORECASE,
+)
+
+
+# Ordered (pattern, tool, argument extractor, confidence[, defaults]). First match
+# wins. The optional 5th element is a constant-arguments dict merged into the
+# match before the captured group, so `action` can be injected deterministically.
+_COMMAND_PATTERNS: tuple[tuple, ...] = (
+    # clipboard read / copy (read-path only; file write stays Hermes-only, D012)
+    (
+        re.compile(
+            r"\b(?:que\s+hay\s+en\s+el\s+portapapeles|lee(?:me)?\s+el\s+portapapeles|pega|paste)\b"
+        ),
+        "clipboard",
+        "",
+        0.95,
+        {"action": "read"},
+    ),
+    (
+        re.compile(r"\bcopia\s+(.+?)\s+(?:en|al)\s+(?:el\s+)?portapapeles\b"),
+        "clipboard",
+        "content",
+        0.9,
+        {"action": "copy"},
+    ),
     # open application
     (
         re.compile(r"\b(?:abre|abrir|abreme|open|launch|start)\s+(?:la\s+)?(?:aplicacion\s+)?(.+)"),
@@ -129,14 +159,22 @@ class FastCommandClassifier:
                 confidence=0.95,
                 reason="matched deterministic pattern for open_url",
             )
+        file_match = _FILE_COMMAND.search(raw)
+        if file_match is not None:
+            return FastCommandMatch(
+                name="file",
+                arguments={"action": "read", "path": file_match.group(1).strip()},
+                confidence=0.92,
+                reason="matched deterministic pattern for file",
+            )
         normalized = normalize(raw)
         if not normalized:
             return None
-        for pattern, tool, argument_key, confidence in _COMMAND_PATTERNS:
+        for pattern, tool, argument_key, confidence, *rest in _COMMAND_PATTERNS:
             match = pattern.search(normalized)
             if match is None:
                 continue
-            arguments: dict[str, str] = {}
+            arguments: dict[str, str] = dict(rest[0]) if rest else {}
             if argument_key:
                 arguments[argument_key] = (match.group(1) or "").strip() if match.groups() else ""
             return FastCommandMatch(

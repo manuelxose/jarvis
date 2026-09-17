@@ -1,0 +1,36 @@
+{
+  "runtime": {},
+  "memory": {
+    "db_path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\jarvis.db"
+  },
+  "activation": {
+    "mode": "wake_word",
+    "wake_word": "jarvis"
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "input_device": null,
+    "output_device": null
+  },
+  "stt": {
+    "provider": "whisper",
+    "model": "small",
+    "language": "es",
+    "device": "cpu"
+  },
+  "tts": {
+    "provider": "sapi",
+    "language": "es"
+  },
+  "models": {
+    "providers": [
+      {
+        "name": "ollama",
+        "kind": "ollama",
+        "base_url": "http://localhost:11434",
+        "model": "mistral:7b-instruct"
+      }
+    ]
+  }
+}

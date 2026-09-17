@@ -59,7 +59,7 @@ class ActivationSettings:
 
 @dataclass(frozen=True)
 class STTSettings:
-    provider: str = "whisper"  # whisper | cloud
+    provider: str = "whisper"  # whisper | sapi
     model: str = "tiny"
     language: str = "es"
     device: str = "cpu"
@@ -68,7 +68,7 @@ class STTSettings:
 
 @dataclass(frozen=True)
 class TTSSettings:
-    provider: str = "local"  # local | sapi | cloud
+    provider: str = "local"  # local | sapi
     voice: str = ""
     language: str = "es"
     api_key: Optional[str] = field(default=None, repr=False)
@@ -285,14 +285,14 @@ def load_config(
             conversation_timeout_seconds=_positive_number(activation_data, "conversation_timeout_seconds", 8.0, "activation.conversation_timeout_seconds"),
         ),
         stt=STTSettings(
-            provider=_string(stt_data, "provider", "whisper"),
+            provider=_choice(stt_data, "provider", "whisper", {"whisper", "sapi"}, "stt"),
             model=_string(stt_data, "model", "tiny"),
             language=_string(stt_data, "language", "es"),
             device=_string(stt_data, "device", "cpu"),
             api_key=_resolve_secret(stt_data.get("api_key"), env),
         ),
         tts=TTSSettings(
-            provider=_string(tts_data, "provider", "local"),
+            provider=_choice(tts_data, "provider", "local", {"local", "sapi"}, "tts"),
             voice=_string(tts_data, "voice", ""),
             language=_string(tts_data, "language", "es"),
             api_key=_resolve_secret(tts_data.get("api_key"), env),
@@ -355,6 +355,19 @@ def _string(data: Mapping[str, Any], key: str, default: str) -> str:
     if not isinstance(value, str):
         raise ValueError("{!r} must be a string".format(key))
     return value
+
+
+def _choice(
+    data: Mapping[str, Any], key: str, default: str, allowed: set[str], label: str
+) -> str:
+    value = _string(data, key, default).strip().lower()
+    if value in allowed:
+        return value
+    if value == "cloud":
+        raise ValueError("{} provider 'cloud' is out of scope for the offline loop".format(label))
+    raise ValueError(
+        "{} provider must be one of {}: got {!r}".format(label, sorted(allowed), value)
+    )
 
 
 def _optional_string(data: Mapping[str, Any], key: str) -> Optional[str]:

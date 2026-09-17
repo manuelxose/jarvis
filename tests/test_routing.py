@@ -64,6 +64,39 @@ class FastCommandClassifierTests(unittest.TestCase):
         self.assertEqual("open_url", match.name)
         self.assertEqual("https://example.com", match.arguments.get("url"))
 
+    def test_file_read_routes_to_file_tool(self):
+        match = self.classifier.match("lee el archivo notas.txt")
+        self.assertIsNotNone(match)
+        self.assertEqual("file", match.name)
+        self.assertEqual("read", match.arguments.get("action"))
+        # The path is captured from the raw utterance, preserving the extension.
+        self.assertIn("notas.txt", match.arguments.get("path", ""))
+
+    def test_abre_el_archivo_routes_to_file_not_open_application(self):
+        match = self.classifier.match("abre el archivo notas.txt")
+        self.assertIsNotNone(match)
+        self.assertEqual("file", match.name)
+        self.assertEqual("read", match.arguments.get("action"))
+        self.assertIn("notas.txt", match.arguments.get("path", ""))
+
+    def test_clipboard_read_routes_deterministically(self):
+        match = self.classifier.match("lee el portapapeles")
+        self.assertIsNotNone(match)
+        self.assertEqual("clipboard", match.name)
+        self.assertEqual("read", match.arguments.get("action"))
+
+    def test_clipboard_copy_extracts_content(self):
+        match = self.classifier.match("copia hola al portapapeles")
+        self.assertIsNotNone(match)
+        self.assertEqual("clipboard", match.name)
+        self.assertEqual("copy", match.arguments.get("action"))
+        self.assertEqual("hola", match.arguments.get("content"))
+
+    def test_abre_spotify_still_opens_application_not_file(self):
+        match = self.classifier.match("abre spotify")
+        self.assertIsNotNone(match)
+        self.assertEqual("open_application", match.name)
+
     def test_normalize_folds_accents(self):
         self.assertEqual("sube el volumen", normalize("¡Sube el volumen!"))
 
@@ -78,6 +111,14 @@ class RouterTests(unittest.IsolatedAsyncioTestCase):
         decision = await router.route("sube el volumen", TurnContext.fresh("c"))
         self.assertEqual("fast_command", decision.route)
         self.assertEqual("volume_up", decision.command.name)
+
+    async def test_file_read_routes_to_fast_command(self):
+        router = Router()
+        decision = await router.route("lee el archivo notas.txt", TurnContext.fresh("c"))
+        self.assertEqual("fast_command", decision.route)
+        self.assertEqual("file", decision.command.name)
+        self.assertEqual("read", decision.command.arguments.get("action"))
+        self.assertIn("notas.txt", decision.command.arguments.get("path", ""))
 
     async def test_routes_conversation_to_fast_model(self):
         router = Router()

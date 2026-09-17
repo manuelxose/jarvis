@@ -75,6 +75,38 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "positive integer"):
             load_config(self.path, {})
 
+    def test_accepts_sapi_stt_provider(self):
+        self.write_config({"runtime": {}, "stt": {"provider": "sapi"}})
+        self.assertEqual(load_config(self.path, {}).stt.provider, "sapi")
+
+    def test_accepts_sapi_tts_provider(self):
+        self.write_config({"runtime": {}, "tts": {"provider": "sapi"}})
+        self.assertEqual(load_config(self.path, {}).tts.provider, "sapi")
+
+    def test_normalizes_provider_case(self):
+        self.write_config({"runtime": {}, "stt": {"provider": " WhIsPeR "}})
+        self.assertEqual(load_config(self.path, {}).stt.provider, "whisper")
+
+    def test_rejects_cloud_stt_provider(self):
+        self.write_config({"runtime": {}, "stt": {"provider": "cloud"}})
+        with self.assertRaisesRegex(ValueError, "out of scope"):
+            load_config(self.path, {})
+
+    def test_rejects_cloud_tts_provider(self):
+        self.write_config({"runtime": {}, "tts": {"provider": "cloud"}})
+        with self.assertRaisesRegex(ValueError, "out of scope"):
+            load_config(self.path, {})
+
+    def test_rejects_unknown_stt_provider(self):
+        self.write_config({"runtime": {}, "stt": {"provider": "google"}})
+        with self.assertRaisesRegex(ValueError, "must be one of"):
+            load_config(self.path, {})
+
+    def test_rejects_unknown_tts_provider(self):
+        self.write_config({"runtime": {}, "tts": {"provider": "elevenlabs"}})
+        with self.assertRaisesRegex(ValueError, "must be one of"):
+            load_config(self.path, {})
+
 
 if __name__ == "__main__":
     unittest.main()
