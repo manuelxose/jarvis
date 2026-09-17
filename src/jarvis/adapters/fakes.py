@@ -23,6 +23,7 @@ from jarvis.core.contracts import (
     TextToSpeech,
     Transcript,
     TurnContext,
+    WakeDetector,
 )
 
 
@@ -112,6 +113,18 @@ class ScriptedAudioInput:
         for frame in self.frames:
             context.cancellation.raise_if_cancelled()
             yield frame
+
+
+class ScriptedWakeDetector(WakeDetector):
+    """Return scripted wake-word decisions without interpreting audio."""
+
+    def __init__(self, triggers: list[bool] | None = None) -> None:
+        self._triggers = list(triggers) if triggers is not None else []
+
+    def detected(self, audio: bytes) -> bool:
+        if not self._triggers:
+            return False
+        return self._triggers.pop(0)
 
 
 class RecordingAudioPlayer:

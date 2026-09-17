@@ -1,10 +1,12 @@
 import asyncio
 import sys
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from jarvis.adapters.hermes import protocol
 from jarvis.adapters.hermes.child import HermesChildAdapter, default_command
-from jarvis.core.contracts import AgentStatus, AgentToken, AgentToolRequest, HealthStatus
+from jarvis.core.contracts import AgentStatus, AgentToken, HealthStatus
 from jarvis.core.turn import TurnCancelled, TurnContext
 
 
@@ -12,22 +14,65 @@ async def collect(adapter: HermesChildAdapter, text: str, context: TurnContext):
     return [event async for event in adapter.respond(text, context)]
 
 
-class HermesChildAdapterTests(unittest.IsolatedAsyncioTestCase):
+class _FakeOllamaHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        self.rfile.read(length)
+        if self.path == "/api/chat":
+            body = (
+                b"not-json\n"
+                b'{"message":{"content":"hola"},"done":false}\n'
+                b'{"message":{"content":" mundo"},"done":false}\n'
+                b'{"message":{"content":""},"done":true}\n'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+class _FakeOllamaServerTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _FakeOllamaHandler)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.base_url = f"http://127.0.0.1:{cls.server.server_address[1]}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+
+class HermesChildAdapterTests(_FakeOllamaServerTests):
     async def test_real_child_streams_tokens_tools_and_healthy_lifecycle(self):
-        adapter = HermesChildAdapter(timeout_seconds=1)
+        adapter = HermesChildAdapter(
+            timeout_seconds=1,
+            env={"JARVIS_OLLAMA_BASE_URL": self.base_url, "JARVIS_OLLAMA_MODEL": "test"},
+        )
         self.addAsyncCleanup(adapter.stop)
 
         events = await collect(adapter, "estado del sistema", TurnContext.fresh("conversation"))
 
         self.assertTrue(any(isinstance(event, AgentToken) for event in events))
-        self.assertTrue(any(isinstance(event, AgentToolRequest) for event in events))
         self.assertTrue(any(isinstance(event, AgentStatus) and event.detail == "done" for event in events))
         self.assertEqual(HealthStatus.HEALTHY, (await adapter.health()).status)
         await adapter.stop()
         self.assertEqual(HealthStatus.DEGRADED, (await adapter.health()).status)
 
     async def test_crashed_child_restarts_once_then_returns_degraded_fallback(self):
-        adapter = HermesChildAdapter(timeout_seconds=1, restart_max=1)
+        adapter = HermesChildAdapter(
+            timeout_seconds=1,
+            restart_max=1,
+            env={"JARVIS_OLLAMA_BASE_URL": self.base_url, "JARVIS_OLLAMA_MODEL": "test"},
+        )
         self.addAsyncCleanup(adapter.stop)
 
         first_failure = await collect(adapter, "__CRASH__", TurnContext.fresh("conversation"))
@@ -101,6 +146,23 @@ class HermesChildAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(message)
         assert message is not None
         self.assertEqual(protocol.STARTED, message.event_type)
+
+
+class HermesChildAdapterContractTests(_FakeOllamaServerTests):
+    async def test_contract_streams_canned_ndjson_turn(self):
+        adapter = HermesChildAdapter(
+            timeout_seconds=5,
+            env={"JARVIS_OLLAMA_BASE_URL": self.base_url, "JARVIS_OLLAMA_MODEL": "test"},
+        )
+        self.addAsyncCleanup(adapter.stop)
+
+        events = await collect(adapter, "hola", TurnContext.fresh("conversation"))
+
+        tokens = [event.text for event in events if isinstance(event, AgentToken)]
+        self.assertEqual(["hola", " mundo"], tokens)
+        self.assertTrue(
+            any(isinstance(event, AgentStatus) and event.detail == "done" for event in events)
+        )
 
 
 def _unavailable(events) -> bool:

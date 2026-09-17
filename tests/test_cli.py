@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from jarvis.apps.cli import main
+from jarvis.application.demo import NOTAS_CONTENT
 from jarvis.core.contracts import HealthReport, HealthStatus
 from jarvis.core.lifecycle import Supervisor
 from jarvis.core.state import RuntimeState
@@ -31,7 +32,7 @@ class _StubRuntime:
     async def stop(self) -> None:
         await self.supervisor.stop()
 
-    async def run_until_stopped(self) -> None:
+    async def run_until_stopped(self, max_turns=None) -> None:
         await self.supervisor.run_until_stopped()
 
     def diagnostics(self) -> dict[str, object]:
@@ -93,6 +94,93 @@ class CliTests(unittest.TestCase):
             )
         )
 
+    def _write_ollama_config(self) -> Path:
+        path = Path(self.temp_dir.name) / "ollama.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "runtime": {},
+                    "models": {
+                        "providers": [
+                            {
+                                "kind": "ollama",
+                                "base_url": "http://127.0.0.1:1",
+                                "model": "mistral",
+                            }
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_doctor_reports_ollama_unreachable_when_probe_fails(self) -> None:
+        config_path = self._write_ollama_config()
+        stdout = io.StringIO()
+
+        with patch("jarvis.application.runtime._ollama_reachable", return_value=False):
+            result = main(
+                ["doctor", "--config", str(config_path), "--json"],
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
+
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(1, result)
+        self.assertEqual("degraded", report["state"])
+        self.assertEqual("degraded", report["components"]["fast model"]["status"])
+        self.assertEqual("Ollama unreachable", report["components"]["fast model"]["detail"])
+
+    def test_doctor_reports_healthy_when_ollama_reachable(self) -> None:
+        config_path = self._write_ollama_config()
+        stdout = io.StringIO()
+
+        with patch("jarvis.application.runtime._ollama_reachable", return_value=True):
+            result = main(
+                ["doctor", "--config", str(config_path), "--json"],
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
+
+        report = json.loads(stdout.getvalue())
+        # STT/TTS/network remain degraded in the test environment, so the
+        # overall state is still degraded; only the fast model flips to healthy.
+        self.assertEqual(1, result)
+        self.assertEqual("healthy", report["components"]["fast model"]["status"])
+        self.assertEqual("1 provider(s)", report["components"]["fast model"]["detail"])
+
+    def test_ollama_reachable_returns_false_on_connection_and_bad_url(self) -> None:
+        from jarvis.application.runtime import _ollama_reachable
+
+        # Closed local port: connection refused raises OSError -> False.
+        self.assertFalse(_ollama_reachable("http://127.0.0.1:1", timeout_seconds=0.5))
+        # Malformed URL: urlopen raises ValueError/URLError -> False.
+        self.assertFalse(_ollama_reachable("not a valid url", timeout_seconds=0.5))
+
+    def test_doctor_stt_tts_detail_names_resolved_provider(self) -> None:
+        stdout = io.StringIO()
+
+        result = main(
+            ["doctor", "--config", str(self.config_path), "--json"],
+            stdout=stdout,
+            stderr=io.StringIO(),
+        )
+
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(1, result)
+        self.assertEqual(10, len(report["components"]))
+        stt = report["components"]["STT"]
+        tts = report["components"]["TTS"]
+        self.assertIn(
+            stt["detail"],
+            {"whisper (faster-whisper)", "adapter dependency unavailable"},
+        )
+        self.assertIn(
+            tts["detail"],
+            {"coqui (XTTS-v2)", "adapter dependency unavailable"},
+        )
+
     def test_doctor_use_fakes_json_reports_ready(self) -> None:
         stdout = io.StringIO()
 
@@ -107,6 +195,48 @@ class CliTests(unittest.TestCase):
         self.assertEqual("ready", report["state"])
         self.assertIn("metrics", report)
         self.assertIn("audio_queue", report)
+
+    def test_accept_command_runs_scripted_file_turn(self) -> None:
+        stdout = io.StringIO()
+
+        result = main(
+            ["accept", "--config", str(self.config_path), "--json"],
+            stdout=stdout,
+            stderr=io.StringIO(),
+        )
+
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual("ready", report["startup_state"])
+        fast_turns = [
+            turn for turn in report["turns"] if turn["route"] == "fast_command"
+        ]
+        self.assertEqual(1, len(fast_turns))
+        fast_turn = fast_turns[0]
+        self.assertTrue(fast_turn["response"])
+        self.assertEqual(NOTAS_CONTENT, fast_turn["response"])
+        self.assertGreaterEqual(report["audio_queue"]["played"], 1)
+
+    def test_accept_returns_nonzero_when_fast_command_turn_missing(self) -> None:
+        stdout = io.StringIO()
+
+        with patch(
+            "jarvis.application.demo.run_hardware_acceptance",
+            return_value={
+                "startup_state": "ready",
+                "shutdown_state": "stopping",
+                "turns": [],
+                "voice_loop": {"turns": 0},
+                "audio_queue": {"played": 0},
+            },
+        ):
+            result = main(
+                ["accept", "--config", str(self.config_path), "--json"],
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
+
+        self.assertEqual(1, result)
 
     def test_run_check_only_use_fakes_reports_ready(self) -> None:
         stdout = io.StringIO()
@@ -165,7 +295,7 @@ class CliTests(unittest.TestCase):
             with self.subTest(args=args):
                 runtime = _StubRuntime(Supervisor([FailsOnStop()]))
 
-                async def run_until_stopped() -> None:
+                async def run_until_stopped(max_turns=None) -> None:
                     await runtime.supervisor.stop()
 
                 stdout = io.StringIO()
@@ -192,6 +322,54 @@ class CliTests(unittest.TestCase):
             )
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(stdout.getvalue())["state"], "ready")
+
+    def test_run_enters_voice_loop_when_degraded(self) -> None:
+        import asyncio
+
+        from jarvis.apps.cli import _check
+
+        class DegradedRuntime:
+            state = RuntimeState.DEGRADED
+
+            def __init__(self) -> None:
+                self.loop_runs = 0
+
+            async def start(self) -> None: ...
+
+            async def stop(self) -> None: ...
+
+            async def run_until_stopped(self, max_turns=None) -> None:
+                self.loop_runs += 1
+
+            def diagnostics(self) -> dict[str, object]:
+                return {"state": RuntimeState.DEGRADED.value}
+
+        runtime = DegradedRuntime()
+        report = asyncio.run(_check(runtime, run=True))
+        self.assertEqual(1, runtime.loop_runs)
+        self.assertEqual(RuntimeState.DEGRADED.value, report["state"])
+
+
+    def test_run_reports_state_after_keyboard_interrupt(self) -> None:
+        import asyncio
+
+        from jarvis.apps.cli import _check
+
+        class InterruptedRuntime:
+            state = RuntimeState.DEGRADED
+
+            async def start(self) -> None: ...
+
+            async def stop(self) -> None: ...
+
+            async def run_until_stopped(self, max_turns=None) -> None:
+                raise KeyboardInterrupt()
+
+            def diagnostics(self) -> dict[str, object]:
+                return {"state": RuntimeState.DEGRADED.value}
+
+        report = asyncio.run(_check(InterruptedRuntime(), run=True))
+        self.assertEqual(RuntimeState.DEGRADED.value, report["state"])
 
 
 if __name__ == "__main__":

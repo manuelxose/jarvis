@@ -8,12 +8,21 @@ structured result suitable for the final acceptance matrix.
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
+from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
+from jarvis.adapters.fakes import ScriptedSTT
 from jarvis.application.runtime import build_runtime
 from jarvis.config import RuntimeConfig
+from jarvis.core.contracts import Transcript
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnContext
+
+# Known file content the hardware acceptance writes and expects to read back.
+NOTAS_CONTENT = "contenido de prueba de notas"
 
 
 async def _run_demo(config: RuntimeConfig) -> dict[str, Any]:
@@ -71,3 +80,60 @@ async def _run_demo(config: RuntimeConfig) -> dict[str, Any]:
 def run_demo(config: RuntimeConfig) -> dict[str, Any]:
     """Run the headless acceptance demo and return its structured result."""
     return asyncio.run(_run_demo(config))
+
+
+async def _run_hardware_acceptance(config: RuntimeConfig) -> dict[str, Any]:
+    """Prove wake -> command -> real file tool -> spoken response on the fake runtime.
+
+    Points memory at a temporary database and confines the file tool to a
+    temporary working directory containing a real ``notas.txt``. The scripted
+    STT utters ``lee el archivo notas.txt``, which routes to the ``file`` tool,
+    and the result is spoken back through the playback queue.
+    """
+    original_cwd = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        config = replace(
+            config, memory=replace(config.memory, db_path=str(tmp_path / "jarvis.db"))
+        )
+        os.chdir(tmp)
+        try:
+            (tmp_path / "notas.txt").write_text(NOTAS_CONTENT, encoding="utf-8")
+
+            runtime = build_runtime(
+                config,
+                use_fakes=True,
+                fake_stt=ScriptedSTT(
+                    [Transcript("lee el archivo notas.txt", is_final=True)]
+                ),
+            )
+            await runtime.start()
+            startup_state = runtime.state.value
+            try:
+                await runtime.voice_loop.run()
+            finally:
+                await runtime.stop()
+            shutdown_state = runtime.state.value
+
+            return {
+                "startup_state": startup_state,
+                "shutdown_state": shutdown_state,
+                "turns": [
+                    {
+                        "transcript": turn.transcript,
+                        "route": turn.route,
+                        "response": turn.response,
+                        "cancelled": turn.cancelled,
+                    }
+                    for turn in runtime.voice_loop.turns
+                ],
+                "voice_loop": runtime.voice_loop.state(),
+                "audio_queue": runtime.components.audio_output.state(),
+            }
+        finally:
+            os.chdir(original_cwd)
+
+
+def run_hardware_acceptance(config: RuntimeConfig) -> dict[str, Any]:
+    """Run the scripted real-hardware acceptance and return its structured result."""
+    return asyncio.run(_run_hardware_acceptance(config))
