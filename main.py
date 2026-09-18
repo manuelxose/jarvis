@@ -22,7 +22,7 @@ from brain.llm import OllamaClient
 from brain.memory import MemoryStore
 from brain.prompt_builder import build_system_prompt
 from cache.audio_cache import AudioCache
-from voice.audio_utils import check_microphone_capture, format_audio_device, get_audio_devices, play_audio, resolve_input_device
+from voice.audio_utils import check_microphone_capture, play_audio, resolve_input_device
 from voice.stt import STTService
 from voice.tts import TTSService, sanitize_voice_text
 from voice.wake_word import WakeWordListener
@@ -170,6 +170,9 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         model=llm_cfg.get("model", "mistral:7b-instruct"),
         temperature=float(llm_cfg.get("temperature", 0.7)),
         timeout=int(llm_cfg.get("timeout", 30)),
+        num_predict=int(llm_cfg.get("num_predict", 128)),
+        num_ctx=int(llm_cfg.get("num_ctx", 2048)),
+        keep_alive=str(llm_cfg.get("keep_alive", "10m")),
     )
     ollama_preflight = ollama_client.preflight(timeout=min(float(llm_cfg.get("preflight_timeout", 2.0)), 5.0))
     ollama_ready = ollama_preflight.available
@@ -203,13 +206,13 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         probe_seconds=0.9,
     )
     if not mic_ok:
-        LOGGER.error("Microphone check failed (rms=%.2f): %s", mic_rms, mic_message)
-        raise RuntimeError(
-            "No hay acceso util al microfono. "
-            "En Windows revisa: Configuracion > Privacidad y seguridad > Microfono, "
-            "y habilita acceso para aplicaciones de escritorio."
-        )
-    LOGGER.info("Microphone check OK (rms=%.2f)", mic_rms)
+        if "silencio" in mic_message.lower():
+            LOGGER.warning("Microphone opened without signal (rms=%.2f): %s. Reintentando durante la escucha.", mic_rms, mic_message)
+        else:
+            LOGGER.error("Microphone check failed (rms=%.2f): %s", mic_rms, mic_message)
+            raise RuntimeError(f"No hay acceso util al microfono. {mic_message}")
+    else:
+        LOGGER.info("Microphone check OK (rms=%.2f)", mic_rms)
 
     effective_audio_cfg = dict(audio_cfg)
     effective_audio_cfg["input_device"] = resolved_input_device
@@ -236,20 +239,21 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
 
     system_prompt = build_system_prompt(jarvis_cfg.get("user_name", "Manuel"))
 
-    wake_listener = WakeWordListener(
-        model_name=config["wake_word"].get("model", "hey_jarvis"),
-        threshold=float(config["wake_word"].get("threshold", 0.35)),
-        sample_rate=sample_rate,
-        input_device_index=None if capture_backend.is_wasapi else resolved_input_device,
-        cooldown_seconds=float(config["wake_word"].get("cooldown_seconds", 1.5)),
-        hard_trigger_hits=int(config["wake_word"].get("hard_trigger_hits", 1)),
-        soft_trigger_hits=int(config["wake_word"].get("soft_trigger_hits", 4)),
-        soft_trigger_ratio=float(config["wake_word"].get("soft_trigger_ratio", 0.6)),
-        voice_rms_for_soft_trigger=float(config["wake_word"].get("voice_rms_for_soft_trigger", 30.0)),
-        score_log_interval_seconds=float(config["wake_word"].get("score_log_interval_seconds", 5.0)),
-    )
-
     wake_cfg = config["wake_word"]
+    openwakeword_enabled = bool(wake_cfg.get("openwakeword_enabled", True))
+    wake_listener = None
+    if openwakeword_enabled:
+        wake_listener = WakeWordListener(
+            model_name=wake_cfg.get("model", "hey_jarvis"),
+            threshold=float(wake_cfg.get("threshold", 0.35)),
+            sample_rate=sample_rate,
+            input_device_index=resolved_input_device,
+            cooldown_seconds=float(wake_cfg.get("cooldown_seconds", 1.5)),
+            hard_trigger_hits=int(wake_cfg.get("hard_trigger_hits", 1)),
+            soft_trigger_hits=int(wake_cfg.get("soft_trigger_hits", 4)),
+            voice_rms_for_soft_trigger=float(wake_cfg.get("voice_rms_for_soft_trigger", 30.0)),
+            score_log_interval_seconds=float(wake_cfg.get("score_log_interval_seconds", 5.0)),
+        )
 
     return {
         "memory": memory_store,
@@ -258,11 +262,12 @@ def build_runtime_components(base_dir: Path, config: dict[str, Any]) -> dict[str
         "audio_cache": audio_cache,
         "tts": tts_service,
         "stt": stt_service,
+        "capture_backend": capture_backend,
         "router": router,
         "system_prompt": system_prompt,
         "wake_listener": wake_listener,
         "max_history": int(llm_cfg.get("max_history_messages", 10)),
-        "openwakeword_enabled": bool(wake_cfg.get("openwakeword_enabled", True)),
+        "openwakeword_enabled": openwakeword_enabled,
         "wake_stt_fallback_enabled": bool(wake_cfg.get("stt_fallback_enabled", True)),
         "wake_stt_max_record_seconds": float(wake_cfg.get("stt_fallback_max_record_seconds", 2.2)),
         "wake_stt_probe_interval_seconds": float(wake_cfg.get("stt_fallback_probe_interval_seconds", 1.0)),
@@ -283,9 +288,10 @@ def run() -> None:
     audio_cache: AudioCache = components["audio_cache"]
     tts_service: TTSService = components["tts"]
     stt_service: STTService = components["stt"]
+    capture_backend = components["capture_backend"]
     router: ActionRouter = components["router"]
     system_prompt: str = components["system_prompt"]
-    wake_listener: WakeWordListener = components["wake_listener"]
+    wake_listener: WakeWordListener | None = components["wake_listener"]
     max_history: int = components["max_history"]
     openwakeword_enabled: bool = components["openwakeword_enabled"]
     wake_stt_fallback_enabled: bool = components["wake_stt_fallback_enabled"]
@@ -293,27 +299,10 @@ def run() -> None:
     wake_stt_probe_interval_seconds: float = components["wake_stt_probe_interval_seconds"]
     continuous_listen_when_disabled: bool = components["continuous_listen_when_disabled"]
     continuous_require_keyword: bool = components["continuous_require_keyword"]
-    stt_sample_rate_profiles: list[int] = []
-    for sr in [stt_service.capture_sample_rate, 48000, 32000, 16000]:
-        if sr not in stt_sample_rate_profiles:
-            stt_sample_rate_profiles.append(sr)
-    stt_profile_index = 0
-    stt_input_device_profiles: list[int | None] = [stt_service.input_device]
-    if not capture_backend.is_wasapi:
-        for device in get_audio_devices():
-            idx = int(device.get("index"))
-            if int(device.get("max_input_channels", 0)) < 1:
-                continue
-            name = str(device.get("name", "")).lower()
-            if any(bad in name for bad in ("stereo mix", "mezcla", "loopback", "output", "mapper")):
-                continue
-            if idx not in stt_input_device_profiles:
-                stt_input_device_profiles.append(idx)
-    stt_input_profile_index = 0
     empty_stt_streak = 0
     pending_keyword_command = False
 
-    if openwakeword_enabled:
+    if openwakeword_enabled and wake_listener is not None:
         wake_listener.start()
     else:
         LOGGER.info("OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').")
@@ -326,7 +315,7 @@ def run() -> None:
     try:
         while True:
             user_text = ""
-            if openwakeword_enabled and wake_listener.wait_for_wake_word(timeout=0.2):
+            if openwakeword_enabled and wake_listener is not None and wake_listener.wait_for_wake_word(timeout=0.2):
                 user_text = stt_service.transcribe_from_mic()
             elif (not openwakeword_enabled) and continuous_listen_when_disabled:
                 spoken_text = stt_service.transcribe_from_mic()
@@ -377,26 +366,18 @@ def run() -> None:
 
             if not user_text:
                 empty_stt_streak += 1
-                if empty_stt_streak > 0 and (empty_stt_streak % 3 == 0) and len(stt_sample_rate_profiles) > 1:
-                    stt_profile_index = (stt_profile_index + 1) % len(stt_sample_rate_profiles)
-                    new_rate = stt_sample_rate_profiles[stt_profile_index]
-                    stt_service.set_capture_sample_rate(new_rate)
-                    LOGGER.warning(
-                        "STT vacio repetido (%d intentos). Cambiando sample_rate de captura a %d Hz.",
-                        empty_stt_streak,
-                        new_rate,
-                    )
-                if empty_stt_streak > 0 and (empty_stt_streak % 9 == 0) and len(stt_input_device_profiles) > 1:
-                    stt_input_profile_index = (stt_input_profile_index + 1) % len(stt_input_device_profiles)
-                    new_input = stt_input_device_profiles[stt_input_profile_index]
-                    stt_service.input_device = new_input
-                    stt_profile_index = 0
-                    stt_service.set_capture_sample_rate(stt_sample_rate_profiles[stt_profile_index])
-                    LOGGER.warning(
-                        "STT vacio persistente (%d intentos). Cambiando input_device a %s.",
-                        empty_stt_streak,
-                        format_audio_device(new_input),
-                    )
+                if empty_stt_streak % 3 == 0:
+                    try:
+                        new_input = resolve_input_device(
+                            preferred_index=None,
+                            sample_rate=stt_service.capture_sample_rate,
+                            channels=stt_service.channels,
+                        )
+                        if new_input != stt_service.input_device:
+                            stt_service.input_device = new_input
+                            LOGGER.warning("STT sin voz: nuevo micrófono seleccionado: index=%s", new_input)
+                    except Exception as exc:
+                        LOGGER.warning("No se pudo reexplorar los micrófonos: %s", exc)
                 LOGGER.warning("No se detecto voz valida. Esperando nueva activacion...")
                 continue
             empty_stt_streak = 0
@@ -448,7 +429,7 @@ def run() -> None:
     except KeyboardInterrupt:
         LOGGER.info("Interrupcion recibida. Cerrando Jarvis...")
     finally:
-        if openwakeword_enabled:
+        if openwakeword_enabled and wake_listener is not None:
             wake_listener.stop()
 
 
