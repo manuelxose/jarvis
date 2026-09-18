@@ -35,10 +35,23 @@ class WhisperSTT:
         self.device = device
         self.compute_type = compute_type
         self.sample_rate = sample_rate
+        self._model: object | None = None
+
+    def _load_model(self) -> object:
+        """Lazy-load and cache the underlying faster-whisper model.
+
+        The model is reused across ``transcribe`` calls so a warm turn does not
+        pay model initialization again (M003 "loaded STT model" contract).
+        """
+        if self._model is None:
+            from faster_whisper import WhisperModel  # noqa: PLC0415
+
+            self._model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
+        return self._model
 
     async def transcribe(self, audio: AsyncIterator[bytes], context: TurnContext) -> AsyncIterator[Transcript]:
         try:
-            from faster_whisper import WhisperModel  # noqa: PLC0415
+            from faster_whisper import WhisperModel  # noqa: F401, PLC0415
         except ImportError as error:
             raise ProviderUnavailable(
                 "faster-whisper is not installed; local STT unavailable", provider="stt"
@@ -52,7 +65,7 @@ class WhisperSTT:
             frames.extend(chunk)
         audio_array = np.frombuffer(bytes(frames), dtype=np.int16).astype(np.float32) / 32768.0
 
-        model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
+        model = self._load_model()
         kwargs: dict = {"beam_size": 1, "vad_filter": True, "condition_on_previous_text": False}
         if self.language:
             kwargs["language"] = self.language

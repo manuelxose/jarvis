@@ -2,11 +2,13 @@
 
 Commands::
 
-    jarvis doctor    -- health diagnostics
-    jarvis run       -- start the runtime and report state
-    jarvis demo      -- headless end-to-end acceptance demo (fake adapters)
-    jarvis accept    -- scripted real-hardware acceptance run (fake adapters)
-    jarvis benchmark -- offline latency benchmark (fake adapters)
+    jarvis doctor       -- health diagnostics
+    jarvis run          -- start the runtime and report state
+    jarvis demo         -- headless end-to-end acceptance demo (fake adapters)
+    jarvis accept       -- scripted real-hardware acceptance run (fake adapters)
+    jarvis benchmark    -- offline latency benchmark (fake adapters)
+    jarvis diagnose voice --acceptance
+                        -- real-hardware voice acceptance (production adapters)
 """
 
 from __future__ import annotations
@@ -63,8 +65,19 @@ def _parser(stdout: TextIO, stderr: TextIO) -> _Parser:
     )
     parser.add_argument(
         "command",
-        choices=("run", "doctor", "demo", "accept", "benchmark"),
+        choices=("run", "doctor", "demo", "accept", "benchmark", "diagnose"),
         help="command to execute",
+    )
+    parser.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        help="diagnose target (currently: voice)",
+    )
+    parser.add_argument(
+        "--acceptance",
+        action="store_true",
+        help="with diagnose voice: run the real-hardware voice acceptance diagnostic",
     )
     parser.add_argument("--config", default="config.json", help="path to JSON configuration")
     parser.add_argument(
@@ -168,6 +181,25 @@ def _temp_config(config):
     return replace(
         config, memory=replace(config.memory, db_path=str(Path(tempfile.mkdtemp()) / "jarvis.db"))
     )
+
+
+def _run_diagnose_command(config, args, stdout: TextIO, stderr: TextIO) -> int:
+    """Handle ``jarvis diagnose``: real-hardware voice acceptance, or health snapshot."""
+    if args.target == "voice" and args.acceptance:
+        from jarvis.application.voice_acceptance import format_report, run_voice_acceptance
+
+        report = run_voice_acceptance(config)
+        stdout.write(format_report(report))
+        stdout.write("\n")
+        stdout.flush()
+        return 0
+
+    # Non-acceptance diagnose falls back to the same health snapshot as doctor.
+    configure_logging(logging.getLogger("jarvis.cli"), stream=stderr)
+    runtime = build_runtime(config, use_fakes=args.use_fakes)
+    report = asyncio.run(_check(runtime, run=False))
+    _write_report(report, stdout, args.json)
+    return 0 if report["state"] == RuntimeState.READY.value else 1
 
 
 def _run_demo_command(config, stdout: TextIO, as_json: bool) -> int:
@@ -276,6 +308,8 @@ def main(
         return _run_accept_command(config, output, args.json)
     if args.command == "benchmark":
         return _run_benchmark_command(config, output, args.json)
+    if args.command == "diagnose":
+        return _run_diagnose_command(config, args, output, errors)
 
     configure_logging(logging.getLogger("jarvis.cli"), stream=errors)
     configure_logging(logging.getLogger("jarvis.voice_loop"), stream=errors)
