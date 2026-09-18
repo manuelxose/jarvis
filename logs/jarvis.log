@@ -1,212 +1,445 @@
-2026-02-19 19:38:22 | INFO     | voice.tts | COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.
-2026-02-19 19:38:22 | INFO     | voice.tts | Loading XTTS model 'tts_models/multilingual/multi-dataset/xtts_v2' on CPU...
-2026-02-19 19:38:22 | INFO     | TTS.utils.manage | tts_models/multilingual/multi-dataset/xtts_v2 is already downloaded.
-2026-02-19 19:38:23 | INFO     | TTS.tts.models | Using model: xtts
-2026-02-19 19:38:56 | INFO     | jarvis.main | Input audio device selected: index=5, name=Varios micrÃ³fonos (IntelÂ® Smart Sound Technology for Digital Microphones)
-2026-02-19 19:38:56 | INFO     | jarvis.main | Microphone check OK (rms=12794.47)
-2026-02-19 19:38:56 | INFO     | voice.stt | Loading faster-whisper model 'tiny' on cpu (int8)...
-2026-02-19 19:38:57 | INFO     | jarvis.main | OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').
-2026-02-19 19:38:57 | INFO     | jarvis.main | Modo escucha continua STT activo (sin wake word).
-2026-02-19 19:38:59 | INFO     | jarvis.main | Jarvis listo. Esperando wake word...
-2026-02-19 19:39:01 | INFO     | voice.stt | STT captured 1.77s audio in 1.88s (samples=28320, sample_rate=16000).
-2026-02-19 19:39:01 | INFO     | voice.stt | STT transcription finished in 0.31s (chars=0).
-2026-02-19 19:39:01 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:06 | INFO     | voice.stt | STT captured 3.99s audio in 4.08s (samples=63840, sample_rate=16000).
-2026-02-19 19:39:06 | INFO     | voice.stt | STT transcription finished in 0.16s (chars=0).
-2026-02-19 19:39:06 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:10 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=63840, sample_rate=16000).
-2026-02-19 19:39:10 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:39:10 | WARNING  | jarvis.main | STT vacio repetido (3 intentos). Cambiando sample_rate de captura a 48000 Hz.
-2026-02-19 19:39:10 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:14 | INFO     | voice.stt | STT captured 3.99s audio in 4.11s (samples=191520, sample_rate=48000).
-2026-02-19 19:39:14 | INFO     | voice.stt | STT transcription finished in 0.16s (chars=0).
-2026-02-19 19:39:14 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:18 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=191520, sample_rate=48000).
-2026-02-19 19:39:18 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:39:18 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:23 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=191520, sample_rate=48000).
-2026-02-19 19:39:23 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:39:23 | WARNING  | jarvis.main | STT vacio repetido (6 intentos). Cambiando sample_rate de captura a 32000 Hz.
-2026-02-19 19:39:23 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:27 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=127680, sample_rate=32000).
-2026-02-19 19:39:27 | INFO     | voice.stt | STT transcription finished in 0.17s (chars=0).
-2026-02-19 19:39:27 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:31 | INFO     | voice.stt | STT captured 3.99s audio in 4.16s (samples=127680, sample_rate=32000).
-2026-02-19 19:39:31 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:39:31 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:35 | INFO     | voice.stt | STT captured 3.99s audio in 4.09s (samples=127680, sample_rate=32000).
-2026-02-19 19:39:36 | INFO     | voice.stt | STT transcription finished in 0.17s (chars=0).
-2026-02-19 19:39:36 | WARNING  | jarvis.main | STT vacio repetido (9 intentos). Cambiando sample_rate de captura a 16000 Hz.
-2026-02-19 19:39:36 | WARNING  | jarvis.main | STT vacio persistente (9 intentos). Cambiando input_device a index=0, name=Asignador de sonido Microsoft - Input.
-2026-02-19 19:39:36 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:37 | INFO     | voice.stt | STT captured 1.38s audio in 1.56s (samples=22080, sample_rate=16000).
-2026-02-19 19:39:38 | INFO     | voice.stt | STT transcription finished in 0.91s (chars=12).
-2026-02-19 19:39:38 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Julián Otas.
-2026-02-19 19:39:42 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
-2026-02-19 19:39:42 | INFO     | voice.stt | STT transcription finished in 0.11s (chars=0).
-2026-02-19 19:39:42 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:46 | INFO     | voice.stt | STT captured 3.33s audio in 3.53s (samples=53280, sample_rate=16000).
-2026-02-19 19:39:47 | INFO     | voice.stt | STT transcription finished in 0.92s (chars=19).
-2026-02-19 19:39:47 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Abre a lo de notas.
-2026-02-19 19:39:51 | INFO     | voice.stt | STT captured 3.99s audio in 4.20s (samples=63840, sample_rate=16000).
-2026-02-19 19:39:51 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:39:51 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:39:55 | INFO     | voice.stt | STT captured 3.99s audio in 4.16s (samples=63840, sample_rate=16000).
-2026-02-19 19:39:56 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:39:56 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:00 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:01 | INFO     | voice.stt | STT transcription finished in 0.86s (chars=4).
-2026-02-19 19:40:01 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Y...
-2026-02-19 19:40:04 | INFO     | voice.stt | STT captured 3.60s audio in 3.83s (samples=57600, sample_rate=16000).
-2026-02-19 19:40:05 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:40:05 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:09 | INFO     | voice.stt | STT captured 3.99s audio in 4.17s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:09 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:40:09 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:13 | INFO     | voice.stt | STT captured 3.99s audio in 4.17s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:14 | INFO     | voice.stt | STT transcription finished in 0.94s (chars=6).
-2026-02-19 19:40:14 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Pues!
-2026-02-19 19:40:18 | INFO     | voice.stt | STT captured 3.99s audio in 4.22s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:18 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:40:18 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:23 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:23 | INFO     | voice.stt | STT transcription finished in 0.89s (chars=5).
-2026-02-19 19:40:23 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Chi!
-2026-02-19 19:40:28 | INFO     | voice.stt | STT captured 3.99s audio in 4.22s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:28 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:40:28 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:32 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:34 | INFO     | voice.stt | STT transcription finished in 1.91s (chars=1023).
-2026-02-19 19:40:34 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Y el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer que se llama el primer
-2026-02-19 19:40:38 | INFO     | voice.stt | STT captured 3.99s audio in 4.20s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:38 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:40:38 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:41 | INFO     | voice.stt | STT captured 2.19s audio in 2.38s (samples=35040, sample_rate=16000).
-2026-02-19 19:40:41 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:40:41 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:45 | INFO     | voice.stt | STT captured 3.99s audio in 4.22s (samples=63840, sample_rate=16000).
-2026-02-19 19:40:45 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:40:45 | WARNING  | jarvis.main | STT vacio repetido (3 intentos). Cambiando sample_rate de captura a 48000 Hz.
-2026-02-19 19:40:45 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:49 | INFO     | voice.stt | STT captured 2.85s audio in 4.17s (samples=136800, sample_rate=48000).
-2026-02-19 19:40:49 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:40:49 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:54 | INFO     | voice.stt | STT captured 3.93s audio in 4.17s (samples=188640, sample_rate=48000).
-2026-02-19 19:40:54 | INFO     | voice.stt | STT transcription finished in 0.16s (chars=0).
-2026-02-19 19:40:54 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:40:58 | INFO     | voice.stt | STT captured 0.00s audio in 4.16s (samples=0, sample_rate=48000).
-2026-02-19 19:40:58 | INFO     | voice.stt | STT transcription finished in 0.00s (chars=0).
-2026-02-19 19:40:58 | WARNING  | jarvis.main | STT vacio repetido (6 intentos). Cambiando sample_rate de captura a 32000 Hz.
-2026-02-19 19:40:58 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:02 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=127680, sample_rate=32000).
-2026-02-19 19:41:02 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:41:02 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:06 | INFO     | voice.stt | STT captured 3.99s audio in 4.20s (samples=127680, sample_rate=32000).
-2026-02-19 19:41:06 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:41:06 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:11 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=127680, sample_rate=32000).
-2026-02-19 19:41:11 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:41:11 | WARNING  | jarvis.main | STT vacio repetido (9 intentos). Cambiando sample_rate de captura a 16000 Hz.
-2026-02-19 19:41:11 | WARNING  | jarvis.main | STT vacio persistente (9 intentos). Cambiando input_device a index=1, name=Varios micrÃ³fonos (IntelÂ® Smart.
-2026-02-19 19:41:11 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:15 | INFO     | voice.stt | STT captured 3.99s audio in 4.16s (samples=63840, sample_rate=16000).
-2026-02-19 19:41:15 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:41:15 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:19 | INFO     | voice.stt | STT captured 3.99s audio in 4.17s (samples=63840, sample_rate=16000).
-2026-02-19 19:41:20 | INFO     | voice.stt | STT transcription finished in 0.12s (chars=0).
-2026-02-19 19:41:20 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:24 | INFO     | voice.stt | STT captured 3.99s audio in 4.19s (samples=63840, sample_rate=16000).
-2026-02-19 19:41:24 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:41:24 | WARNING  | jarvis.main | STT vacio repetido (12 intentos). Cambiando sample_rate de captura a 48000 Hz.
-2026-02-19 19:41:24 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:27 | INFO     | voice.stt | STT captured 2.49s audio in 3.58s (samples=119520, sample_rate=48000).
-2026-02-19 19:41:28 | INFO     | voice.stt | STT transcription finished in 0.86s (chars=23).
-2026-02-19 19:41:28 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: A ver el blog de Notas.
-2026-02-19 19:41:32 | INFO     | voice.stt | STT captured 0.00s audio in 4.20s (samples=0, sample_rate=48000).
-2026-02-19 19:41:32 | INFO     | voice.stt | STT transcription finished in 0.00s (chars=0).
-2026-02-19 19:41:32 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:37 | INFO     | voice.stt | STT captured 0.99s audio in 4.14s (samples=47520, sample_rate=48000).
-2026-02-19 19:41:37 | INFO     | voice.stt | STT transcription finished in 0.81s (chars=14).
-2026-02-19 19:41:37 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: A ver, bloque.
-2026-02-19 19:41:42 | INFO     | voice.stt | STT captured 2.76s audio in 4.19s (samples=132480, sample_rate=48000).
-2026-02-19 19:41:42 | INFO     | voice.stt | STT transcription finished in 0.14s (chars=0).
-2026-02-19 19:41:42 | WARNING  | jarvis.main | No se detecto voz valida. Esperando nueva activacion...
-2026-02-19 19:41:43 | INFO     | jarvis.main | Interrupcion recibida. Cerrando Jarvis...
-2026-09-17 17:07:18 | INFO     | voice.tts | COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.
-2026-09-17 17:07:18 | INFO     | voice.tts | Loading XTTS model 'tts_models/multilingual/multi-dataset/xtts_v2' on CPU...
-2026-09-17 17:07:18 | INFO     | TTS.utils.manage | tts_models/multilingual/multi-dataset/xtts_v2 is already downloaded.
-2026-09-17 17:07:19 | INFO     | TTS.tts.models | Using model: xtts
-2026-09-17 17:08:03 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:08:03 | INFO     | TTS.utils.synthesizer | Input: ['Entendido']
-2026-09-17 17:08:12 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:08:14 | INFO     | voice.audio_utils | Input probe index=12 rms=69.31
-2026-09-17 17:08:16 | INFO     | voice.audio_utils | Input probe index=1 rms=366.14
-2026-09-17 17:08:17 | INFO     | voice.audio_utils | Input probe index=0 rms=345.72
-2026-09-17 17:08:18 | INFO     | voice.audio_utils | Input probe index=6 rms=6427.61
-2026-09-17 17:08:19 | INFO     | jarvis.main | Input audio device selected: index=6, name=Auriculares con micrÃ³fono (G435 Bluetooth Gaming Headset)
-2026-09-17 17:08:20 | INFO     | jarvis.main | Microphone check OK (rms=381.73)
-2026-09-17 17:08:20 | INFO     | voice.stt | Loading faster-whisper model 'small' on cpu (int8)...
-2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Processing time: 17.674
-2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.460
-2026-09-17 17:08:21 | INFO     | cache.audio_cache | Pre-generated cache audio: entendido.wav
-2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:08:21 | INFO     | TTS.utils.synthesizer | Input: ['En un momento']
-2026-09-17 17:08:28 | INFO     | jarvis.main | OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').
-2026-09-17 17:08:28 | INFO     | jarvis.main | Modo escucha continua STT activo (sin wake word).
-2026-09-17 17:08:28 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:08:28 | INFO     | TTS.utils.synthesizer | Input: ['Jarvis a tu servicio']
-2026-09-17 17:08:30 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Processing time: 14.460
-2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Real-time factor: 8.706
-2026-09-17 17:08:36 | INFO     | cache.audio_cache | Pre-generated cache audio: en_un_momento.wav
-2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:08:36 | INFO     | TTS.utils.synthesizer | Input: ['En que mas puedo ayudarte?']
-2026-09-17 17:08:45 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:08:48 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:09:00 | INFO     | TTS.utils.synthesizer | Processing time: 32.059
-2026-09-17 17:09:00 | INFO     | TTS.utils.synthesizer | Real-time factor: 14.452
-2026-09-17 17:09:02 | INFO     | jarvis.main | Jarvis listo. Esperando wake word...
-2026-09-17 17:09:04 | INFO     | voice.stt | STT captured 1.14s audio in 1.94s (samples=18240, sample_rate=16000, rms=129).
-2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Processing time: 34.057
-2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.501
-2026-09-17 17:09:10 | INFO     | cache.audio_cache | Pre-generated cache audio: en_que_mas_puedo_ayudarte.wav
-2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:09:10 | INFO     | TTS.utils.synthesizer | Input: ['Procesando tu solicitud']
-2026-09-17 17:09:12 | INFO     | voice.stt | STT transcription finished in 7.58s (chars=7).
-2026-09-17 17:09:12 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: Durante
-2026-09-17 17:09:17 | INFO     | voice.stt | STT captured 3.96s audio in 4.88s (samples=63360, sample_rate=16000, rms=22).
-2026-09-17 17:09:19 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:09:24 | INFO     | voice.stt | STT transcription finished in 6.67s (chars=9).
-2026-09-17 17:09:24 | INFO     | jarvis.main | Wake detectado. Di tu comando...
-2026-09-17 17:09:28 | INFO     | voice.stt | STT captured 3.99s audio in 4.73s (samples=63840, sample_rate=16000, rms=14).
-2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Processing time: 20.223
-2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.571
-2026-09-17 17:09:30 | INFO     | cache.audio_cache | Pre-generated cache audio: procesando_tu_solicitud.wav
-2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:09:30 | INFO     | TTS.utils.synthesizer | Input: ['No he podido completar esa accion']
-2026-09-17 17:09:36 | INFO     | voice.stt | STT transcription finished in 7.64s (chars=8).
-2026-09-17 17:09:36 | INFO     | jarvis.main | Usuario: ¡Sigues!
-2026-09-17 17:09:39 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Processing time: 16.534
-2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Real-time factor: 6.979
-2026-09-17 17:09:47 | INFO     | cache.audio_cache | Pre-generated cache audio: no_he_podido_completar_esa_accion.wav
-2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:09:47 | INFO     | TTS.utils.synthesizer | Input: ['Busqueda completada']
-2026-09-17 17:09:55 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Processing time: 19.286
-2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Real-time factor: 7.797
-2026-09-17 17:10:06 | INFO     | cache.audio_cache | Pre-generated cache audio: busqueda_completada.wav
-2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:10:06 | INFO     | TTS.utils.synthesizer | Input: ['Comando ejecutado']
-2026-09-17 17:10:15 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:10:26 | INFO     | TTS.utils.synthesizer | Processing time: 20.062
-2026-09-17 17:10:26 | INFO     | TTS.utils.synthesizer | Real-time factor: 6.855
-2026-09-17 17:10:26 | INFO     | cache.audio_cache | Pre-generated cache audio: comando_ejecutado.wav
-2026-09-17 17:10:40 | ERROR    | jarvis.main | LLM fallo: Ollama chat request failed. Verify Ollama is running and model is available.
-2026-09-17 17:10:40 | INFO     | jarvis.main | Jarvis: No he podido contactar con el modelo local.
-2026-09-17 17:10:40 | INFO     | TTS.utils.synthesizer | Text split into sentences.
-2026-09-17 17:10:40 | INFO     | TTS.utils.synthesizer | Input: ['No he podido contactar con el modelo local.']
-2026-09-17 17:10:48 | INFO     | TTS.utils.voices | Generated voice from reference audio
-2026-09-17 17:11:00 | INFO     | TTS.utils.synthesizer | Processing time: 19.257
-2026-09-17 17:11:00 | INFO     | TTS.utils.synthesizer | Real-time factor: 5.778
-2026-09-17 17:11:06 | INFO     | jarvis.main | Interrupcion recibida. Cerrando Jarvis...
+2026-09-18 18:32:21 | INFO     | brain.llm | Ollama preflight available=True elapsed_seconds=2.031 message=Ollama ready with model 'mistral:7b-instruct'.
+2026-09-18 18:32:21 | INFO     | voice.tts | COQUI_TOS_AGREED=1 habilitado para inicializacion no interactiva de XTTS.
+2026-09-18 18:32:21 | INFO     | voice.tts | XTTS model deferred until first synthesis: tts_models/multilingual/multi-dataset/xtts_v2
+2026-09-18 18:32:21 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(G435 Bluetooth Gaming Headset))' index=6 sample_rate=16000 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x0000048F (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:21 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(G435 Bluetooth Gaming Headset))' index=6 sample_rate=16000 rms=-1.00
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Varios micrófonos 3 ()' index=30 sample_rate=16000 rms=0.00
+2026-09-18 18:32:22 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(OpenMove by AfterShokz))' index=26 sample_rate=8000 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x0000048F (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(OpenMove by AfterShokz))' index=26 sample_rate=8000 rms=-1.00
+2026-09-18 18:32:22 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Input (@System32\\drivers\\bthhfenum.sys,#4;%1 Hands-Free HF Audio%0\r\n;(LG K8 4G))' index=23 sample_rate=8000 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x00000001 (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Input (@System32\\drivers\\bthhfenum.sys,#4;%1 Hands-Free HF Audio%0\r\n;(LG K8 4G))' index=23 sample_rate=8000 rms=-1.00
+2026-09-18 18:32:22 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(Pixel Buds))' index=21 sample_rate=8000 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x0000048F (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(Pixel Buds))' index=21 sample_rate=8000 rms=-1.00
+2026-09-18 18:32:22 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(Vieta Pro Way 3))' index=11 sample_rate=8000 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x0000048F (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(Vieta Pro Way 3))' index=11 sample_rate=8000 rms=-1.00
+2026-09-18 18:32:22 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(G9S))' index=9 sample_rate=8000 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x0000048F (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Auriculares con micrófono (@System32\\drivers\\bthhfenum.sys,#2;%1 Hands-Free%0\r\n;(G9S))' index=9 sample_rate=8000 rms=-1.00
+2026-09-18 18:32:22 | WARNING  | voice.audio_utils | Native input probe failed: backend=WDM-KS device='Input ()' index=31 sample_rate=44100 (Error starting stream: Unanticipated host error [PaErrorCode -9999]: 'WdmSyncIoctl: DeviceIoControl GLE = 0x0000048F (prop_set = {1D58C920-AC9B-11CF-A5D6-28DB04C10000}, prop_id = 0)' [Windows WDM-KS error 0])
+2026-09-18 18:32:22 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Input ()' index=31 sample_rate=44100 rms=-1.00
+2026-09-18 18:32:23 | INFO     | voice.audio_utils | Native input probe: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000 rms=59.97
+2026-09-18 18:32:23 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:32:23 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:32:23 | INFO     | jarvis.main | Input audio device selected: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:32:23 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:32:24 | INFO     | jarvis.main | Microphone check OK (rms=31.61)
+2026-09-18 18:32:24 | INFO     | voice.stt | Loading faster-whisper model 'small' on cpu (int8)...
+2026-09-18 18:32:26 | INFO     | voice.stt | timing phase=stt_model_load duration_seconds=2.250
+2026-09-18 18:32:26 | INFO     | jarvis.main | OpenWakeWord desactivado. Usando activacion por STT (frase con 'jarvis').
+2026-09-18 18:32:26 | INFO     | jarvis.main | Modo escucha continua STT activo (sin wake word).
+2026-09-18 18:32:26 | INFO     | jarvis.main | Jarvis listo. Esperando wake word... readiness_elapsed_seconds=6.360
+2026-09-18 18:33:38 | INFO     | voice.tts | Loading XTTS model 'tts_models/multilingual/multi-dataset/xtts_v2' on cuda...
+2026-09-18 18:33:38 | INFO     | TTS.utils.manage | tts_models/multilingual/multi-dataset/xtts_v2 is already downloaded.
+2026-09-18 18:33:39 | INFO     | TTS.tts.models | Using model: xtts
+2026-09-18 18:33:50 | INFO     | voice.tts | timing phase=tts_model_load duration_seconds=11.422
+2026-09-18 18:33:50 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-18 18:33:50 | INFO     | TTS.utils.synthesizer | Input: ['Jarvis a tu servicio']
+2026-09-18 18:34:00 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:34:01 | INFO     | TTS.utils.synthesizer | Processing time: 11.199
+2026-09-18 18:34:01 | INFO     | TTS.utils.synthesizer | Real-time factor: 5.705
+2026-09-18 18:34:01 | INFO     | voice.tts | timing phase=synthesis duration_seconds=11.469
+2026-09-18 18:34:04 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:04 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:07 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.062
+2026-09-18 18:34:07 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=23).
+2026-09-18 18:34:07 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.047
+2026-09-18 18:34:09 | INFO     | voice.stt | STT transcription finished in 1.52s (chars=12).
+2026-09-18 18:34:09 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:09 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:09 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:12 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.063
+2026-09-18 18:34:12 | INFO     | voice.stt | STT captured 2.97s audio in 3.06s (samples=47520, sample_rate=16000, rms=21).
+2026-09-18 18:34:12 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.047
+2026-09-18 18:34:13 | INFO     | voice.stt | STT transcription finished in 1.34s (chars=12).
+2026-09-18 18:34:13 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:13 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:13 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:14 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.515
+2026-09-18 18:34:15 | INFO     | voice.stt | STT captured 1.41s audio in 1.52s (samples=22560, sample_rate=16000, rms=25).
+2026-09-18 18:34:15 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.032
+2026-09-18 18:34:16 | INFO     | voice.stt | STT transcription finished in 1.33s (chars=12).
+2026-09-18 18:34:16 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:16 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:16 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:18 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.000
+2026-09-18 18:34:18 | INFO     | voice.stt | STT captured 1.89s audio in 2.00s (samples=30240, sample_rate=16000, rms=23).
+2026-09-18 18:34:18 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.032
+2026-09-18 18:34:19 | INFO     | voice.stt | STT transcription finished in 1.30s (chars=12).
+2026-09-18 18:34:19 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:19 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:19 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:21 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.250
+2026-09-18 18:34:21 | INFO     | voice.stt | STT captured 2.10s audio in 2.27s (samples=33600, sample_rate=16000, rms=35).
+2026-09-18 18:34:21 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:34:23 | INFO     | voice.stt | STT transcription finished in 1.33s (chars=12).
+2026-09-18 18:34:23 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:23 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:23 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:24 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.156
+2026-09-18 18:34:24 | INFO     | voice.stt | STT captured 1.05s audio in 1.16s (samples=16800, sample_rate=16000, rms=32).
+2026-09-18 18:34:24 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.032
+2026-09-18 18:34:25 | INFO     | voice.stt | STT transcription finished in 1.41s (chars=12).
+2026-09-18 18:34:25 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:25 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:25 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:28 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.296
+2026-09-18 18:34:28 | INFO     | voice.stt | STT captured 2.19s audio in 2.30s (samples=35040, sample_rate=16000, rms=22).
+2026-09-18 18:34:28 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:34:29 | INFO     | voice.stt | STT transcription finished in 1.44s (chars=12).
+2026-09-18 18:34:29 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:29 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:29 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:31 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.172
+2026-09-18 18:34:31 | INFO     | voice.stt | STT captured 2.07s audio in 2.17s (samples=33120, sample_rate=16000, rms=21).
+2026-09-18 18:34:31 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.047
+2026-09-18 18:34:33 | INFO     | voice.stt | STT transcription finished in 1.38s (chars=12).
+2026-09-18 18:34:33 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:33 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:33 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:35 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.344
+2026-09-18 18:34:35 | INFO     | voice.stt | STT captured 2.22s audio in 2.34s (samples=35520, sample_rate=16000, rms=21).
+2026-09-18 18:34:35 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:34:36 | INFO     | voice.stt | STT transcription finished in 1.33s (chars=12).
+2026-09-18 18:34:36 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:36 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:36 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:37 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.015
+2026-09-18 18:34:37 | INFO     | voice.stt | STT captured 0.96s audio in 1.03s (samples=15360, sample_rate=16000, rms=31).
+2026-09-18 18:34:37 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:34:39 | INFO     | voice.stt | STT transcription finished in 1.31s (chars=12).
+2026-09-18 18:34:39 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:39 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:39 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:42 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.062
+2026-09-18 18:34:42 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=27).
+2026-09-18 18:34:42 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.015
+2026-09-18 18:34:43 | INFO     | voice.stt | STT transcription finished in 1.28s (chars=12).
+2026-09-18 18:34:43 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:43 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:43 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:45 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.531
+2026-09-18 18:34:45 | INFO     | voice.stt | STT captured 1.41s audio in 1.53s (samples=22560, sample_rate=16000, rms=29).
+2026-09-18 18:34:45 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:34:46 | INFO     | voice.stt | STT transcription finished in 1.33s (chars=12).
+2026-09-18 18:34:46 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:46 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:46 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:49 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.063
+2026-09-18 18:34:49 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=20).
+2026-09-18 18:34:49 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:34:50 | INFO     | voice.stt | STT transcription finished in 1.28s (chars=12).
+2026-09-18 18:34:50 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:50 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:50 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:52 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.984
+2026-09-18 18:34:52 | INFO     | voice.stt | STT captured 1.89s audio in 1.98s (samples=30240, sample_rate=16000, rms=23).
+2026-09-18 18:34:52 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:34:54 | INFO     | voice.stt | STT transcription finished in 1.28s (chars=12).
+2026-09-18 18:34:54 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:54 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:54 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:55 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.875
+2026-09-18 18:34:55 | INFO     | voice.stt | STT captured 1.74s audio in 1.89s (samples=27840, sample_rate=16000, rms=26).
+2026-09-18 18:34:55 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:34:57 | INFO     | voice.stt | STT transcription finished in 1.28s (chars=12).
+2026-09-18 18:34:57 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:34:57 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:57 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:58 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.079
+2026-09-18 18:34:58 | INFO     | voice.stt | STT captured 0.99s audio in 1.08s (samples=15840, sample_rate=16000, rms=40).
+2026-09-18 18:34:58 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:34:59 | INFO     | voice.stt | STT transcription finished in 1.28s (chars=6).
+2026-09-18 18:34:59 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Pres!
+2026-09-18 18:34:59 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:34:59 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:02 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:35:02 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=21).
+2026-09-18 18:35:02 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:35:03 | INFO     | voice.stt | STT transcription finished in 1.34s (chars=12).
+2026-09-18 18:35:03 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:03 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:04 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:05 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.422
+2026-09-18 18:35:05 | INFO     | voice.stt | STT captured 1.32s audio in 1.42s (samples=21120, sample_rate=16000, rms=27).
+2026-09-18 18:35:05 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:35:06 | INFO     | voice.stt | STT transcription finished in 1.41s (chars=12).
+2026-09-18 18:35:06 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:06 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:06 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:09 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.079
+2026-09-18 18:35:09 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=21).
+2026-09-18 18:35:09 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:35:11 | INFO     | voice.stt | STT transcription finished in 1.31s (chars=12).
+2026-09-18 18:35:11 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:11 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:11 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:14 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:35:14 | INFO     | voice.stt | STT captured 2.97s audio in 3.09s (samples=47520, sample_rate=16000, rms=21).
+2026-09-18 18:35:14 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.015
+2026-09-18 18:35:15 | INFO     | voice.stt | STT transcription finished in 1.38s (chars=12).
+2026-09-18 18:35:15 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:15 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:15 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:18 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:35:18 | INFO     | voice.stt | STT captured 3.00s audio in 3.08s (samples=48000, sample_rate=16000, rms=19).
+2026-09-18 18:35:18 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:35:20 | INFO     | voice.stt | STT transcription finished in 1.30s (chars=12).
+2026-09-18 18:35:20 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:20 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:20 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:23 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.984
+2026-09-18 18:35:23 | INFO     | voice.stt | STT captured 2.88s audio in 2.98s (samples=46080, sample_rate=16000, rms=20).
+2026-09-18 18:35:23 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:35:24 | INFO     | voice.stt | STT transcription finished in 1.30s (chars=12).
+2026-09-18 18:35:24 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:24 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:24 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:26 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.813
+2026-09-18 18:35:26 | INFO     | voice.stt | STT captured 1.71s audio in 1.81s (samples=27360, sample_rate=16000, rms=25).
+2026-09-18 18:35:26 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.046
+2026-09-18 18:35:27 | INFO     | voice.stt | STT transcription finished in 1.31s (chars=12).
+2026-09-18 18:35:27 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:35:27 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:27 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:35:30 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.063
+2026-09-18 18:35:30 | INFO     | voice.stt | STT captured 2.97s audio in 3.06s (samples=47520, sample_rate=16000, rms=226).
+2026-09-18 18:35:30 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.046
+2026-09-18 18:35:32 | INFO     | voice.stt | STT transcription finished in 1.48s (chars=21).
+2026-09-18 18:35:32 | INFO     | jarvis.main | Usuario: que haces
+2026-09-18 18:35:50 | INFO     | brain.llm | timing phase=ollama_request duration_seconds=18.625
+2026-09-18 18:35:50 | INFO     | jarvis.main | Jarvis: Como Jarvis, el asistente personal de Manuel, voy a estar siempre listo para ayudarte. En este momento, no tengo una tarea específica en curso, así que estoy disponible para atender tus necesidades. Si tienes alguna pregunta o necesidad, no dudes en preguntar.
+2026-09-18 18:35:50 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-18 18:35:50 | INFO     | TTS.utils.synthesizer | Input: ['Como Jarvis, el asistente personal de Manuel, voy a estar siempre listo para ayudarte.', 'En este momento, no tengo una tarea específica en curso, así que estoy disponible para atender tus necesidades.', 'Si tienes alguna pregunta o necesidad, no dudes en preguntar.']
+2026-09-18 18:35:51 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:35:54 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:35:58 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:36:00 | INFO     | TTS.utils.synthesizer | Processing time: 9.413
+2026-09-18 18:36:00 | INFO     | TTS.utils.synthesizer | Real-time factor: 0.493
+2026-09-18 18:36:00 | INFO     | voice.tts | timing phase=synthesis duration_seconds=9.485
+2026-09-18 18:36:18 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:36:18 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:36:21 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:36:21 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=22).
+2026-09-18 18:36:21 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.032
+2026-09-18 18:36:22 | INFO     | voice.stt | STT transcription finished in 1.30s (chars=12).
+2026-09-18 18:36:22 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:36:22 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:36:22 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:36:25 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.312
+2026-09-18 18:36:25 | INFO     | voice.stt | STT captured 2.22s audio in 2.31s (samples=35520, sample_rate=16000, rms=153).
+2026-09-18 18:36:25 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.016
+2026-09-18 18:36:26 | INFO     | voice.stt | STT transcription finished in 1.31s (chars=17).
+2026-09-18 18:36:26 | INFO     | jarvis.main | Usuario: cheveleis
+2026-09-18 18:36:55 | INFO     | brain.llm | timing phase=ollama_request duration_seconds=29.140
+2026-09-18 18:36:55 | INFO     | jarvis.main | Jarvis: Gracias por la información. Ahora tengo una idea más clara de cómo seré Jarvis, el asistente personal de Manuel. Para empezar, voy a ser inteligente, conciso y eficiente. Hablaré siempre en español y mi tono será profesional pero cercano, como un asistente de confianza. Si no sabo algo, lo diré claramente. También voy a confirmar las acciones antes de ejecutarlas si son irreversibles. Además, tengo capacidades
+2026-09-18 18:36:55 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-18 18:36:55 | INFO     | TTS.utils.synthesizer | Input: ['Gracias por la información.', 'Ahora tengo una idea más clara de cómo seré Jarvis, el asistente personal de Manuel.', 'Para empezar, voy a ser inteligente, conciso y eficiente.', 'Hablaré siempre en español y mi tono será profesional pero cercano, como un asistente de confianza.', 'Si no sabo algo, lo diré claramente.', 'También voy a confirmar las acciones antes de ejecutarlas si son irreversibles.', 'Además, tengo capacidades']
+2026-09-18 18:36:55 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:00 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:03 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:06 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:09 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:11 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:13 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:37:15 | WARNING  | jarvis.main | TTS tardo mas de 20 segundos. Respuesta solo en consola.
+2026-09-18 18:37:15 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:15 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:16 | INFO     | TTS.utils.synthesizer | Processing time: 20.458
+2026-09-18 18:37:16 | INFO     | TTS.utils.synthesizer | Real-time factor: 0.480
+2026-09-18 18:37:16 | INFO     | voice.tts | timing phase=synthesis duration_seconds=20.625
+2026-09-18 18:37:18 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.203
+2026-09-18 18:37:18 | INFO     | voice.stt | STT captured 2.94s audio in 3.20s (samples=47040, sample_rate=16000, rms=22).
+2026-09-18 18:37:18 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:20 | INFO     | voice.stt | STT transcription finished in 1.58s (chars=12).
+2026-09-18 18:37:20 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:20 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:20 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:22 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.438
+2026-09-18 18:37:22 | INFO     | voice.stt | STT captured 2.28s audio in 2.44s (samples=36480, sample_rate=16000, rms=22).
+2026-09-18 18:37:22 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:24 | INFO     | voice.stt | STT transcription finished in 1.52s (chars=12).
+2026-09-18 18:37:24 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:24 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:24 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:25 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.516
+2026-09-18 18:37:25 | INFO     | voice.stt | STT captured 1.41s audio in 1.52s (samples=22560, sample_rate=16000, rms=27).
+2026-09-18 18:37:26 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:27 | INFO     | voice.stt | STT transcription finished in 1.56s (chars=12).
+2026-09-18 18:37:27 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:27 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:27 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:30 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.937
+2026-09-18 18:37:30 | INFO     | voice.stt | STT captured 2.85s audio in 2.95s (samples=45600, sample_rate=16000, rms=20).
+2026-09-18 18:37:30 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:32 | INFO     | voice.stt | STT transcription finished in 1.52s (chars=12).
+2026-09-18 18:37:32 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:32 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:32 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:35 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:37:35 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=19).
+2026-09-18 18:37:35 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:36 | INFO     | voice.stt | STT transcription finished in 1.45s (chars=12).
+2026-09-18 18:37:36 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:36 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:36 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:38 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.938
+2026-09-18 18:37:38 | INFO     | voice.stt | STT captured 1.83s audio in 1.95s (samples=29280, sample_rate=16000, rms=23).
+2026-09-18 18:37:38 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.032
+2026-09-18 18:37:40 | INFO     | voice.stt | STT transcription finished in 1.61s (chars=12).
+2026-09-18 18:37:40 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:40 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:40 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:42 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.031
+2026-09-18 18:37:42 | INFO     | voice.stt | STT captured 1.92s audio in 2.03s (samples=30720, sample_rate=16000, rms=25).
+2026-09-18 18:37:42 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:43 | INFO     | voice.stt | STT transcription finished in 1.47s (chars=12).
+2026-09-18 18:37:43 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:43 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:43 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:44 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.109
+2026-09-18 18:37:44 | INFO     | voice.stt | STT captured 0.99s audio in 1.11s (samples=15840, sample_rate=16000, rms=28).
+2026-09-18 18:37:44 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:46 | INFO     | voice.stt | STT transcription finished in 1.50s (chars=12).
+2026-09-18 18:37:46 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:46 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:46 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:49 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.047
+2026-09-18 18:37:49 | INFO     | voice.stt | STT captured 2.97s audio in 3.06s (samples=47520, sample_rate=16000, rms=19).
+2026-09-18 18:37:49 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:37:50 | INFO     | voice.stt | STT transcription finished in 1.47s (chars=12).
+2026-09-18 18:37:50 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:50 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:50 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:53 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.063
+2026-09-18 18:37:53 | INFO     | voice.stt | STT captured 2.97s audio in 3.06s (samples=47520, sample_rate=16000, rms=19).
+2026-09-18 18:37:53 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.032
+2026-09-18 18:37:55 | INFO     | voice.stt | STT transcription finished in 1.42s (chars=12).
+2026-09-18 18:37:55 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:55 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:55 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:57 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.891
+2026-09-18 18:37:57 | INFO     | voice.stt | STT captured 1.83s audio in 1.91s (samples=29280, sample_rate=16000, rms=23).
+2026-09-18 18:37:57 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.015
+2026-09-18 18:37:58 | INFO     | voice.stt | STT transcription finished in 1.42s (chars=12).
+2026-09-18 18:37:58 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:37:58 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:37:58 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:01 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.594
+2026-09-18 18:38:01 | INFO     | voice.stt | STT captured 2.46s audio in 2.59s (samples=39360, sample_rate=16000, rms=180).
+2026-09-18 18:38:01 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:38:02 | INFO     | voice.stt | STT transcription finished in 1.44s (chars=20).
+2026-09-18 18:38:02 | INFO     | jarvis.main | Usuario: que dais
+2026-09-18 18:38:06 | ERROR    | brain.action_router | Action execution failed: timed out
+Traceback (most recent call last):
+  File "Z:\home\manuelxose\workspace\jarvis\brain\action_router.py", line 85, in route
+    return {"intent": intent, "handled": True, "response": self._handle_ais(text)}
+                                                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "Z:\home\manuelxose\workspace\jarvis\brain\action_router.py", line 165, in _handle_ais
+    vessels = self.ais_monitor.get_nearby_vessels()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "Z:\home\manuelxose\workspace\jarvis\actions\ais_monitor.py", line 184, in get_nearby_vessels
+    sentences = self._collect_nmea_sentences()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "Z:\home\manuelxose\workspace\jarvis\actions\ais_monitor.py", line 100, in _collect_nmea_sentences
+    with self._connect() as sock:
+         ^^^^^^^^^^^^^^^
+  File "Z:\home\manuelxose\workspace\jarvis\actions\ais_monitor.py", line 93, in _connect
+    return socket.create_connection((self.host, self.port), timeout=self.timeout_seconds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 851, in create_connection
+    raise exceptions[0]
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 836, in create_connection
+    sock.connect(sa)
+TimeoutError: timed out
+2026-09-18 18:38:06 | INFO     | jarvis.main | Jarvis: No he podido completar esa accion.
+2026-09-18 18:38:06 | INFO     | TTS.utils.synthesizer | Text split into sentences.
+2026-09-18 18:38:06 | INFO     | TTS.utils.synthesizer | Input: ['No he podido completar esa accion.']
+2026-09-18 18:38:07 | INFO     | TTS.utils.voices | Generated voice from reference audio
+2026-09-18 18:38:08 | INFO     | TTS.utils.synthesizer | Processing time: 1.486
+2026-09-18 18:38:08 | INFO     | TTS.utils.synthesizer | Real-time factor: 0.547
+2026-09-18 18:38:08 | INFO     | voice.tts | timing phase=synthesis duration_seconds=1.500
+2026-09-18 18:38:11 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:11 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:14 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.063
+2026-09-18 18:38:14 | INFO     | voice.stt | STT captured 2.97s audio in 3.06s (samples=47520, sample_rate=16000, rms=11).
+2026-09-18 18:38:14 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:38:15 | INFO     | voice.stt | STT transcription finished in 1.47s (chars=12).
+2026-09-18 18:38:15 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:15 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:16 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:19 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:38:19 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=22).
+2026-09-18 18:38:19 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:38:20 | INFO     | voice.stt | STT transcription finished in 1.45s (chars=12).
+2026-09-18 18:38:20 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:20 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:20 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:23 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:38:23 | INFO     | voice.stt | STT captured 2.97s audio in 3.08s (samples=47520, sample_rate=16000, rms=19).
+2026-09-18 18:38:23 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:38:25 | INFO     | voice.stt | STT transcription finished in 1.48s (chars=12).
+2026-09-18 18:38:25 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:25 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:25 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:28 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.063
+2026-09-18 18:38:28 | INFO     | voice.stt | STT captured 2.97s audio in 3.06s (samples=47520, sample_rate=16000, rms=21).
+2026-09-18 18:38:28 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.031
+2026-09-18 18:38:29 | INFO     | voice.stt | STT transcription finished in 1.58s (chars=12).
+2026-09-18 18:38:29 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:29 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:29 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:32 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.078
+2026-09-18 18:38:32 | INFO     | voice.stt | STT captured 2.94s audio in 3.08s (samples=47040, sample_rate=16000, rms=24).
+2026-09-18 18:38:32 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.062
+2026-09-18 18:38:35 | INFO     | voice.stt | STT transcription finished in 2.81s (chars=12).
+2026-09-18 18:38:35 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:35 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:35 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:36 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.313
+2026-09-18 18:38:36 | INFO     | voice.stt | STT captured 1.20s audio in 1.33s (samples=19200, sample_rate=16000, rms=30).
+2026-09-18 18:38:37 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.063
+2026-09-18 18:38:40 | INFO     | voice.stt | STT transcription finished in 3.09s (chars=12).
+2026-09-18 18:38:40 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:40 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:40 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:43 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.094
+2026-09-18 18:38:43 | INFO     | voice.stt | STT captured 2.94s audio in 3.09s (samples=47040, sample_rate=16000, rms=20).
+2026-09-18 18:38:43 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.046
+2026-09-18 18:38:46 | INFO     | voice.stt | STT transcription finished in 3.08s (chars=12).
+2026-09-18 18:38:46 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:46 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:46 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:49 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.093
+2026-09-18 18:38:49 | INFO     | voice.stt | STT captured 2.97s audio in 3.09s (samples=47520, sample_rate=16000, rms=36).
+2026-09-18 18:38:49 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.063
+2026-09-18 18:38:52 | INFO     | voice.stt | STT transcription finished in 3.00s (chars=12).
+2026-09-18 18:38:52 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:52 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:52 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:54 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=1.719
+2026-09-18 18:38:54 | INFO     | voice.stt | STT captured 1.59s audio in 1.72s (samples=25440, sample_rate=16000, rms=29).
+2026-09-18 18:38:54 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.063
+2026-09-18 18:38:57 | INFO     | voice.stt | STT transcription finished in 3.06s (chars=12).
+2026-09-18 18:38:57 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:38:57 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:57 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:38:59 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.343
+2026-09-18 18:38:59 | INFO     | voice.stt | STT captured 2.19s audio in 2.34s (samples=35040, sample_rate=16000, rms=38).
+2026-09-18 18:38:59 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.063
+2026-09-18 18:39:02 | INFO     | voice.stt | STT transcription finished in 3.00s (chars=16).
+2026-09-18 18:39:02 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Muchas gracias!
+2026-09-18 18:39:02 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:39:02 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:39:05 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=2.891
+2026-09-18 18:39:05 | INFO     | voice.stt | STT captured 2.73s audio in 2.89s (samples=43680, sample_rate=16000, rms=47).
+2026-09-18 18:39:05 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.063
+2026-09-18 18:39:08 | INFO     | voice.stt | STT transcription finished in 3.14s (chars=12).
+2026-09-18 18:39:08 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:39:08 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:39:08 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:39:11 | INFO     | voice.stt | timing phase=microphone_capture duration_seconds=3.093
+2026-09-18 18:39:11 | INFO     | voice.stt | STT captured 2.97s audio in 3.09s (samples=47520, sample_rate=16000, rms=70).
+2026-09-18 18:39:11 | INFO     | voice.stt | timing phase=transcription duration_seconds=0.063
+2026-09-18 18:39:14 | INFO     | voice.stt | STT transcription finished in 3.00s (chars=12).
+2026-09-18 18:39:14 | INFO     | jarvis.main | Ignorando frase sin palabra clave en modo continuo: ¡Suscríbete!
+2026-09-18 18:39:14 | INFO     | voice.audio_utils | Audio capture resolved: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000
+2026-09-18 18:39:14 | INFO     | voice.audio_utils | STT capture started: backend=WDM-KS device='Varios micrófonos 2 ()' index=29 sample_rate=48000

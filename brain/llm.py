@@ -30,11 +30,17 @@ class OllamaClient:
         model: str = "mistral:7b-instruct",
         temperature: float = 0.7,
         timeout: int = 30,
+        num_predict: int = 128,
+        num_ctx: int = 2048,
+        keep_alive: str = "10m",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
+        self.num_predict = num_predict
+        self.num_ctx = num_ctx
+        self.keep_alive = keep_alive
 
     def preflight(self, timeout: float = 2.0) -> OllamaPreflight:
         """Check the local service and configured model before the first turn."""
@@ -90,7 +96,12 @@ class OllamaClient:
             "model": self.model,
             "messages": ollama_messages,
             "stream": stream,
-            "options": {"temperature": self.temperature},
+            "keep_alive": self.keep_alive,
+            "options": {
+                "temperature": self.temperature,
+                "num_predict": self.num_predict,
+                "num_ctx": self.num_ctx,
+            },
         }
 
     def chat(self, messages: list[dict[str, str]], system_prompt: str) -> str:
@@ -137,4 +148,3 @@ class OllamaClient:
             raise RuntimeError(
                 "Ollama streaming request failed. Verify Ollama service and model."
             ) from exc
-

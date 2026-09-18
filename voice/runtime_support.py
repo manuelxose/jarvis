@@ -18,7 +18,11 @@ class CaptureBackend:
 
     @property
     def is_wasapi(self) -> bool:
-        return self.name.upper() == "WASAPI"
+        return self.name.upper() in {"WASAPI", "WDM-KS"}
+
+    @property
+    def requires_callback(self) -> bool:
+        return self.name.upper() == "WDM-KS"
 
     def describe(self) -> str:
         fallback = f" fallback_reason={self.fallback_reason!r}" if self.fallback_reason else ""

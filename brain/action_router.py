@@ -14,9 +14,6 @@ from brain.llm import OllamaClient
 
 LOGGER = logging.getLogger(__name__)
 
-INTENTS = {"PC_CONTROL", "AIS_MONITOR", "TRADING", "WEB_SEARCH", "CONVERSATION"}
-
-
 def _normalize_text(text: str) -> str:
     normalized = unicodedata.normalize("NFKD", text)
     without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
@@ -74,27 +71,8 @@ class ActionRouter:
         if any(keyword in lower for keyword in web_keywords):
             return "WEB_SEARCH"
 
-        llm_intent = self._classify_intent_with_llm(lower)
-        if llm_intent in INTENTS:
-            return llm_intent
-        return "CONVERSATION"
-
-    def _classify_intent_with_llm(self, text: str) -> str:
-        if not self.llm_client:
-            return "CONVERSATION"
-        try:
-            system_prompt = (
-                "Clasifica la intencion del usuario en una sola etiqueta exacta: "
-                "PC_CONTROL, AIS_MONITOR, TRADING, WEB_SEARCH o CONVERSATION. "
-                "Responde solo con la etiqueta."
-            )
-            response = self.llm_client.chat(messages=[{"role": "user", "content": text}], system_prompt=system_prompt)
-            normalized = response.strip().upper()
-            for intent in INTENTS:
-                if intent in normalized:
-                    return intent
-        except Exception as exc:
-            LOGGER.debug("LLM intent fallback failed: %s", exc)
+        # Conversation is the common path. A remote intent-classification call
+        # followed by a second answer call doubles latency for every chat turn.
         return "CONVERSATION"
 
     def route(self, text: str) -> dict[str, Any]:
