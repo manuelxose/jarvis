@@ -73,6 +73,7 @@ class STTService:
         self.vad_mode = int(stt_config.get("vad_mode", 1))
         self.whisper_vad_filter = bool(stt_config.get("whisper_vad_filter", True))
         self.whisper_beam_size = int(stt_config.get("whisper_beam_size", 1))
+        self.local_files_only = bool(stt_config.get("local_files_only", True))
 
         self.capture_sample_rate = int(audio_config.get("sample_rate", 16000))
         self.model_sample_rate = 16000
@@ -90,6 +91,7 @@ class STTService:
                 self.model_size,
                 device=self.device,
                 compute_type=self.compute_type,
+                local_files_only=self.local_files_only,
             )
 
     def transcribe_audio(self, audio_data: np.ndarray) -> str:

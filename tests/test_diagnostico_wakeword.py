@@ -104,6 +104,10 @@ class WakeWordDiagnosticTests(unittest.TestCase):
 
         self.assertIn("Windows WASAPI", source)
         self.assertIn("default_input_device", source)
+        self.assertIn("max_input_channels", source)
+        self.assertIn("_capture_callback_audio", source)
+        self.assertIn("pyaudio", source)
+        self.assertIn("input_device_index=device_index", source)
         self.assertIn("diagnostico_audio_wasapi.wav", source)
 
     def test_native_chunk_size_keeps_80ms_model_frames(self) -> None:
@@ -127,6 +131,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertIn("resample_to_16khz", source)
         self.assertIn("DetectionStats", source)
         self.assertIn("peak={detection_stats.peak_score:.3f}", source)
+        self.assertIn("PREFERRED_DEVICES = []", source)
         self.assertNotIn("audioop", source)
         self.assertNotIn("voice.audio_utils", source)
         self.assertNotIn("selected_device = candidate", source)

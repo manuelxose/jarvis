@@ -30,9 +30,9 @@ from voice.input_device_selection import (
 SAMPLE_RATE  = 16000
 MODEL_NAME   = "hey_jarvis"
 # Configurables sin tocar el diagnóstico: JARVIS_DIAG_THRESHOLD y
-# JARVIS_DIAG_DEVICE. Para la validación actual de esta máquina: 0.03 / 6.
+# JARVIS_DIAG_DEVICE.
 THRESHOLD    = float(os.getenv("JARVIS_DIAG_THRESHOLD", "0.03"))
-PREFERRED_DEVICES = [6]
+PREFERRED_DEVICES = []
 # ── Descarga modelo ───────────────────────────────────────────────────────────
 print(f"[DIAG] Cargando modelo '{MODEL_NAME}'...", flush=True)
 try:
@@ -113,7 +113,7 @@ if capture_rms < 3.0:
         print("[DIAG] ERROR: el dispositivo elegido no entrega señal.", flush=True)
         pa.terminate()
         sys.exit(1)
-    print("[DIAG] Sin señal durante la sonda; se probará el dispositivo preferido.", flush=True)
+    print("[DIAG] Sin señal durante la sonda; se conservará el primer dispositivo seguro.", flush=True)
 
 capture_rate = int(next(info["defaultSampleRate"] for info in input_devices if info["index"] == selected_device))
 capture_chunk_size = native_chunk_size(capture_rate)
@@ -176,7 +176,7 @@ try:
 
         if frames_read % 250 == 0 and silent_chunks > 200:
             print(f"\n[DIAG] ATENCION: El microfono no capta audio (RMS={rms:.1f}).")
-            print(f"[DIAG] Intenta cambiar PREFERRED_DEVICES en este script.\n")
+            print("[DIAG] Comprueba los permisos y selecciona otro microfono con JARVIS_DIAG_DEVICE.\n")
 
 except KeyboardInterrupt:
     print(
@@ -188,7 +188,7 @@ except KeyboardInterrupt:
         print("[DIAG] RESULTADO: Wake word FUNCIONANDO correctamente.")
     elif detection_stats.peak_score < 0.1 and capture_rms < 3.0:
         print("[DIAG] PROBLEMA: El microfono no capta voz.")
-        print("       -> Cambia el orden de PREFERRED_DEVICES en el script.")
+        print("       -> Prueba otro indice con JARVIS_DIAG_DEVICE.")
     elif detection_stats.peak_score < 0.1:
         print("[DIAG] No se detecto 'hey jarvis', pero el microfono si entrega señal.")
         print("       -> Repite la frase claramente y mas cerca del microfono.")

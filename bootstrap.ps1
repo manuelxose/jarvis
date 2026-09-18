@@ -32,7 +32,7 @@ function Test-CompatiblePython {
         return $false
     }
 
-    $probeFile = Join-Path $env:TEMP ("jarvis_py_probe_" + [guid]::NewGuid().ToString("N") + ".py")
+    $probeFile = Join-Path $env:TEMP ("jarvis_py_probe_" + (New-Guid).Guid + ".py")
     $probeOutput = $null
     $originalPythonHome = $env:PYTHONHOME
     $originalPythonPath = $env:PYTHONPATH
@@ -57,7 +57,7 @@ print(f"{sys.version_info.major}.{sys.version_info.minor}")
             return $false
         }
 
-        $v = $probeOutput.ToString().Trim()
+        $v = ($probeOutput -join "") -replace '^\s+|\s+$', ''
         return ($v -eq "3.10" -or $v -eq "3.11")
     } catch {
         return $false
@@ -137,7 +137,7 @@ function Install-Python311Direct {
         $installerUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
     }
 
-    $installerFile = Join-Path $env:TEMP ("python-3.11.9-amd64-" + [guid]::NewGuid().ToString("N") + ".exe")
+    $installerFile = Join-Path $env:TEMP ("python-3.11.9-amd64-" + (New-Guid).Guid + ".exe")
     Write-Step "Descargando instalador de Python 3.11..."
     Invoke-WebRequest -Uri $installerUrl -OutFile $installerFile -UseBasicParsing
 
@@ -247,7 +247,7 @@ function Ensure-OllamaInstalled {
         if (-not $ollamaUrl) {
             $ollamaUrl = "https://ollama.com/download/OllamaSetup.exe"
         }
-        $installerFile = Join-Path $env:TEMP ("OllamaSetup-" + [guid]::NewGuid().ToString("N") + ".exe")
+        $installerFile = Join-Path $env:TEMP ("OllamaSetup-" + (New-Guid).Guid + ".exe")
 
         Write-Step "winget no disponible. Descargando instalador de Ollama..."
         Invoke-WebRequest -Uri $ollamaUrl -OutFile $installerFile -UseBasicParsing
@@ -276,14 +276,10 @@ function Ensure-OllamaInstalled {
 }
 
 function Test-OllamaApi {
-    # Usa HttpWebRequest puro de .NET para evitar restricciones de ConstrainedLanguage mode
+    # Invoke-WebRequest es un cmdlet permitido en ConstrainedLanguage mode.
     try {
-        $req            = [System.Net.HttpWebRequest]::Create("http://localhost:11434/api/tags")
-        $req.Method     = "GET"
-        $req.Timeout    = 2000   # ms
-        $req.UseDefaultCredentials = $false
-        $resp = $req.GetResponse()
-        $resp.Close()
+        Invoke-WebRequest -Uri "http://127.0.0.1:11434/api/tags" -Method Get `
+            -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop | Out-Null
         return $true
     } catch {
         return $false
@@ -293,10 +289,11 @@ function Test-OllamaApi {
 function Start-OllamaProcess {
     param([string]$OllamaPath)
 
-    # Intentar via cmd.exe /c start: funciona aunque PowerShell este en ConstrainedLanguage
+    # Start-Process es un cmdlet permitido en ConstrainedLanguage mode.
     try {
         $cmdArgs = "/c start /min `"`"  `"$OllamaPath`" serve"
-        [System.Diagnostics.Process]::Start("cmd.exe", $cmdArgs) | Out-Null
+        Start-Process -FilePath "cmd.exe" -ArgumentList $cmdArgs `
+            -WindowStyle Hidden -ErrorAction Stop | Out-Null
         return $true
     } catch {}
 
@@ -337,14 +334,16 @@ function Ensure-OllamaRunning {
     $elapsed  = 0
     $interval = 2
     while ($elapsed -lt $maxWait) {
-        Start-Sleep -Seconds $interval
-        $elapsed += $interval
+        $waitSeconds = $interval
+        if ($waitSeconds -gt ($maxWait - $elapsed)) { $waitSeconds = $maxWait - $elapsed }
+        Start-Sleep -Seconds $waitSeconds
+        $elapsed += $waitSeconds
         if (Test-OllamaApi) {
             Write-Step "Ollama listo (tras $elapsed s)."
             return
         }
         # Cada 20 s incrementar el intervalo de sondeo para no saturar
-        if ($elapsed % 20 -eq 0) { $interval = [Math]::Min($interval + 1, 5) }
+        if ($elapsed % 20 -eq 0 -and $interval -lt 5) { $interval++ }
         Write-Step "Esperando Ollama... ($elapsed/$maxWait s)"
     }
 
@@ -362,11 +361,8 @@ function Ensure-OllamaRunning {
 
 function Get-FileSha256 {
     param([string]$FilePath)
-    $bytes  = [System.IO.File]::ReadAllBytes($FilePath)
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $hash   = $sha256.ComputeHash($bytes)
-    $sha256.Dispose()
-    return ([System.BitConverter]::ToString($hash)).Replace("-", "")
+    # Get-FileHash is a native cmdlet and works in ConstrainedLanguage mode.
+    return (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
 }
 
 function Install-PythonDependencies {
@@ -429,8 +425,8 @@ function Install-FfmpegWinget {
         }
 
         # Refrescar PATH de la sesion actual para ver el nuevo binario
-        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-        $userPath    = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $machinePath = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name Path -ErrorAction SilentlyContinue).Path
+        $userPath    = (Get-ItemProperty -Path "HKCU:\Environment" -Name Path -ErrorAction SilentlyContinue).Path
         if ($machinePath -or $userPath) {
             $env:Path = "$machinePath;$userPath"
         }
@@ -444,7 +440,7 @@ function Install-FfmpegWinget {
 function Install-FfmpegDirect {
     # Descarga el zip de la build esencial de BtbN (GitHub Releases)
     $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-    $tmpZip    = Join-Path $env:TEMP ("ffmpeg_dl_" + [guid]::NewGuid().ToString("N") + ".zip")
+    $tmpZip    = Join-Path $env:TEMP ("ffmpeg_dl_" + (New-Guid).Guid + ".zip")
     $toolsDir  = Join-Path $ProjectRoot ".tools"
     $ffmpegDir = Join-Path $toolsDir "ffmpeg"
 
@@ -743,6 +739,6 @@ try {
         Write-Host "Para arrancar Jarvis ahora: .\run_jarvis.ps1" -ForegroundColor Green
     }
 } catch {
-    Write-Host "[AUTO][ERROR] $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[AUTO][ERROR] $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
     exit 1
 }

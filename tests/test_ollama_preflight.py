@@ -5,6 +5,17 @@ from brain.llm import OllamaClient
 
 
 class OllamaPreflightTests(unittest.TestCase):
+    def test_chat_payload_bounds_local_response_and_keeps_model_warm(self):
+        payload = OllamaClient()._build_payload(
+            messages=[{"role": "user", "content": "hola"}],
+            system_prompt="responde breve",
+            stream=False,
+        )
+
+        self.assertEqual("10m", payload["keep_alive"])
+        self.assertEqual(128, payload["options"]["num_predict"])
+        self.assertEqual(2048, payload["options"]["num_ctx"])
+
     def test_preflight_reports_service_remediation_with_bounded_timeout(self):
         client = OllamaClient(timeout=30)
         with patch("brain.llm.requests.get", side_effect=ConnectionError("offline")) as get:
