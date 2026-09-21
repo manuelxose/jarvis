@@ -75,6 +75,38 @@ class WhisperModelConstructionTests(unittest.TestCase):
 
         self.assertIs(True, recorded_kwargs.get("local_files_only"))
 
+    def test_model_is_constructed_once_and_reused_across_calls(self):
+        construction_count = 0
+
+        class FakeSegment(SimpleNamespace):
+            text = "hola"
+
+        class FakeWhisperModel:
+            def __init__(self, model_size, **kwargs):
+                nonlocal construction_count
+                construction_count += 1
+
+            def transcribe(self, audio_array, **kwargs):
+                return [FakeSegment()], None
+
+        fake_whisper_module = types.ModuleType("faster_whisper")
+        fake_whisper_module.WhisperModel = FakeWhisperModel
+
+        fake_numpy_module = types.ModuleType("numpy")
+        fake_numpy_module.int16 = "int16"
+        fake_numpy_module.float32 = "float32"
+        fake_numpy_module.frombuffer = lambda *_args, **_kwargs: _FakeArray()
+
+        with mock.patch.dict(
+            sys.modules,
+            {"faster_whisper": fake_whisper_module, "numpy": fake_numpy_module},
+        ):
+            adapter = WhisperSTT()
+            asyncio.run(collect_transcripts(adapter))
+            asyncio.run(collect_transcripts(adapter))
+
+        self.assertEqual(1, construction_count)
+
 
 class STTProviderDependencyTests(unittest.TestCase):
     def test_whisper_transcribe_raises_typed_error_without_dependency(self):

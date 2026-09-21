@@ -35,14 +35,26 @@ class WhisperSTT:
         self.device = device
         self.compute_type = compute_type
         self.sample_rate = sample_rate
+        self._model = None
+
+    def _load_model(self):
+        if self._model is None:
+            try:
+                from faster_whisper import WhisperModel  # noqa: PLC0415
+            except ImportError as error:
+                raise ProviderUnavailable(
+                    "faster-whisper is not installed; local STT unavailable", provider="stt"
+                ) from error
+            self._model = WhisperModel(
+                self.model_size,
+                device=self.device,
+                compute_type=self.compute_type,
+                local_files_only=True,
+            )
+        return self._model
 
     async def transcribe(self, audio: AsyncIterator[bytes], context: TurnContext) -> AsyncIterator[Transcript]:
-        try:
-            from faster_whisper import WhisperModel  # noqa: PLC0415
-        except ImportError as error:
-            raise ProviderUnavailable(
-                "faster-whisper is not installed; local STT unavailable", provider="stt"
-            ) from error
+        model = self._load_model()
 
         import numpy as np  # noqa: PLC0415
 
@@ -52,12 +64,6 @@ class WhisperSTT:
             frames.extend(chunk)
         audio_array = np.frombuffer(bytes(frames), dtype=np.int16).astype(np.float32) / 32768.0
 
-        model = WhisperModel(
-            self.model_size,
-            device=self.device,
-            compute_type=self.compute_type,
-            local_files_only=True,
-        )
         kwargs: dict = {"beam_size": 1, "vad_filter": True, "condition_on_previous_text": False}
         if self.language:
             kwargs["language"] = self.language
