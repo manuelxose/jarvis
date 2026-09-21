@@ -103,6 +103,47 @@ Reglas:
 - No subas `config.local.json` al control de versiones (ya esta en `.gitignore`).
 - Sin `config.local.json`, Jarvis usa la configuracion Ollama versionada.
 
+## Voz clonada por API (ElevenLabs, opcional)
+
+Por defecto la voz es SAPI (Windows, generica, practicamente instantanea). XTTS local
+usa tus muestras de `voice_samples/` pero tarda ~87s por respuesta en CPU. Para voz
+clonada con latencia baja (modelo `eleven_flash_v2_5`, ~75ms de generacion mas la
+red) sin depender de la CPU local, usa el adaptador ElevenLabs:
+
+1. Crea una cuenta y una API key en ElevenLabs, y expórtala solo por variable de entorno:
+
+```powershell
+$env:ELEVENLABS_API_KEY = "sk-tu-clave"
+```
+
+2. Clona tu voz una sola vez a partir de `voice_samples/*.wav`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\elevenlabs_clone_voice.py
+```
+
+El script sube tus muestras, imprime el `voice_id` resultante y el bloque JSON listo
+para pegar. No lo vuelvas a ejecutar por sesion: cada ejecucion crea una voz clonada
+nueva en tu cuenta.
+
+3. Copia ese bloque a `config.local.json` (crealo si no existe):
+
+```json
+{
+  "tts": {
+    "provider": "elevenlabs",
+    "voice": "<voice_id impreso por el script>",
+    "api_key": "${ELEVENLABS_API_KEY}"
+  }
+}
+```
+
+4. Comprueba el estado con `doctor`: la seccion `TTS` debe reportar
+`elevenlabs (cloud, cloned voice)` en vez de `elevenlabs api_key or voice not configured`.
+
+La clave y el `voice_id` nunca se escriben en `config.json`, en la plantilla ni en logs.
+Sin `config.local.json`, Jarvis sigue usando SAPI.
+
 ## Notas
 
 - Necesitas `winget` habilitado para instalacion automatica de Python/Ollama.
