@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.apps.cli import main
 from jarvis.application.demo import NOTAS_CONTENT
@@ -115,6 +118,35 @@ class CliTests(unittest.TestCase):
         )
         return path
 
+    def _write_cloud_first_config(self) -> Path:
+        path = Path(self.temp_dir.name) / "cloud-first.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "runtime": {},
+                    "models": {
+                        "providers": [
+                            {
+                                "name": "openai",
+                                "kind": "openai_compat",
+                                "base_url": "https://api.example.com/v1",
+                                "api_key": "sk-sentinel-12345",
+                                "model": "gpt-4o-mini",
+                            },
+                            {
+                                "name": "ollama",
+                                "kind": "ollama",
+                                "base_url": "http://127.0.0.1:1",
+                                "model": "mistral",
+                            },
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
     def test_doctor_reports_ollama_unreachable_when_probe_fails(self) -> None:
         config_path = self._write_ollama_config()
         stdout = io.StringIO()
@@ -149,6 +181,66 @@ class CliTests(unittest.TestCase):
         self.assertEqual(1, result)
         self.assertEqual("healthy", report["components"]["fast model"]["status"])
         self.assertEqual("1 provider(s)", report["components"]["fast model"]["detail"])
+
+    def test_doctor_model_routing_secret_safe_readable_and_json(self) -> None:
+        config_path = self._write_cloud_first_config()
+        sentinel = "sk-sentinel-12345"
+
+        json_stdout = io.StringIO()
+        json_stderr = io.StringIO()
+        with patch("jarvis.application.runtime._ollama_reachable", return_value=False):
+            result = main(
+                ["doctor", "--config", str(config_path), "--json"],
+                stdout=json_stdout,
+                stderr=json_stderr,
+            )
+
+        report = json.loads(json_stdout.getvalue())
+        model = report["model"]
+        self.assertEqual(1, result)
+        self.assertEqual(["openai", "ollama"], model["provider_order"])
+        self.assertEqual("openai", model["primary"]["name"])
+        self.assertEqual("openai_compat", model["primary"]["kind"])
+        self.assertEqual("gpt-4o-mini", model["primary"]["model"])
+        self.assertEqual("https://api.example.com/v1", model["primary"]["base_url"])
+        self.assertTrue(model["primary"]["has_api_key"])
+        self.assertEqual(["ollama"], [provider["name"] for provider in model["fallbacks"]])
+        self.assertFalse(model["local_fallback_ready"])
+        self.assertNotIn(sentinel, json_stdout.getvalue())
+        self.assertNotIn(sentinel, json_stderr.getvalue())
+
+        text_stdout = io.StringIO()
+        text_stderr = io.StringIO()
+        with patch("jarvis.application.runtime._ollama_reachable", return_value=False):
+            result = main(
+                ["doctor", "--config", str(config_path)],
+                stdout=text_stdout,
+                stderr=text_stderr,
+            )
+
+        text = text_stdout.getvalue()
+        self.assertEqual(1, result)
+        self.assertIn("model routing", text)
+        self.assertIn("primary: openai", text)
+        self.assertIn("fallback: ollama", text)
+        self.assertIn("local fallback ready: no", text)
+        self.assertNotIn(sentinel, text)
+        self.assertNotIn(sentinel, text_stderr.getvalue())
+
+    def test_doctor_model_routing_reports_ready_fallback(self) -> None:
+        config_path = self._write_cloud_first_config()
+        stdout = io.StringIO()
+
+        with patch("jarvis.application.runtime._ollama_reachable", return_value=True):
+            main(
+                ["doctor", "--config", str(config_path), "--json"],
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
+
+        report = json.loads(stdout.getvalue())
+        self.assertTrue(report["model"]["local_fallback_ready"])
+        self.assertEqual("healthy", report["components"]["fast model"]["status"])
 
     def test_ollama_reachable_returns_false_on_connection_and_bad_url(self) -> None:
         from jarvis.application.runtime import _ollama_reachable

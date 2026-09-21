@@ -1,0 +1,15 @@
+{
+  "models": {
+    "providers": [
+      {
+        "name": "openai",
+        "kind": "openai_compat",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "${OPENAI_API_KEY}",
+        "model": "gpt-4o-mini",
+        "timeout_seconds": 30,
+        "temperature": 0.7
+      }
+    ]
+  }
+}
