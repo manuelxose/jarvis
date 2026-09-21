@@ -1,10 +1,8 @@
-"""Real-time voice loop: wake -> listen -> transcribe -> turn -> playback.
+"""Real-time voice loop: listen -> transcribe -> activate -> turn -> playback.
 
-Composes the S01-S03 adapters (wake detector, VAD/STT/TTS resolution, audio
-renderer) into the continuous loop the milestone requires. The loop arms on the
-wake word, captures a VAD-bounded listen window, transcribes it, and runs one
-turn through :class:`TurnManager`, with wake-word cooldown and barge-in
-interrupting an in-flight turn.
+Composes the S01-S03 adapters (VAD/STT/TTS resolution and audio renderer) into
+the continuous loop the milestone requires. Each utterance is VAD-bounded and
+transcribed once before activation is resolved from its text.
 """
 
 from __future__ import annotations
@@ -18,7 +16,6 @@ from jarvis.core.contracts import (
     SpeechToText,
     TurnContext,
     VoiceActivityDetector,
-    WakeDetector,
 )
 from jarvis.core.errors import ProviderUnavailable
 
@@ -37,7 +34,6 @@ class VoiceLoop:
         self,
         *,
         audio: AudioCapture,
-        wake: WakeDetector,
         vad: VoiceActivityDetector,
         stt: SpeechToText,
         turn_manager: TurnManager,
@@ -46,7 +42,6 @@ class VoiceLoop:
         max_listen_frames: int = 160,
     ) -> None:
         self._audio = audio
-        self._wake = wake
         self._vad = vad
         self._stt = stt
         self._turn_manager = turn_manager
@@ -67,11 +62,18 @@ class VoiceLoop:
         logger.info("voice loop running — listening")
         try:
             while not self._stop_event.is_set():
-                if not await self._arm(context):
-                    break
-                text = await self._listen_and_transcribe(context)
+                text = await self._capture_utterance(context)
                 if text is None:
                     break
+                if self._activation.wake_word_required():
+                    text = self._activation.command_after_wake_word(text)
+                    if text is None:
+                        continue
+                    self._activation.note_activation()
+                    if not text:
+                        text = await self._capture_utterance(context)
+                        if text is None:
+                            break
                 if not text:
                     continue
                 try:
@@ -94,32 +96,7 @@ class VoiceLoop:
             await self._aclose_frames()
             self._phase = "stopped"
 
-    async def _arm(self, context: TurnContext) -> bool:
-        """Wait until a turn may begin; return False on exhaustion or stop."""
-        if not self._activation.wake_word_required():
-            return True
-        frame_index = 0
-        while not self._stop_event.is_set():
-            if self._activation.in_cooldown():
-                await asyncio.sleep(0.01)
-                continue
-            frame = await self._next_frame(context)
-            if frame is None:
-                return False
-            if self._wake.detected(frame):
-                self._activation.note_activation()
-                logger.info("wake word detected")
-                return True
-            frame_index += 1
-            if frame_index % 10 == 0:
-                logger.info(
-                    "wake score: %.3f (threshold %.3f)",
-                    getattr(self._wake, "last_score", 0.0),
-                    getattr(self._wake, "threshold", 0.0),
-                )
-        return False
-
-    async def _listen_and_transcribe(self, context: TurnContext) -> str | None:
+    async def _capture_utterance(self, context: TurnContext) -> str | None:
         """Capture a VAD-bounded window and transcribe it; None means exhausted."""
         self._phase = "listening"
         logger.info("listening for command")
@@ -129,6 +106,8 @@ class VoiceLoop:
             frame = await self._next_frame(context)
             if frame is None:
                 break
+            if not frames and not self._vad.is_speech(frame):
+                continue
             frames.append(frame)
             if self._vad.is_speech(frame):
                 silence = 0
@@ -155,7 +134,7 @@ class VoiceLoop:
     async def _run_turn_with_barge_in(
         self, text: str, context: TurnContext
     ) -> TurnResult | None:
-        """Run one turn, allowing the wake word to interrupt it mid-flight."""
+        """Run one turn, allowing new speech to interrupt it mid-flight."""
         self._phase = "thinking"
         task = asyncio.create_task(self._turn_manager.handle(text))
         # Yield once so handle() actually starts and registers the active turn
@@ -168,7 +147,7 @@ class VoiceLoop:
                     await self._turn_manager.interrupt()
                     break
                 frame = await self._next_frame(context)
-                if frame is not None and self._wake.detected(frame):
+                if frame is not None and self._vad.is_speech(frame):
                     await self._turn_manager.interrupt()
                     self._activation.note_activation()
                     break

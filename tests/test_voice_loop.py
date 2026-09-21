@@ -22,12 +22,11 @@ from jarvis.adapters.fakes import (
     ScriptedAudioInput,
     ScriptedModel,
     ScriptedSTT,
-    ScriptedWakeDetector,
 )
 from jarvis.application.routing import Router
 from jarvis.application.turn_manager import TurnManager
 from jarvis.application.voice_loop import VoiceLoop
-from jarvis.core.contracts import Transcript, TurnContext
+from jarvis.core.contracts import Transcript
 
 
 async def _noop_tools(name, arguments, context):
@@ -48,21 +47,16 @@ class _SlowModel:
             await asyncio.sleep(self.delay)
 
 
-class _RecordingWake:
-    """Count ``detected`` calls and always report a wake word."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def detected(self, audio: bytes) -> bool:
-        self.calls += 1
-        return True
+class _PerUtteranceSTT(ScriptedSTT):
+    async def transcribe(self, audio, context):
+        async for _ in audio:
+            context.cancellation.raise_if_cancelled()
+        yield self.transcripts.pop(0)
 
 
 def _build(
     frames,
     *,
-    wake=None,
     stt=None,
     model=None,
     activation=None,
@@ -81,7 +75,6 @@ def _build(
     )
     loop = VoiceLoop(
         audio=ScriptedAudioInput(frames),
-        wake=wake if wake is not None else ScriptedWakeDetector([True]),
         vad=EnergyVAD(),
         stt=stt if stt is not None else ScriptedSTT(),
         turn_manager=manager,
@@ -98,9 +91,8 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
     async def test_full_deterministic_turn(self):
         player = RecordingAudioPlayer()
         loop, _, _ = _build(
-            [b"\x00\x00" * 8] * 7,
-            wake=ScriptedWakeDetector([True]),
-            stt=ScriptedSTT([Transcript("hola jarvis", is_final=True)]),
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
             model=ScriptedModel(),
             player=player,
         )
@@ -117,9 +109,8 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_stops_after_max_turns(self):
         player = RecordingAudioPlayer()
         loop, _, _ = _build(
-            [b"\x00\x00" * 8] * 14,
-            wake=ScriptedWakeDetector([True, True, True]),
-            stt=ScriptedSTT([Transcript("hola jarvis", is_final=True)]),
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
             model=ScriptedModel(),
             player=player,
         )
@@ -137,11 +128,61 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(loop.turns))
         self.assertEqual("stopped", loop.state()["phase"])
 
+    async def test_leading_wake_word_executes_remainder_in_same_utterance(self):
+        loop, _, _ = _build(
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("Jarvis, abre Spotify", is_final=True)]),
+        )
+
+        await loop.run(max_turns=1)
+
+        self.assertEqual(1, len(loop.turns))
+        self.assertEqual("abre Spotify", loop.turns[0].transcript)
+
+    async def test_non_activation_utterance_is_discarded(self):
+        loop, _, _ = _build(
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("abre Spotify", is_final=True)]),
+        )
+
+        await loop.run()
+
+        self.assertEqual([], loop.turns)
+
+    async def test_activation_starts_cooldown(self):
+        activation = ActivationManager(cooldown_seconds=1.0)
+        loop, _, _ = _build(
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
+            activation=activation,
+        )
+
+        await loop.run(max_turns=1)
+
+        self.assertTrue(activation.in_cooldown())
+
+    async def test_wake_only_activation_listens_for_next_phrase(self):
+        utterance = [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6
+        loop, _, _ = _build(
+            utterance * 2,
+            stt=_PerUtteranceSTT(
+                [
+                    Transcript("Jarvis", is_final=True),
+                    Transcript("abre Spotify", is_final=True),
+                ]
+            ),
+        )
+
+        await loop.run(max_turns=1)
+
+        self.assertEqual(1, len(loop.turns))
+        self.assertEqual("abre Spotify", loop.turns[0].transcript)
+
     async def test_empty_transcript_skipped(self):
         # ScriptedSTT([]) falls back to its default transcript in the existing
         # fake, so produce a genuinely empty transcript to exercise the skip path.
         loop, _, _ = _build(
-            [b"\x00\x00" * 8] * 7,
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
             stt=ScriptedSTT([Transcript("", is_final=True)]),
         )
 
@@ -151,9 +192,8 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_barge_in_cancels_in_flight_turn(self):
         loop, manager, _ = _build(
-            [b"\x00\x00" * 8] * 8,
-            wake=ScriptedWakeDetector([True, True]),
-            stt=ScriptedSTT([Transcript("hola jarvis", is_final=True)]),
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6 + [b"\xff\x7f" * 8],
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
             model=_SlowModel(),
         )
 
@@ -163,37 +203,10 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(loop.turns[0].cancelled)
         self.assertFalse(manager.active)
 
-    async def test_arm_waits_out_cooldown_then_detects_once(self):
-        wake = _RecordingWake()
-        activation = ActivationManager(cooldown_seconds=0.02)
-        activation.note_activation()  # already in cooldown
-        audio = ScriptedAudioInput([b"\x00\x00" * 8])
-        manager = TurnManager(
-            router=Router(),
-            tools=_noop_tools,
-            model=ScriptedModel(),
-            tts=EchoTTS(),
-            audio=RecordingAudioPlayer(),
-        )
-        loop = VoiceLoop(
-            audio=audio,
-            wake=wake,
-            vad=EnergyVAD(),
-            stt=ScriptedSTT(),
-            turn_manager=manager,
-            activation=activation,
-        )
-        loop._frames = audio.capture(TurnContext.fresh("test"))
-
-        result = await loop._arm(TurnContext.fresh("test"))
-
-        self.assertTrue(result)
-        self.assertEqual(1, wake.calls)
-
     async def test_state_reports_stopped_and_turn_count(self):
         loop, _, _ = _build(
-            [b"\x00\x00" * 8] * 7,
-            stt=ScriptedSTT([Transcript("hola jarvis", is_final=True)]),
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
         )
 
         await loop.run()
