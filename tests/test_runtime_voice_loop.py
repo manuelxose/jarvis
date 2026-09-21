@@ -1,7 +1,7 @@
 """Integration test for the voice loop wired into the fake runtime.
 
-Proves that ``build_runtime(config, use_fakes=True)`` composes the wake
-detector, VAD, and ``VoiceLoop`` and that ``run_until_stopped()`` drives one
+Proves that ``build_runtime(config, use_fakes=True)`` composes VAD and the
+``VoiceLoop`` and that ``run_until_stopped()`` drives one
 deterministic turn end-to-end before the scripted audio source exhausts.
 """
 
@@ -33,6 +33,7 @@ class RuntimeVoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, runtime.voice_loop.state()["turns"])
         self.assertGreaterEqual(runtime.components.audio_output.state()["played"], 1)
         self.assertEqual("fast_model", runtime.voice_loop.turns[0].route)
+        self.assertEqual("hola", runtime.voice_loop.turns[0].transcript)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from jarvis.adapters.audio import EnergyVAD, OpenWakeWordDetector
+from jarvis.adapters.audio import EnergyVAD
 from jarvis.adapters.audio.activation import ActivationManager
 from jarvis.adapters.audio.input import MicCapture
 from jarvis.adapters.audio.output import AudioOutputQueue, make_sounddevice_render
@@ -27,7 +27,6 @@ from jarvis.adapters.fakes import (
     ScriptedMemory,
     ScriptedModel,
     ScriptedSTT,
-    ScriptedWakeDetector,
 )
 from jarvis.adapters.hermes.child import HermesChildAdapter
 from jarvis.adapters.memory.service import MemoryService
@@ -189,11 +188,9 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         cooldown_seconds=config.activation.cooldown_seconds,
         conversation_timeout_seconds=config.activation.conversation_timeout_seconds,
     )
-    wake = OpenWakeWordDetector(sample_rate=config.audio.sample_rate)
     vad = EnergyVAD()
     voice_loop = VoiceLoop(
         audio=audio_input,
-        wake=wake,
         vad=vad,
         stt=stt,
         turn_manager=turn_manager,
@@ -204,14 +201,17 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
 
 
 def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRuntime:
+    injected_stt = stt is not None
     memory = _build_memory(config)
     model = ScriptedModel({"": "Respuesta de demostracion."}, default="Respuesta de demostracion.")
     hermes = ScriptedHermes()
     tools = _build_tools(config, confirmer=_auto_approve)
     audio_output = AudioOutputQueue(render=_recording_render([]))
     tts = EchoTTS()
-    stt = stt or ScriptedSTT([Transcript("hola jarvis", is_final=True)])
-    audio_input = ScriptedAudioInput(frames=[b"\x00\x00" * 8] * 7)
+    stt = stt or ScriptedSTT([Transcript("Jarvis, hola", is_final=True)])
+    audio_input = ScriptedAudioInput(
+        frames=[b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6
+    )
 
     router = Router()
     turn_manager = TurnManager(
@@ -227,16 +227,14 @@ def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRunt
     health_components = _fake_health_components(config, memory)
     supervisor = Supervisor(health_components)
     activation = ActivationManager(
-        mode=config.activation.mode,
+        mode="continuous" if injected_stt else config.activation.mode,
         wake_word=config.activation.wake_word,
         cooldown_seconds=config.activation.cooldown_seconds,
         conversation_timeout_seconds=config.activation.conversation_timeout_seconds,
     )
-    wake = ScriptedWakeDetector([True])
     vad = EnergyVAD()
     voice_loop = VoiceLoop(
         audio=audio_input,
-        wake=wake,
         vad=vad,
         stt=stt,
         turn_manager=turn_manager,
