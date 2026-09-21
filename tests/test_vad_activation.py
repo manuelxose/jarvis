@@ -68,6 +68,14 @@ class ActivationTests(unittest.TestCase):
         self.assertTrue(manager.matches_wake_word("Járvis, abre spotify"))
         self.assertFalse(manager.matches_wake_word("hola"))
 
+    def test_extracts_command_only_after_leading_wake_word(self):
+        manager = ActivationManager(wake_word="jarvis")
+
+        self.assertEqual("abre Spotify", manager.command_after_wake_word("Jarvis, abre Spotify"))
+        self.assertEqual("", manager.command_after_wake_word("¡Járvis!"))
+        self.assertIsNone(manager.command_after_wake_word("hablé con Jarvis"))
+        self.assertIsNone(manager.command_after_wake_word("jarvisito abre Spotify"))
+
     def test_activation_rejects_empty_or_negative_timing_configuration(self):
         with self.assertRaises(ValueError):
             ActivationManager(wake_word="   ")
