@@ -30,7 +30,7 @@
 - Consumes: `ActivationManager.wake_word: str`
 - Produces: `ActivationManager.command_after_wake_word(text: str) -> str | None`; `None` means no activation, `""` means activation without a command, and any other string is the command with original spelling preserved.
 
-- [ ] **Step 1: Write failing prefix extraction tests**
+- [x] **Step 1: Write failing prefix extraction tests**
 
 Add tests that require activation only at the start, accept accents and punctuation, preserve the command text, and reject substring matches:
 
@@ -44,13 +44,13 @@ def test_extracts_command_only_after_leading_wake_word(self):
     self.assertIsNone(manager.command_after_wake_word("jarvisito abre Spotify"))
 ```
 
-- [ ] **Step 2: Run the tests and confirm the missing-method failure**
+- [x] **Step 2: Run the tests and confirm the missing-method failure**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_vad_activation.ActivationTests.test_extracts_command_only_after_leading_wake_word`
 
 Expected: FAIL with `AttributeError: 'ActivationManager' object has no attribute 'command_after_wake_word'`.
 
-- [ ] **Step 3: Implement minimal prefix parsing**
+- [x] **Step 3: Implement minimal prefix parsing**
 
 Add module-level imports for `re` and `unicodedata`, a private normalization function, and the public method. Match the first Unicode word and compare normalized values exactly; do not use the current substring rule.
 
@@ -69,13 +69,13 @@ def matches_wake_word(self, text: str) -> bool:
     return self.command_after_wake_word(text) is not None
 ```
 
-- [ ] **Step 4: Run activation tests**
+- [x] **Step 4: Run activation tests**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_vad_activation`
 
 Expected: all activation and VAD tests PASS.
 
-- [ ] **Step 5: Commit the parser**
+- [x] **Step 5: Commit the parser**
 
 ```bash
 git add src/jarvis/adapters/audio/activation.py tests/test_vad_activation.py
@@ -94,7 +94,7 @@ git commit -m "feat: parse direct Jarvis activation prefix"
 - Consumes: `ActivationManager.command_after_wake_word(text: str) -> str | None` from Task 1.
 - Produces: `VoiceLoop._capture_utterance(context: TurnContext) -> str | None`, which waits for speech, captures through trailing silence, and transcribes once.
 
-- [ ] **Step 1: Write failing direct-activation loop tests**
+- [x] **Step 1: Write failing direct-activation loop tests**
 
 Add deterministic tests using `ScriptedAudioInput`, `EnergyVAD`, and `ScriptedSTT`:
 
@@ -123,13 +123,13 @@ async def test_non_activation_utterance_is_discarded(self):
 
 Add a third test with two VAD-bounded utterances and two scripted transcripts (`"Jarvis"`, then `"abre Spotify"`) to prove wake-only activation listens for the next phrase.
 
-- [ ] **Step 2: Run the new loop tests and verify RED**
+- [x] **Step 2: Run the new loop tests and verify RED**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_voice_loop`
 
 Expected: the direct phrase is not stripped/executed and a non-activation phrase incorrectly reaches `TurnManager` under the old acoustic wake flow.
 
-- [ ] **Step 3: Implement VAD-bounded activation transcription**
+- [x] **Step 3: Implement VAD-bounded activation transcription**
 
 Refactor the existing capture method so it ignores leading silence, starts buffering on the first `vad.is_speech(frame)`, and stops after `min_silence_frames` trailing silent frames. In `run()`:
 
@@ -152,23 +152,23 @@ if not text:
 
 Remove `_arm` and the `WakeDetector` constructor dependency. Change barge-in to interrupt on `self._vad.is_speech(frame)`, because interruption should react to new speech rather than the removed English keyword model. Update both real and fake runtime builders to stop constructing or passing a wake detector. Do not instantiate or call Whisper twice for a combined phrase.
 
-- [ ] **Step 4: Update existing deterministic fixtures**
+- [x] **Step 4: Update existing deterministic fixtures**
 
 Change existing `wake_word` test transcripts such as `"hola jarvis"` to leading forms such as `"Jarvis, hola"`. Ensure fixture audio contains at least one frame above `EnergyVAD`'s threshold before trailing silence. Preserve the tests for cooldown, exhaustion, empty transcription, barge-in, and non-wake activation modes; adjust only assumptions invalidated by the approved design.
 
-- [ ] **Step 5: Run voice-loop and runtime integration tests**
+- [x] **Step 5: Run voice-loop and runtime integration tests**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_voice_loop tests.test_runtime_voice_loop tests.test_vad_activation`
 
 Expected: all tests PASS.
 
-- [ ] **Step 6: Run the broader affected suite**
+- [x] **Step 6: Run the broader affected suite**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_audio_runtime tests.test_acceptance tests.test_hardware_acceptance tests.test_cli_run`
 
 Expected: all tests PASS or hardware-only tests SKIP with their declared reason.
 
-- [ ] **Step 7: Commit the voice-loop change**
+- [x] **Step 7: Commit the voice-loop change**
 
 ```bash
 git add src/jarvis/application/voice_loop.py src/jarvis/application/runtime.py tests/test_voice_loop.py tests/test_runtime_voice_loop.py
@@ -177,6 +177,8 @@ git commit -m "feat: execute Spanish wake phrase and command directly"
 
 ### Task 3: Validate on Windows hardware
 
+> Steps 2–4 need a real Windows machine with a microphone; this environment (WSL/Linux, no audio hardware) can only run Step 1. Run `run_jarvis.bat` on Windows and walk through Steps 2–4 there.
+
 **Files:**
 - Modify only if verification exposes a defect in Tasks 1–2.
 
@@ -184,7 +186,7 @@ git commit -m "feat: execute Spanish wake phrase and command directly"
 - Consumes: `run_jarvis.bat`, `config.win.json`, Windows microphone selected by the existing audio adapter.
 - Produces: runtime evidence that a direct Spanish phrase creates one command turn without acoustic wake scores.
 
-- [ ] **Step 1: Run static and unit verification**
+- [x] **Step 1: Run static and unit verification**
 
 Run:
 
