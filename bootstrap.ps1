@@ -515,7 +515,7 @@ function Ensure-Ffmpeg {
 function Invoke-NormalizeVoiceSamples {
     param([string]$VenvPython)
 
-    $scriptPath  = Join-Path $ProjectRoot "normalize_voice_samples.py"
+    $scriptPath  = Join-Path $ProjectRoot "legacy\normalize_voice_samples.py"
     $samplesDir  = Join-Path $ProjectRoot "voice_samples"
 
     if (-not (Test-Path $scriptPath)) {
