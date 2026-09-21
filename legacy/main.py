@@ -13,19 +13,19 @@ from typing import Any
 import colorlog
 import yaml
 
-from actions.ais_monitor import AISMonitor
-from actions.pc_control import PCController
-from actions.trading_monitor import TradingMonitor
-from actions.web_search import WebSearch
-from brain.action_router import ActionRouter
-from brain.llm import OllamaClient
-from brain.memory import MemoryStore
-from brain.prompt_builder import build_system_prompt
-from cache.audio_cache import AudioCache
-from voice.audio_utils import check_microphone_capture, play_audio, resolve_input_device
-from voice.stt import STTService
-from voice.tts import TTSService, sanitize_voice_text
-from voice.wake_word import WakeWordListener
+from legacy.actions.ais_monitor import AISMonitor
+from legacy.actions.pc_control import PCController
+from legacy.actions.trading_monitor import TradingMonitor
+from legacy.actions.web_search import WebSearch
+from legacy.brain.action_router import ActionRouter
+from legacy.brain.llm import OllamaClient
+from legacy.brain.memory import MemoryStore
+from legacy.brain.prompt_builder import build_system_prompt
+from legacy.cache.audio_cache import AudioCache
+from legacy.voice.audio_utils import check_microphone_capture, play_audio, resolve_input_device
+from legacy.voice.stt import STTService
+from legacy.voice.tts import TTSService, sanitize_voice_text
+from legacy.voice.wake_word import WakeWordListener
 
 
 def configure_logging(level: int = logging.INFO, log_file: Path | None = None) -> None:

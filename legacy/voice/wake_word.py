@@ -11,7 +11,7 @@ import pyaudio
 from openwakeword.model import Model
 from openwakeword.utils import download_models
 
-from voice.audio_utils import format_audio_device, play_beep
+from legacy.voice.audio_utils import format_audio_device, play_beep
 
 
 LOGGER = logging.getLogger(__name__)

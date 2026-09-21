@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from voice.sapi_tts import select_voice, synthesize_to_file
+from legacy.voice.sapi_tts import select_voice, synthesize_to_file
 
 
 class SapiTtsTests(unittest.TestCase):

@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from voice.audio_utils import format_audio_device, resolve_input_device
-from voice.stt import STTService
+from legacy.voice.audio_utils import format_audio_device, resolve_input_device
+from legacy.voice.stt import STTService
 
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")

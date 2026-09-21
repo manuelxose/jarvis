@@ -16,7 +16,7 @@ El flujo automatico realiza:
 - Arrancar `ollama serve` si no esta activo.
 - Verificar o descargar `mistral:7b-instruct`.
 - Preparar muestras WAV en `voice_samples/` para el proveedor XTTS opcional.
-- Lanzar `main.py`.
+- Lanzar `python -m jarvis run` (el `main.py` de la v1 quedo en `legacy/`).
 
 Si `winget` no esta disponible, intenta instalacion directa por URL para Python y Ollama.
 

@@ -21,6 +21,8 @@ dist/
 # Local runtime/cache artifacts
 cache/cached_responses/
 cache/screenshots/
+legacy/cache/cached_responses/
+legacy/cache/screenshots/
 
 # Local secret overrides (never committed)
 config.local.json

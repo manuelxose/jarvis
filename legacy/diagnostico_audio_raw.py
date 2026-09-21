@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pyaudio
 
-from voice.audio_utils import get_audio_device, resolve_input_device
+from legacy.voice.audio_utils import get_audio_device, resolve_input_device
 
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")

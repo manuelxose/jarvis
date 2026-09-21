@@ -9,12 +9,12 @@ from pathlib import Path
 import numpy as np
 import pyaudio
 import sounddevice as sd
-from voice.audio_utils import _capture_callback_audio, _probe_native_rms
-from voice.directshow_audio import (
+from legacy.voice.audio_utils import _capture_callback_audio, _probe_native_rms
+from legacy.voice.directshow_audio import (
     DirectShowCaptureError,
     capture_first_available,
 )
-from voice.runtime_support import CaptureBackend
+from legacy.voice.runtime_support import CaptureBackend
 
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")

@@ -14,7 +14,7 @@ class LiveMicrophoneSelectionTests(unittest.TestCase):
             name: types.ModuleType(name)
             for name in ("numpy", "pyaudio", "sounddevice", "soundfile", "webrtcvad")
         }
-        source = Path(__file__).parents[1] / "voice" / "audio_utils.py"
+        source = Path(__file__).parents[1] / "legacy" / "voice" / "audio_utils.py"
         spec = importlib.util.spec_from_file_location("audio_utils_selection_test", source)
         module = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, dependencies):

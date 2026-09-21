@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Generator
 
-from voice.runtime_support import timed_phase
+from legacy.voice.runtime_support import timed_phase
 
 import requests
 

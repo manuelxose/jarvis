@@ -5,11 +5,11 @@ import re
 import unicodedata
 from typing import Any
 
-from actions.ais_monitor import AISMonitor
-from actions.pc_control import PCController
-from actions.trading_monitor import TradingMonitor
-from actions.web_search import WebSearch
-from brain.llm import OllamaClient
+from legacy.actions.ais_monitor import AISMonitor
+from legacy.actions.pc_control import PCController
+from legacy.actions.trading_monitor import TradingMonitor
+from legacy.actions.web_search import WebSearch
+from legacy.brain.llm import OllamaClient
 
 
 LOGGER = logging.getLogger(__name__)

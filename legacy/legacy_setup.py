@@ -14,7 +14,8 @@ from urllib.error import URLError, HTTPError
 from urllib.request import Request, urlopen
 
 
-BASE_DIR = Path(__file__).resolve().parent
+# Legacy provisioning now lives under legacy/; repo root is one level up.
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 def print_step(step: str) -> None:
@@ -242,7 +243,7 @@ def _http_post_json(url: str, payload: dict[str, Any], timeout: int = 10) -> dic
 
 def final_message() -> None:
     print_step("11/11 Todo correcto.")
-    print("Sistema listo. Ejecuta: python main.py")
+    print("Sistema (legacy) listo. Ejecuta: python legacy/main.py")
 
 
 def main() -> None:

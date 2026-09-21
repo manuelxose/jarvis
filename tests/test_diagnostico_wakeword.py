@@ -2,7 +2,7 @@ from pathlib import Path
 import importlib.util
 import unittest
 
-from voice.input_device_selection import (
+from legacy.voice.input_device_selection import (
     DetectionStats,
     filter_input_candidates,
     native_chunk_size,
@@ -60,7 +60,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertEqual([1], filter_input_candidates(devices, [17, 1]))
 
     def test_shared_input_selector_rejects_primary_capture_controller(self) -> None:
-        source = (Path(__file__).parents[1] / "voice" / "audio_utils.py").read_text(
+        source = (Path(__file__).parents[1] / "legacy" / "voice" / "audio_utils.py").read_text(
             encoding="utf-8"
         )
 
@@ -72,7 +72,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertIn('if score == float("-inf"):\n            continue', source)
 
     def test_stt_capture_uses_the_device_native_rate(self) -> None:
-        source = (Path(__file__).parents[1] / "voice" / "audio_utils.py").read_text(
+        source = (Path(__file__).parents[1] / "legacy" / "voice" / "audio_utils.py").read_text(
             encoding="utf-8"
         )
 
@@ -83,7 +83,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertIn("sd.InputStream", source)
 
     def test_raw_audio_diagnostic_bypasses_stt_and_resampling(self) -> None:
-        diagnostic = Path(__file__).parents[1] / "diagnostico_audio_raw.py"
+        diagnostic = Path(__file__).parents[1] / "legacy" / "diagnostico_audio_raw.py"
         self.assertTrue(diagnostic.exists(), "falta el diagnóstico de audio crudo")
         source = diagnostic.read_text(
             encoding="utf-8"
@@ -98,7 +98,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertNotIn("resample", source)
 
     def test_wasapi_audio_diagnostic_uses_the_wasapi_default_input(self) -> None:
-        diagnostic = Path(__file__).parents[1] / "diagnostico_audio_wasapi.py"
+        diagnostic = Path(__file__).parents[1] / "legacy" / "diagnostico_audio_wasapi.py"
         self.assertTrue(diagnostic.exists(), "falta el diagnóstico WASAPI")
         source = diagnostic.read_text(encoding="utf-8")
 
@@ -116,7 +116,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertEqual(3840, native_chunk_size(48000))
 
     def test_diagnostic_uses_signal_aware_selection(self) -> None:
-        source = (Path(__file__).parents[1] / "diagnostico_wakeword.py").read_text(
+        source = (Path(__file__).parents[1] / "legacy" / "diagnostico_wakeword.py").read_text(
             encoding="utf-8"
         )
 
@@ -138,7 +138,7 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertNotIn("peak={peak_score:.3f}", source)
 
     def test_speech_diagnostic_transcribes_a_normal_phrase(self) -> None:
-        diagnostic = Path(__file__).parents[1] / "diagnostico_stt.py"
+        diagnostic = Path(__file__).parents[1] / "legacy" / "diagnostico_stt.py"
         self.assertTrue(diagnostic.exists(), "falta el diagnóstico de transcripción")
         source = diagnostic.read_text(
             encoding="utf-8"
@@ -153,13 +153,13 @@ class WakeWordDiagnosticTests(unittest.TestCase):
         self.assertIn("JARVIS_DIAG_STT_DISABLE_VAD", source)
         self.assertIn("diagnostico_stt.wav", source)
         self.assertIn("wave.open", source)
-        stt_source = (Path(__file__).parents[1] / "voice" / "stt.py").read_text(
+        stt_source = (Path(__file__).parents[1] / "legacy" / "voice" / "stt.py").read_text(
             encoding="utf-8"
         )
         self.assertIn("rms=%.0f", stt_source)
 
     def test_whisper_vad_is_disabled_after_capture_vad(self) -> None:
-        config = (Path(__file__).parents[1] / "config.yaml").read_text(encoding="utf-8")
+        config = (Path(__file__).parents[1] / "legacy" / "config.yaml").read_text(encoding="utf-8")
 
         self.assertIn('model: "small"', config)
         self.assertIn("whisper_vad_filter: false", config)
