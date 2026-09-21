@@ -36,6 +36,46 @@ def config(provider="whisper"):
     )
 
 
+class _FakeArray:
+    def astype(self, _dtype):
+        return self
+
+    def __truediv__(self, _divisor):
+        return self
+
+
+class WhisperModelConstructionTests(unittest.TestCase):
+    def test_transcribe_loads_the_model_from_local_cache_only(self):
+        recorded_kwargs = {}
+
+        class FakeSegment(SimpleNamespace):
+            text = "hola"
+
+        class FakeWhisperModel:
+            def __init__(self, model_size, **kwargs):
+                recorded_kwargs["model_size"] = model_size
+                recorded_kwargs.update(kwargs)
+
+            def transcribe(self, audio_array, **kwargs):
+                return [FakeSegment()], None
+
+        fake_whisper_module = types.ModuleType("faster_whisper")
+        fake_whisper_module.WhisperModel = FakeWhisperModel
+
+        fake_numpy_module = types.ModuleType("numpy")
+        fake_numpy_module.int16 = "int16"
+        fake_numpy_module.float32 = "float32"
+        fake_numpy_module.frombuffer = lambda *_args, **_kwargs: _FakeArray()
+
+        with mock.patch.dict(
+            sys.modules,
+            {"faster_whisper": fake_whisper_module, "numpy": fake_numpy_module},
+        ):
+            asyncio.run(collect_transcripts(WhisperSTT()))
+
+        self.assertIs(True, recorded_kwargs.get("local_files_only"))
+
+
 class STTProviderDependencyTests(unittest.TestCase):
     def test_whisper_transcribe_raises_typed_error_without_dependency(self):
         with mock.patch.dict(sys.modules, {"faster_whisper": None}):

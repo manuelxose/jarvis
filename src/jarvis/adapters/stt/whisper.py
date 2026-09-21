@@ -52,7 +52,12 @@ class WhisperSTT:
             frames.extend(chunk)
         audio_array = np.frombuffer(bytes(frames), dtype=np.int16).astype(np.float32) / 32768.0
 
-        model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
+        model = WhisperModel(
+            self.model_size,
+            device=self.device,
+            compute_type=self.compute_type,
+            local_files_only=True,
+        )
         kwargs: dict = {"beam_size": 1, "vad_filter": True, "condition_on_previous_text": False}
         if self.language:
             kwargs["language"] = self.language
