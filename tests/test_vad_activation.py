@@ -76,6 +76,21 @@ class ActivationTests(unittest.TestCase):
         self.assertIsNone(manager.command_after_wake_word("hablé con Jarvis"))
         self.assertIsNone(manager.command_after_wake_word("jarvisito abre Spotify"))
 
+    def test_tolerates_a_single_character_stt_slip_on_the_wake_word(self):
+        manager = ActivationManager(wake_word="jarvis")
+
+        self.assertEqual("abre Spotify", manager.command_after_wake_word("¡Carvis! abre Spotify"))
+
+    def test_rejects_a_similar_length_word_that_is_not_a_close_match(self):
+        manager = ActivationManager(wake_word="jarvis")
+
+        self.assertIsNone(manager.command_after_wake_word("Javi, ¿qué hora es?"))
+
+    def test_rejects_a_heavily_garbled_wake_word_attempt(self):
+        manager = ActivationManager(wake_word="jarvis")
+
+        self.assertIsNone(manager.command_after_wake_word("¡Görais! qué hora es"))
+
     def test_activation_rejects_empty_or_negative_timing_configuration(self):
         with self.assertRaises(ValueError):
             ActivationManager(wake_word="   ")
