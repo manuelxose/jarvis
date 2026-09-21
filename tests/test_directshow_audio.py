@@ -2,7 +2,7 @@ import subprocess
 import unittest
 from unittest.mock import call, patch
 
-from voice.directshow_audio import (
+from legacy.voice.directshow_audio import (
     DirectShowCaptureError,
     capture_first_available,
     capture_pcm16,
@@ -47,7 +47,7 @@ class DirectShowAudioTests(unittest.TestCase):
 
         self.assertEqual("Microphone (Realtek(R) Audio)", choose_audio_device(devices, None))
 
-    @patch("voice.directshow_audio.subprocess.run")
+    @patch("legacy.voice.directshow_audio.subprocess.run")
     def test_capture_pcm16_returns_ffmpeg_pcm_for_the_selected_device(self, run):
         run.return_value = subprocess.CompletedProcess([], 0, b"\x01\x00\x02\x00", b"")
 
@@ -56,8 +56,8 @@ class DirectShowAudioTests(unittest.TestCase):
         self.assertEqual(b"\x01\x00\x02\x00", audio)
         self.assertIn("audio=Headset Microphone (G435)", run.call_args.args[0])
 
-    @patch("voice.directshow_audio.capture_pcm16")
-    @patch("voice.directshow_audio.list_audio_devices")
+    @patch("legacy.voice.directshow_audio.capture_pcm16")
+    @patch("legacy.voice.directshow_audio.list_audio_devices")
     def test_capture_first_available_retries_the_other_directshow_input(self, list_devices, capture):
         list_devices.return_value = ["Microphone (Realtek)", "Headset Microphone (G435)"]
         capture.side_effect = [DirectShowCaptureError("busy"), b"\x01\x00"]
@@ -71,7 +71,7 @@ class DirectShowAudioTests(unittest.TestCase):
             [call.args[0] for call in capture.call_args_list],
         )
 
-    @patch("voice.directshow_audio.subprocess.run")
+    @patch("legacy.voice.directshow_audio.subprocess.run")
     def test_list_audio_devices_reports_ffmpeg_failure_detail(self, run):
         run.return_value = subprocess.CompletedProcess(
             [], 1, "", "Unknown input format: 'dshow'"

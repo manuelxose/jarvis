@@ -18,7 +18,7 @@ import numpy as np
 import pyaudio
 from openwakeword.model import Model
 from openwakeword.utils import download_models
-from voice.input_device_selection import (
+from legacy.voice.input_device_selection import (
     DetectionStats,
     filter_input_candidates,
     native_chunk_size,

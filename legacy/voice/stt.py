@@ -7,8 +7,8 @@ from typing import Any
 import numpy as np
 from faster_whisper import WhisperModel
 
-from voice.audio_utils import record_until_silence
-from voice.runtime_support import timed_phase
+from legacy.voice.audio_utils import record_until_silence
+from legacy.voice.runtime_support import timed_phase
 
 
 LOGGER = logging.getLogger(__name__)

@@ -7,10 +7,10 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from cache.audio_cache import AudioCache, pregenerate_common_responses
-from voice.audio_utils import play_audio
-from voice.runtime_support import timed_phase
-from voice.sapi_tts import synthesize_to_file as synthesize_with_sapi
+from legacy.cache.audio_cache import AudioCache, pregenerate_common_responses
+from legacy.voice.audio_utils import play_audio
+from legacy.voice.runtime_support import timed_phase
+from legacy.voice.sapi_tts import synthesize_to_file as synthesize_with_sapi
 
 
 LOGGER = logging.getLogger(__name__)

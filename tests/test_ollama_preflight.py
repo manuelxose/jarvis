@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from brain.llm import OllamaClient
+from legacy.brain.llm import OllamaClient
 
 
 class OllamaPreflightTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class OllamaPreflightTests(unittest.TestCase):
 
     def test_preflight_reports_service_remediation_with_bounded_timeout(self):
         client = OllamaClient(timeout=30)
-        with patch("brain.llm.requests.get", side_effect=ConnectionError("offline")) as get:
+        with patch("legacy.brain.llm.requests.get", side_effect=ConnectionError("offline")) as get:
             result = client.preflight(timeout=1)
         self.assertFalse(result.available)
         self.assertIn("ollama serve", result.message)
@@ -28,7 +28,7 @@ class OllamaPreflightTests(unittest.TestCase):
         response = Mock()
         response.raise_for_status.return_value = None
         response.json.return_value = {"models": [{"name": "other:latest"}]}
-        with patch("brain.llm.requests.get", return_value=response):
+        with patch("legacy.brain.llm.requests.get", return_value=response):
             result = OllamaClient(model="mistral:7b-instruct").preflight(timeout=1)
         self.assertFalse(result.available)
         self.assertIn("ollama pull mistral:7b-instruct", result.message)
@@ -37,6 +37,6 @@ class OllamaPreflightTests(unittest.TestCase):
         response = Mock()
         response.raise_for_status.return_value = None
         response.json.return_value = {"models": [{"name": "mistral:7b-instruct"}]}
-        with patch("brain.llm.requests.get", return_value=response):
+        with patch("legacy.brain.llm.requests.get", return_value=response):
             result = OllamaClient(model="mistral:7b-instruct").preflight(timeout=1)
         self.assertTrue(result.available)

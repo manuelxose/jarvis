@@ -5,7 +5,7 @@ import unittest
 
 class WakeWordStartupTests(unittest.TestCase):
     def test_disabled_openwakeword_does_not_construct_a_wake_model(self):
-        tree = ast.parse(Path("main.py").read_text(encoding="utf-8"))
+        tree = ast.parse(Path("legacy/main.py").read_text(encoding="utf-8"))
         runtime_builder = next(
             node
             for node in tree.body
@@ -28,7 +28,7 @@ class WakeWordStartupTests(unittest.TestCase):
         self.assertTrue(guarded_constructor)
 
     def test_run_receives_the_capture_backend_built_at_startup(self):
-        tree = ast.parse(Path("main.py").read_text(encoding="utf-8"))
+        tree = ast.parse(Path("legacy/main.py").read_text(encoding="utf-8"))
         runtime_builder = next(
             node
             for node in tree.body

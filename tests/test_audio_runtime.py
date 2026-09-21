@@ -5,7 +5,7 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from voice.runtime_support import CaptureBackend, timed_phase
+from legacy.voice.runtime_support import CaptureBackend, timed_phase
 
 
 class AudioRuntimeTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class AudioRuntimeTests(unittest.TestCase):
         "audio runtime dependencies are not installed",
     )
     def test_wasapi_auto_selection_uses_any_input_when_default_is_missing(self):
-        from voice.audio_utils import resolve_capture_backend
+        from legacy.voice.audio_utils import resolve_capture_backend
 
         devices = [
             {"name": "Speakers", "hostapi": 0, "max_input_channels": 0, "default_samplerate": 48000},
@@ -37,11 +37,11 @@ class AudioRuntimeTests(unittest.TestCase):
             return devices if index is None else devices[index]
 
         with (
-            patch("voice.audio_utils.sys.platform", "win32"),
-            patch("voice.audio_utils.sd.query_hostapis", return_value=[
+            patch("legacy.voice.audio_utils.sys.platform", "win32"),
+            patch("legacy.voice.audio_utils.sd.query_hostapis", return_value=[
                 {"name": "Windows WASAPI", "default_input_device": -1},
             ]),
-            patch("voice.audio_utils.sd.query_devices", side_effect=query_devices),
+            patch("legacy.voice.audio_utils.sd.query_devices", side_effect=query_devices),
         ):
             backend = resolve_capture_backend(preferred_index=None)
 
@@ -54,7 +54,7 @@ class AudioRuntimeTests(unittest.TestCase):
         "audio runtime dependencies are not installed",
     )
     def test_wdm_ks_is_used_when_wasapi_has_no_input(self):
-        from voice.audio_utils import resolve_capture_backend
+        from legacy.voice.audio_utils import resolve_capture_backend
 
         devices = [
             {"name": "Speakers", "hostapi": 0, "max_input_channels": 0, "default_samplerate": 48000},
@@ -66,12 +66,12 @@ class AudioRuntimeTests(unittest.TestCase):
             return devices if index is None else devices[index]
 
         with (
-            patch("voice.audio_utils.sys.platform", "win32"),
-            patch("voice.audio_utils.sd.query_hostapis", return_value=[
+            patch("legacy.voice.audio_utils.sys.platform", "win32"),
+            patch("legacy.voice.audio_utils.sd.query_hostapis", return_value=[
                 {"name": "Windows WASAPI", "default_input_device": -1},
                 {"name": "Windows WDM-KS", "default_input_device": 1},
             ]),
-            patch("voice.audio_utils.sd.query_devices", side_effect=query_devices),
+            patch("legacy.voice.audio_utils.sd.query_devices", side_effect=query_devices),
         ):
             backend = resolve_capture_backend(preferred_index=None)
 
@@ -84,7 +84,7 @@ class AudioRuntimeTests(unittest.TestCase):
         "audio runtime dependencies are not installed",
     )
     def test_native_resolution_skips_an_endpoint_that_fails_to_start(self):
-        from voice.audio_utils import resolve_capture_backend
+        from legacy.voice.audio_utils import resolve_capture_backend
 
         devices = [
             {"name": "Broken headset mic", "hostapi": 0, "max_input_channels": 1, "default_samplerate": 16000},
@@ -95,13 +95,13 @@ class AudioRuntimeTests(unittest.TestCase):
             return devices if index is None else devices[index]
 
         with (
-            patch("voice.audio_utils.sys.platform", "win32"),
-            patch("voice.audio_utils.sd.query_hostapis", return_value=[
+            patch("legacy.voice.audio_utils.sys.platform", "win32"),
+            patch("legacy.voice.audio_utils.sd.query_hostapis", return_value=[
                 {"name": "Windows WASAPI", "default_input_device": 0},
                 {"name": "Windows WDM-KS", "default_input_device": 1},
             ]),
-            patch("voice.audio_utils.sd.query_devices", side_effect=query_devices),
-            patch("voice.audio_utils._probe_native_rms", side_effect=[-1.0, 12.0]),
+            patch("legacy.voice.audio_utils.sd.query_devices", side_effect=query_devices),
+            patch("legacy.voice.audio_utils._probe_native_rms", side_effect=[-1.0, 12.0]),
         ):
             backend = resolve_capture_backend(preferred_index=None, verify=True)
 
@@ -112,12 +112,12 @@ class AudioRuntimeTests(unittest.TestCase):
         backend = CaptureBackend("WDM-KS", 1, "USB Microphone", 16000)
 
         self.assertTrue(backend.requires_callback)
-        source = Path("voice/audio_utils.py").read_text(encoding="utf-8")
+        source = Path("legacy/voice/audio_utils.py").read_text(encoding="utf-8")
         self.assertIn("callback=", source)
         self.assertIn("backend.requires_callback", source)
 
     def test_main_passes_resolved_microphone_to_wake_listener(self):
-        source = Path("main.py").read_text(encoding="utf-8")
+        source = Path("legacy/main.py").read_text(encoding="utf-8")
 
         self.assertIn("input_device_index=resolved_input_device", source)
         self.assertNotIn(
@@ -126,19 +126,19 @@ class AudioRuntimeTests(unittest.TestCase):
         )
 
     def test_stt_loads_the_cached_model_without_huggingface_network(self):
-        source = Path("voice/stt.py").read_text(encoding="utf-8")
-        config = Path("config.yaml").read_text(encoding="utf-8")
+        source = Path("legacy/voice/stt.py").read_text(encoding="utf-8")
+        config = Path("legacy/config.yaml").read_text(encoding="utf-8")
 
         self.assertIn("local_files_only", source)
         self.assertIn("local_files_only: true", config)
 
     def test_stt_capture_is_bounded_for_short_voice_commands(self):
-        config = Path("config.yaml").read_text(encoding="utf-8")
+        config = Path("legacy/config.yaml").read_text(encoding="utf-8")
         self.assertIn("silence_duration: 0.45", config)
         self.assertIn("max_record_seconds: 3", config)
 
     def test_recording_uses_resolved_backend_not_stale_variable(self):
-        source = Path("voice/audio_utils.py").read_text()
+        source = Path("legacy/voice/audio_utils.py").read_text()
         self.assertNotIn("wasapi_input", source)
         self.assertIn("backend.is_wasapi and stream is not None", source)
 

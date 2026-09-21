@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from voice.directshow_audio import DirectShowCaptureError, capture_first_available
-from voice.runtime_support import CaptureBackend
+from legacy.voice.directshow_audio import DirectShowCaptureError, capture_first_available
+from legacy.voice.runtime_support import CaptureBackend
 
 import numpy as np
 import pyaudio

@@ -9,11 +9,19 @@ import jarvis
 
 
 class PackagingTests(unittest.TestCase):
+    def test_windows_bootstrap_starts_run_command(self):
+        root = Path(__file__).resolve().parents[1]
+        bootstrap = (root / "bootstrap.ps1").read_text(encoding="utf-8")
+        self.assertIn(
+            '& $venvPython -m jarvis --config (Join-Path $ProjectRoot "config.win.json") run',
+            bootstrap,
+        )
+
     def test_provisioning_is_separate_from_setuptools_entrypoint(self):
         root = Path(__file__).resolve().parents[1]
         self.assertFalse((root / "setup.py").exists())
         with patch("subprocess.run", side_effect=AssertionError("provisioning on import")):
-            module = runpy.run_path(str(root / "legacy_setup.py"))
+            module = runpy.run_path(str(root / "legacy" / "legacy_setup.py"))
         self.assertEqual(module["BASE_DIR"], root)
         self.assertTrue(callable(module["main"]))
 

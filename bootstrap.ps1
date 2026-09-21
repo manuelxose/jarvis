@@ -598,7 +598,7 @@ function Validate-VoiceSamples {
 
 function Stop-OrphanJarvisPython {
     $rootNormalized = $ProjectRoot.ToLowerInvariant().Replace("/", "\")
-    $targets = @("main.py", "monitor_status.py")
+    $targets = @("main.py", "monitor_status.py", "-m jarvis")
 
     try {
         $pyProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -651,7 +651,7 @@ function Start-JarvisMonitor {
         return $null
     }
 
-    $monitorScript = Join-Path $ProjectRoot "monitor_status.py"
+    $monitorScript = Join-Path $ProjectRoot "legacy\monitor_status.py"
     if (-not (Test-Path $monitorScript)) {
         Write-Warning "monitor_status.py no encontrado. Continuando sin monitor."
         return $null
@@ -729,8 +729,17 @@ try {
         $monitorProcess = Start-JarvisMonitor -VenvPython $venvPython -LogPath $jarvisLog
         Write-Step "Arrancando Jarvis..."
         try {
-            & $venvPython (Join-Path $ProjectRoot "main.py")
-            Assert-LastExitCode "Ejecucion de main.py"
+            # Jarvis v2 lives in src/jarvis; the old root-level main.py no longer exists.
+            # The bootstrap installs runtime dependencies, not the local package itself.
+            # Add src explicitly so the launcher works from a fresh virtual environment.
+            $srcPath = Join-Path $ProjectRoot "src"
+            if ($env:PYTHONPATH) {
+                $env:PYTHONPATH = "$srcPath;$($env:PYTHONPATH)"
+            } else {
+                $env:PYTHONPATH = $srcPath
+            }
+            & $venvPython -m jarvis --config (Join-Path $ProjectRoot "config.win.json") run
+            Assert-LastExitCode "Ejecucion de jarvis"
         } finally {
             Stop-JarvisMonitor -MonitorProcess $monitorProcess
         }
