@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import enum
+import re
 import time
+import unicodedata
+
+
+def _normalize_word(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch)).casefold()
 
 
 class ActivationMode(str, enum.Enum):
@@ -76,11 +83,11 @@ class ActivationManager:
     def in_cooldown(self) -> bool:
         return (time.monotonic() - self._last_activation) < self.cooldown_seconds
 
-    def matches_wake_word(self, text: str) -> bool:
-        import re
-        import unicodedata
+    def command_after_wake_word(self, text: str) -> str | None:
+        match = re.match(r"^\W*(\w+)(.*)$", text or "", flags=re.DOTALL)
+        if match is None or _normalize_word(match.group(1)) != _normalize_word(self.wake_word):
+            return None
+        return match.group(2).lstrip(" \t,.:;!?¿¡-")
 
-        normalized = unicodedata.normalize("NFKD", text or "")
-        without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
-        tokens = re.findall(r"[a-z0-9]+", without_accents.lower())
-        return any(self.wake_word in token or token in self.wake_word for token in tokens)
+    def matches_wake_word(self, text: str) -> bool:
+        return self.command_after_wake_word(text) is not None
