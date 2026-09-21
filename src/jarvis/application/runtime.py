@@ -120,6 +120,7 @@ class JarvisRuntime:
     def diagnostics(self) -> dict[str, Any]:
         return {
             "state": self.state.value,
+            "model": _model_diagnostics(self.components.model),
             "components": {
                 report.name: {
                     "status": report.status.value,
@@ -275,6 +276,60 @@ def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
                 )
             )
     return ProviderChain(providers)
+
+
+def _model_diagnostics(
+    model: ModelProvider, probe: Callable[[str], bool] | None = None
+) -> dict[str, Any]:
+    """Describe the resolved model chain without exposing credential material.
+
+    The resolved primary and ordered fallbacks are emitted with name, kind,
+    model, base URL, and API-key presence only; the key value itself is never
+    included. Local fallback readiness is computed with the existing bounded
+    Ollama probe so ``jarvis doctor`` reports truthfully without probing any
+    cloud endpoint (D014).
+    """
+    if not isinstance(model, ProviderChain):
+        return {
+            "provider_order": [],
+            "providers": [],
+            "primary": None,
+            "fallbacks": [],
+            "local_fallback_ready": False,
+        }
+    reachable = probe or _ollama_reachable
+    providers: list[dict[str, Any]] = []
+    for provider in model.providers:
+        if isinstance(provider, OllamaProvider):
+            kind = "ollama"
+        elif isinstance(provider, OpenAICompatProvider):
+            kind = "openai_compat"
+        else:
+            kind = type(provider).__name__
+        providers.append(
+            {
+                "name": getattr(provider, "name", kind),
+                "kind": kind,
+                "model": getattr(provider, "model", ""),
+                "base_url": getattr(provider, "base_url", None),
+                "has_api_key": bool(getattr(provider, "api_key", None)),
+            }
+        )
+    ollama_providers = [
+        provider
+        for provider in model.providers
+        if isinstance(provider, OllamaProvider) and provider.base_url
+    ]
+    local_fallback_ready = bool(ollama_providers) and any(
+        reachable(provider.base_url) for provider in ollama_providers
+    )
+    return {
+        "provider_order": [provider["name"] for provider in providers],
+        "providers": providers,
+        "primary": providers[0] if providers else None,
+        "fallbacks": providers[1:],
+        "local_fallback_ready": local_fallback_ready,
+    }
 
 
 def _build_tools(config: RuntimeConfig, confirmer: Any) -> ToolGateway:

@@ -16,6 +16,19 @@ from typing import Any, Mapping, Optional, Union
 
 _ENV_VALUE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 
+# Sibling filename merged over the committed base config when present. The
+# committed example lives at config.local.example.json; a developer copies it to
+# config.local.json (gitignored) and fills in ``${ENV}``-referenced secrets.
+_LOCAL_OVERRIDE_FILENAME = "config.local.json"
+
+# Providers are a known shape; anything else is a configuration mistake.
+_PROVIDER_KINDS = {"openai_compat", "ollama"}
+
+# ponytail: ceiling on a single provider stream timeout. A value above this is
+# almost always a misconfiguration. Raise it only for a legitimate provider that
+# needs a longer first-byte window; prefer tightening per-provider timeouts.
+_MAX_PROVIDER_TIMEOUT_SECONDS = 300.0
+
 
 @dataclass(frozen=True)
 class RuntimeSettings:
@@ -228,11 +241,17 @@ class RuntimeConfig:
 def load_config(
     path: Union[str, Path], environ: Optional[Mapping[str, str]] = None
 ) -> RuntimeConfig:
-    """Load configuration from *path*, expanding provider secrets from *environ*."""
-    with Path(path).open(encoding="utf-8") as config_file:
-        document = json.load(config_file)
-    if not isinstance(document, dict):
-        raise ValueError("configuration must be a JSON object")
+    """Load configuration from *path*, expanding provider secrets from *environ*.
+
+    A sibling gitignored ``config.local.json`` is merged over *path* before
+    validation, so local model-provider secrets (API keys) never live in the
+    committed, secret-free base configuration.
+    """
+    base_path = Path(path)
+    document = _read_json_object(base_path)
+    local_path = base_path.with_name(_LOCAL_OVERRIDE_FILENAME)
+    if local_path.is_file():
+        document = _merge_config_documents(document, _read_json_object(local_path))
 
     env = os.environ if environ is None else environ
     runtime_data = _section(document, "runtime", required=True)
@@ -325,6 +344,63 @@ def load_config(
     )
 
 
+def _read_json_object(path: Path) -> dict[str, Any]:
+    with path.open(encoding="utf-8") as config_file:
+        document = json.load(config_file)
+    if not isinstance(document, dict):
+        raise ValueError("configuration must be a JSON object")
+    return document
+
+
+def _merge_config_documents(
+    base: Mapping[str, Any], override: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Deep-merge *override* over *base*; provider lists merge by ``name``."""
+    merged: dict[str, Any] = dict(base)
+    for key, value in override.items():
+        if key == "providers" and isinstance(value, list):
+            merged[key] = _merge_provider_lists(base.get(key), value)
+        elif isinstance(value, dict) and isinstance(base.get(key), dict):
+            merged[key] = _merge_config_documents(base[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _merge_provider_lists(base: Any, override: Any) -> list[dict[str, Any]]:
+    """Merge provider lists by ``name``.
+
+    Named matches merge per-field with the override winning and stay in their
+    base position; providers that only appear in the override are prepended (in
+    override order) so cloud providers land before the committed local Ollama
+    provider.
+    """
+    merged: list[dict[str, Any]] = []
+    if isinstance(base, list):
+        for item in base:
+            if not isinstance(item, dict):
+                raise ValueError("each models.providers entry must be an object")
+            merged.append(dict(item))
+
+    prepended: list[dict[str, Any]] = []
+    if isinstance(override, list):
+        for item in override:
+            if not isinstance(item, dict):
+                raise ValueError("each models.providers entry must be an object")
+            name = item.get("name")
+            matched = False
+            if name:
+                for index, existing in enumerate(merged):
+                    if existing.get("name") == name:
+                        merged[index] = {**existing, **item}
+                        matched = True
+                        break
+            if not matched:
+                prepended.append(dict(item))
+
+    return prepended + merged
+
+
 def _section(
     document: Mapping[str, Any], name: str, required: bool = False
 ) -> Mapping[str, Any]:
@@ -414,21 +490,51 @@ def _parse_providers(data: Mapping[str, Any], environ: Mapping[str, str]) -> lis
     if not isinstance(raw, list):
         raise ValueError("models.providers must be a list")
     providers: list[ModelProviderConfig] = []
+    seen_names: set[str] = set()
     for item in raw:
         if not isinstance(item, dict):
             raise ValueError("each models.providers entry must be an object")
+        name = _string(item, "name", "")
+        if name and name in seen_names:
+            raise ValueError("duplicate model provider name {!r}".format(name))
+        if name:
+            seen_names.add(name)
         providers.append(
             ModelProviderConfig(
-                name=_string(item, "name", ""),
-                kind=_string(item, "kind", "openai_compat"),
+                name=name,
+                kind=_provider_kind(item),
                 base_url=_optional_string(item, "base_url"),
                 api_key=_resolve_secret(item.get("api_key"), environ),
                 model=_string(item, "model", ""),
-                timeout_seconds=_positive_number(item, "timeout_seconds", 30.0, "models.providers.timeout_seconds"),
+                timeout_seconds=_bounded_timeout(item),
                 temperature=_number(item, "temperature", 0.7),
             )
         )
     return providers
+
+
+def _provider_kind(item: Mapping[str, Any]) -> str:
+    kind = _string(item, "kind", "openai_compat").strip().lower()
+    if kind not in _PROVIDER_KINDS:
+        raise ValueError(
+            "models.providers kind must be one of {}: got {!r}".format(
+                sorted(_PROVIDER_KINDS), kind
+            )
+        )
+    return kind
+
+
+def _bounded_timeout(item: Mapping[str, Any]) -> float:
+    value = _positive_number(
+        item, "timeout_seconds", 30.0, "models.providers.timeout_seconds"
+    )
+    if value > _MAX_PROVIDER_TIMEOUT_SECONDS:
+        raise ValueError(
+            "models.providers.timeout_seconds must not exceed {:.0f} seconds".format(
+                _MAX_PROVIDER_TIMEOUT_SECONDS
+            )
+        )
+    return value
 
 
 def _number(data: Mapping[str, Any], key: str, default: float) -> float:

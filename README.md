@@ -57,6 +57,52 @@ Saltar descarga del modelo (si ya esta):
 .\bootstrap.ps1 -SkipModelPull
 ```
 
+## Ruta cloud-first opcional (configuracion local no versionada)
+
+Por defecto Jarvis usa Ollama local. Para priorizar un proveedor cloud compatible con
+OpenAI sin guardar ninguna credencial en el repositorio:
+
+1. Copia la plantilla versionada a su hermano ignorado:
+
+```powershell
+Copy-Item config.local.example.json config.local.json
+```
+
+2. Proporciona la clave solo por variable de entorno (nunca dentro de un archivo versionado):
+
+```powershell
+$env:OPENAI_API_KEY = "sk-tu-clave"
+```
+
+`config.local.json` referencia `${OPENAI_API_KEY}` y el valor se resuelve en tiempo de
+ejecucion; la clave nunca se escribe en `config.json`, en la plantilla, en logs ni en informes.
+
+3. Comprueba el enrutado con `doctor`:
+
+```powershell
+.\.venv\Scripts\python.exe -m jarvis doctor
+.\.venv\Scripts\python.exe -m jarvis doctor --json
+```
+
+La salida muestra la seccion `model routing`:
+
+```text
+model routing:
+  primary: openai (kind=openai_compat, model=gpt-4o-mini, base_url=https://api.openai.com/v1, api_key=present)
+  fallback: ollama (kind=ollama, model=mistral:7b-instruct, base_url=http://localhost:11434, api_key=none)
+  local fallback ready: yes
+```
+
+`local fallback ready: yes` significa que Ollama responde; `no` significa que el primario
+cloud sigue configurado pero el fallback local no esta disponible. En modo JSON, `model`
+expone `provider_order`, `primary`, `fallbacks` y `local_fallback_ready`, y la clave solo
+aparece como `has_api_key: true/false` (nunca el valor).
+
+Reglas:
+- Manten `config.json` y `config.local.example.json` libres de secretos.
+- No subas `config.local.json` al control de versiones (ya esta en `.gitignore`).
+- Sin `config.local.json`, Jarvis usa la configuracion Ollama versionada.
+
 ## Notas
 
 - Necesitas `winget` habilitado para instalacion automatica de Python/Ollama.

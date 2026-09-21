@@ -1,1 +1,13 @@
-{"runtime": {}}
+{
+  "runtime": {},
+  "models": {
+    "providers": [
+      {
+        "name": "ollama",
+        "kind": "ollama",
+        "base_url": "http://localhost:11434",
+        "model": "mistral:7b-instruct"
+      }
+    ]
+  }
+}

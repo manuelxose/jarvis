@@ -22,6 +22,12 @@ dist/
 cache/cached_responses/
 cache/screenshots/
 
+# Local secret overrides (never committed)
+config.local.json
+
+# Model bake-off evidence records (operator-owned, never committed)
+bakeoff-*.json
+
 # OS files
 .DS_Store
 Thumbs.db

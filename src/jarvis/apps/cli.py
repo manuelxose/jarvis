@@ -119,6 +119,16 @@ async def _check(
     return report
 
 
+def _format_provider(provider: dict[str, object]) -> str:
+    """Render one provider entry without its credential value."""
+    name = provider.get("name") or "?"
+    kind = provider.get("kind") or "?"
+    model = provider.get("model") or "-"
+    base_url = provider.get("base_url") or "-"
+    api_key = "present" if provider.get("has_api_key") else "none"
+    return f"{name} (kind={kind}, model={model}, base_url={base_url}, api_key={api_key})"
+
+
 def _write_report(report: dict[str, object], stdout: TextIO, as_json: bool) -> None:
     if as_json:
         json.dump(report, stdout, sort_keys=True)
@@ -132,6 +142,21 @@ def _write_report(report: dict[str, object], stdout: TextIO, as_json: bool) -> N
         assert isinstance(health, dict)
         detail = health["detail"]
         stdout.write(f"{name}: {health['status']}" + (f" ({detail})" if detail else "") + "\n")
+
+    model = report.get("model")
+    if isinstance(model, dict):
+        primary = model.get("primary")
+        fallbacks = model.get("fallbacks")
+        if primary is None and not fallbacks:
+            stdout.write("model routing: none\n")
+        else:
+            stdout.write("model routing:\n")
+            if primary is not None:
+                stdout.write(f"  primary: {_format_provider(primary)}\n")
+            for fallback in fallbacks or ():
+                stdout.write(f"  fallback: {_format_provider(fallback)}\n")
+            ready = "yes" if model.get("local_fallback_ready") else "no"
+            stdout.write(f"  local fallback ready: {ready}\n")
 
     metrics = report.get("metrics", {})
     if isinstance(metrics, dict):
