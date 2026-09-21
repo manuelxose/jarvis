@@ -381,6 +381,9 @@ def _tts_report(config: RuntimeConfig) -> HealthReport:
     if provider == "sapi":
         healthy_detail = "pyttsx3 adapter"
         degraded_detail = "pyttsx3 adapter unavailable"
+    elif provider == "elevenlabs":
+        healthy_detail = "elevenlabs (cloud, cloned voice)"
+        degraded_detail = "elevenlabs api_key or voice not configured"
     else:
         healthy_detail = "coqui (XTTS-v2)"
         degraded_detail = "adapter dependency unavailable"

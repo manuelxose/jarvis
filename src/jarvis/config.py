@@ -311,7 +311,7 @@ def load_config(
             api_key=_resolve_secret(stt_data.get("api_key"), env),
         ),
         tts=TTSSettings(
-            provider=_choice(tts_data, "provider", "local", {"local", "sapi"}, "tts"),
+            provider=_choice(tts_data, "provider", "local", {"local", "sapi", "elevenlabs"}, "tts"),
             voice=_string(tts_data, "voice", ""),
             language=_string(tts_data, "language", "es"),
             api_key=_resolve_secret(tts_data.get("api_key"), env),
