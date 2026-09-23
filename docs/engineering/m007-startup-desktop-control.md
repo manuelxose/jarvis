@@ -27,8 +27,14 @@ after it finished is ignored (idempotent). `jarvis sleep`/`quit` cancel cleanly.
 
 ## Install / enable
 
-All commands run from the repo with the Windows venv (`.venv\Scripts\python.exe -m jarvis …`,
-`PYTHONPATH=src`), config `config.win.json`.
+`jarvis` is not an installed command. In PowerShell, from the repo, every
+`jarvis …` below means:
+
+```powershell
+cd \\wsl.localhost\Ubuntu\home\manuelxose\workspace\jarvis
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m jarvis <command> --config config.win.json
+```
 
 | Step | Command |
 |---|---|
