@@ -77,7 +77,7 @@ last startup timings: `%LOCALAPPDATA%\jarvis\startup-report.json`.
 
 **Music:** Jarvis never downloads anything. Put your own file somewhere (e.g.
 `C:\Users\Admin\Music\jarvis-startup.mp3`) and set `welcome.music_path`. Without a
-usable file it opens `music_url` in the browser (that cannot be ducked).
+usable file it opens `music_url` in the browser (that cannot be ducked). Relative paths are resolved from the repo root. Files at another sample rate are resampled on load. On this laptop the owner configured `voice_samples/sample3.wav` in the gitignored `config.local.json`.
 
 **Workspace task fields:** `command` or `url`, `cwd`, `depends_on`, `detect` / `ready` /
 `stop` probes (`http`, `port`, `process`, `window_title`, `command`), `timeout_seconds`
@@ -136,7 +136,7 @@ redacted: secret-looking keys → `<redacted>`, file contents → `<N chars>`.
 
 | Metric | Result | How |
 |---|---|---|
-| Sentinel idle CPU / RAM | **0.9 % of one core (0.045 % of the machine), 54 MB** | psutil over 30 s, headless pythonw daemon |
+| Sentinel idle CPU / RAM | **0.9 % of one core (0.045 % of the machine), 54 MB** without music; **117 MB** with the 190 s track preloaded (decoded once at daemon start, so music starts instantly instead of ~6 s after the chime) | psutil over 30 s, headless pythonw daemon; Task Manager |
 | Detector cost | 0.04–0.06 % of a core (offline), 0.31 % live incl. PortAudio callback | `clap_eval.py`, `jarvis claps test` |
 | Detection latency (last clap → gesture) | **≈ 510 ms** (waits 1.25× your clap spacing for a 4th clap) | acoustic loopback |
 | Output stream open → first callback | ≈ 130 ms | probe; the chime now plays before the runtime is built |
