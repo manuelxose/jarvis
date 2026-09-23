@@ -247,6 +247,23 @@ class MixerRenderTests(unittest.TestCase):
         self.assertLessEqual(float(np.abs(out).max()), 1.0)
         self.assertGreater(mixer.level, 0.0)
 
+    def test_other_sample_rates_are_resampled_not_reopened(self):
+        import tempfile
+
+        import soundfile as sf
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.wav"
+            sf.write(str(path), np.zeros(22050, dtype=np.float32), 22050)  # 1 s mono
+            mixer = Mixer()
+            mixer.load(path)
+            self.assertEqual(mixer.rate, 44100)
+            self.assertEqual(mixer._music.shape, (44100, 2))
+            mixer.stop()
+            path.unlink()  # a cached track no longer needs the file
+            mixer.load(path)
+        self.assertEqual(mixer._music.shape, (44100, 2))
+
     def test_missing_file_raises_file_not_found(self):
         with self.assertRaises(FileNotFoundError):
             Mixer().load("/definitely/missing.mp3")

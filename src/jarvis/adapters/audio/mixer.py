@@ -3,7 +3,7 @@
 Music is decoded with ``soundfile`` (libsndfile >= 1.1 reads MP3/FLAC/WAV) and
 played from a PortAudio callback, so volume changes (ducking under Jarvis's
 voice, fade-out) are sample-accurate linear ramps rather than audible steps.
-The stream runs at the music's native rate, so nothing is resampled. The
+Music at another sample rate is resampled to the stream's rate on load. The
 render step is a pure function of the mixer state and is unit-tested without
 an audio device. ``numpy``/``sounddevice``/``soundfile`` are lazy-imported.
 """
@@ -51,6 +51,9 @@ class Mixer:
         self._step = 0.0  # gain change per frame while ramping
         self._stop_at_silence = False
         self.level = 0.0  # RMS of the last rendered block (for visualizers)
+        # Decoded track kept across sessions: decoding + resampling a 3-minute
+        # file from the WSL share takes ~6 s, far too late for the startup cue.
+        self._cache: tuple[str, Any] | None = None
 
     # -- state ------------------------------------------------------------
     @property
@@ -68,6 +71,10 @@ class Mixer:
         import soundfile as sf  # noqa: PLC0415
 
         path = Path(path)
+        if self._cache is not None and self._cache[0] == str(path):
+            with self._lock:
+                self._music, self._pos = self._cache[1], 0
+            return
         if not path.is_file():
             raise FileNotFoundError(f"music file not found: {path}")
         try:
@@ -77,10 +84,15 @@ class Mixer:
         if data.shape[1] == 1:
             data = np.repeat(data, 2, axis=1)
         if rate != self.rate:
-            self._close_stream()  # outside the lock: abort() waits for the callback
-            self.rate = int(rate)
+            # Resample instead of reopening the stream, which would cut the chime.
+            # ponytail: linear interpolation; inaudible for upsampling (22.05 -> 44.1 kHz),
+            # slight aliasing when downsampling 48 kHz files. Use a polyphase filter if heard.
+            positions = np.arange(0, len(data), rate / self.rate)
+            data = np.stack([np.interp(positions, np.arange(len(data)), data[:, c]) for c in range(2)], axis=1).astype(np.float32)
+        data = np.ascontiguousarray(data[:, :2], dtype=np.float32)
+        self._cache = (str(path), data)
         with self._lock:
-            self._music, self._pos = data[:, :2].copy(), 0
+            self._music, self._pos = data, 0
 
     def play_sfx(self, samples: Any = None) -> None:
         with self._lock:

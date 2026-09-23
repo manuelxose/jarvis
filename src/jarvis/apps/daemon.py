@@ -126,6 +126,7 @@ class Sentinel:
         self.last_report: dict[str, Any] = {}
         self._stop = asyncio.Event()
         self._last_gesture: dict[str, Any] = {}
+        self._mixer: Any = None
 
     # -- activation sources (thread-safe) --------------------------------------
     def request_activation(self, source: str) -> None:
@@ -193,11 +194,29 @@ class Sentinel:
         self._loop = asyncio.get_running_loop()
         self._activation = asyncio.Queue()
         start_hotkey_thread(str(self.config.daemon.get("hotkey", "ctrl+alt+j")), lambda: self.request_activation("hotkey"))
+        preload = asyncio.create_task(self._preload_music())
         while not self._stop.is_set():
             activation = await self._listen()
             if activation is None:
                 break
             await self._session(*activation)
+        preload.cancel()
+
+    def _get_mixer(self) -> Any:
+        if self._mixer is None:
+            self._mixer = self._mixer_factory()
+        return self._mixer
+
+    async def _preload_music(self) -> None:
+        """Decode the startup track while idle so activation plays it at once."""
+        path = startup_options(self.config).music_path
+        if not path:
+            return
+        try:
+            await asyncio.to_thread(self._get_mixer().load, path)
+            logger.info("startup music preloaded: %s", path)
+        except Exception as error:  # noqa: BLE001 - reported again at activation
+            logger.warning("startup music not preloaded: %s", error)
 
     async def _listen(self) -> Optional[tuple[str, float]]:
         self.state = "sentinel"
@@ -231,7 +250,7 @@ class Sentinel:
         self.state = "starting"
         mixer = None
         try:
-            mixer = self._mixer_factory()
+            mixer = self._get_mixer()
         except Exception as error:  # noqa: BLE001 - no output device: continue silently
             logger.warning("mixer unavailable: %s", error)
         holder: dict[str, JarvisRuntime] = {}
