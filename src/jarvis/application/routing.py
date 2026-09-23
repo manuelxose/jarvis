@@ -46,7 +46,22 @@ _FILE_COMMAND = re.compile(
 # Ordered (pattern, tool, argument extractor, confidence[, defaults]). First match
 # wins. The optional 5th element is a constant-arguments dict merged into the
 # match before the captured group, so `action` can be injected deterministically.
+_ENTORNO = r"(?:mi|el|nuestro)\s+entorno(?:\s+de\s+(?:desarrollo|trabajo))?"
 _COMMAND_PATTERNS: tuple[tuple, ...] = (
+    # M007 workspace / system control (before the generic "abre X")
+    (re.compile(r"\b(?:arranca|inicia|prepara|levanta|enciende|pon en marcha|start)\s+" + _ENTORNO), "workspace", "", 0.95, {"action": "start"}),
+    (re.compile(r"\b(?:apaga|cierra|para|deten|detén|shut down)\s+" + _ENTORNO), "workspace", "", 0.95, {"action": "stop"}),
+    (re.compile(r"\babre\s+mis\s+proyectos\b"), "workspace", "", 0.93, {"action": "start", "profile": "projects"}),
+    (re.compile(r"\breinicia(?:r)?\s+(?:a\s+|el\s+|la\s+)?(hermes|ollama|backend|frontend|docker)\b"), "service_restart", "name", 0.94),
+    (
+        re.compile(r"\b(?:que|quien)\s+(?:esta\s+)?(?:consume|consumiendo|usa|usando|ocupa|ocupando|gasta)\b.*\b(?:gpu|grafica|vram)\b|\bmemoria\s+de\s+(?:la\s+)?(?:gpu|grafica)\b"),
+        "gpu_processes", "", 0.93,
+    ),
+    (re.compile(r"\b(?:que|quien)\s+(?:esta\s+)?(?:consume|consumiendo|usa|usando|gasta)\b.*\b(?:cpu|procesador)\b"), "process_list", "", 0.9, {"sort": "cpu"}),
+    (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:cpu|memoria|recursos)\b|\bcomo\s+va\s+el\s+(?:sistema|ordenador|equipo)\b"), "system_stats", "", 0.92),
+    (re.compile(r"\bcancela\s+(?:la\s+)?(?:operacion|tarea|ejecucion|orden)\b"), "cancel_operations", "", 0.96),
+    (re.compile(r"\b(?:haz|toma)\s+(?:una\s+)?captura(?:\s+de\s+pantalla)?\b"), "screenshot", "", 0.93),
+    (re.compile(r"^\s*(?:a\s+dormir|duermete|descansa|modo\s+reposo|vete\s+a\s+dormir)\s*$"), "sleep", "", 0.96),
     # clipboard read / copy (read-path only; file write stays Hermes-only, D012)
     (
         re.compile(
@@ -207,7 +222,7 @@ class Router:
         "revisa mis proyectos", "revisa el repositorio", "revisa mis", "analiza este repositorio",
         "analiza el repositorio", "repositorio", "prepara un informe", "informe",
         "termina la tarea", "arregla el error", "arregla este", "por que falla",
-        "dime que quedo pendiente",
+        "dime que quedo pendiente", "arreglalo", "este error", "ese error", "corrige el error",
     )
 
     def __init__(
@@ -218,7 +233,21 @@ class Router:
         self._classifier = classifier or FastCommandClassifier()
         self._intent_classifier = intent_classifier
 
+    # Multi-action or referential desktop requests go to the desktop planner
+    # (the TurnManager falls back to the model when no planner is wired).
+    DESKTOP_MULTI = re.compile(
+        r"\b(?:abre|abrir|cierra|arranca|inicia|reinicia|ejecuta|lanza|mueve|borra|crea|busca|minimiza|maximiza|pon)\b"
+        r".*\sy\s+(?:luego\s+|despues\s+)?(?:abre|abrir|cierra|arranca|inicia|reinicia|ejecuta|lanza|mueve|borra|crea|busca|minimiza|maximiza|pon)\b"
+    )
+    DESKTOP_REFERENCE = re.compile(
+        r"\b(?:abre|cierra|reinicia)\b.*\b(?:proyecto|carpeta)\b.*\b(?:estaba|trabajando|ultimo|ese|eso|anterior)\b"
+        r"|\bcierra\s+todo\s+lo\s+(?:relacionado|de)\b"
+    )
+
     async def route(self, text: str, context: TurnContext) -> RouteDecision:
+        normalized_text = normalize(text)
+        if self.DESKTOP_MULTI.search(normalized_text) or self.DESKTOP_REFERENCE.search(normalized_text):
+            return RouteDecision(route="desktop", confidence=0.8, reason="multi-step or referential desktop request")
         command = self._classifier.match(text)
         if command is not None:
             return RouteDecision(

@@ -25,7 +25,7 @@ from jarvis.core.contracts import (
     TurnContext,
 )
 from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream
-from jarvis.core.errors import ToolExecutionError
+from jarvis.core.errors import ToolError
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnCancelled
 from jarvis.observability.tracing import InteractionTrace
@@ -180,6 +180,8 @@ class TurnManager:
         memory: Any = None,
         state_setter: Optional[Callable[[RuntimeState], None]] = None,
         ack_cache: Optional[AckAudioCache] = None,
+        planner: Any = None,
+        agent_tools: Optional[Callable[[str, dict[str, Any], TurnContext], Any]] = None,
     ) -> None:
         self._router = router
         self._tools = tools
@@ -190,6 +192,10 @@ class TurnManager:
         self._memory = memory
         self._state_setter = state_setter
         self._ack_cache = ack_cache
+        # Desktop planner (M007) and the tool entry used for agent-originated
+        # requests, which the gateway treats as untrusted.
+        self.planner = planner
+        self._agent_tools = agent_tools or tools
         self._current: Optional[TurnContext] = None
         self._lock = asyncio.Lock()
 
@@ -219,8 +225,13 @@ class TurnManager:
             route = decision.route
             trace.mark("routing_ms")
 
+            if route == "desktop" and self.planner is None:
+                route = "fast_model"
             if route == "fast_command":
                 response = await self._handle_fast_command(decision, text, context)
+            elif route == "desktop":
+                response = await self.planner.handle(text, context)
+                await self._speak_text(response, context)
             elif route == "hermes" and self._hermes is not None:
                 response = await self._handle_hermes(text, context, trace)
             else:
@@ -255,9 +266,14 @@ class TurnManager:
             result = await self._tools(
                 decision.command.name, dict(decision.command.arguments), context
             )
-        except ToolExecutionError as error:
+        except ToolError as error:
             response = str(error)
         else:
+            if self.planner is not None and _unresolved(decision.command.name, result):
+                # "abre el proyecto X" is not an app name: let the planner resolve it.
+                response = await self.planner.handle(text, context)
+                await self._speak_text(response, context)
+                return response
             response = self._command_response(decision.command.name, result)
         # A command result (or its error message) is spoken so the user hears the
         # outcome rather than a silent execution; this is the milestone's spoken
@@ -326,6 +342,9 @@ class TurnManager:
     ) -> str:
         assert self._hermes is not None
         tokens: list[str] = []
+        if self.planner is not None:
+            # "this error", "that project": give the agent what the owner sees.
+            text = f"{text}\n\nContexto del escritorio: {self.planner.context_json()}"
 
         async def _agent_tokens() -> AsyncIterator[str]:
             # Tokens are spoken as they stream; tool requests run inline.
@@ -337,7 +356,7 @@ class TurnManager:
                     tokens.append(event.text)
                     yield event.text
                 elif isinstance(event, AgentToolRequest):
-                    await self._tools(event.name, dict(event.arguments), context)
+                    await self._agent_tools(event.name, dict(event.arguments), context)
 
         await self._speak_stream(_agent_tokens(), context, trace)
         trace.mark("agent_total_ms")
@@ -346,6 +365,10 @@ class TurnManager:
             await self._speak_text(response, context)
             return response
         return "".join(tokens).strip()
+
+    async def speak_text(self, text: str, context: Optional[TurnContext] = None) -> None:
+        """Speak *text* outside a routed turn (startup welcome, confirmations)."""
+        await self._speak_text(text, context or TurnContext.fresh("system"))
 
     async def _speak_text(self, text: str, context: TurnContext) -> None:
         async def _gen() -> AsyncIterator[str]:
@@ -370,6 +393,10 @@ class TurnManager:
                 self._state_setter(state)
             except Exception:
                 pass
+
+
+def _unresolved(name: str, result: Any) -> bool:
+    return name == "open_application" and str(result).startswith("No se como abrir")
 
 
 _COMMAND_ACKS = {

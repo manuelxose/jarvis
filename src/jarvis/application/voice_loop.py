@@ -11,7 +11,7 @@ import asyncio
 import logging
 import time
 from collections import deque
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from jarvis.core.contracts import (
     AudioCapture,
@@ -47,6 +47,7 @@ class VoiceLoop:
         barge_in_frames: int = 5,
         barge_in_energy_factor: float = 3.0,
         echo_tail_frames: int = 0,
+        confirmer: Any = None,
     ) -> None:
         self._audio = audio
         self._vad = vad
@@ -65,6 +66,8 @@ class VoiceLoop:
         # Frames dropped right after a reply: the speaker tail and room echo of
         # Jarvis's own voice must not be heard as the user's next utterance.
         self.echo_tail_frames = echo_tail_frames
+        # A pending spoken confirmation (high-risk tool) takes the next utterance.
+        self._confirmer = confirmer
         self.frames_per_second = 10  # MicCapture reads sample_rate // 10 per frame
         self._stop_event = asyncio.Event()
         self._frames: AsyncIterator[bytes] | None = None
@@ -133,6 +136,8 @@ class VoiceLoop:
         pre_roll: deque[bytes] = deque(maxlen=self.pre_roll_frames)
         silence = 0
         while len(frames) < self.max_listen_frames:
+            if self._stop_event.is_set():
+                return None  # "sleep"/quit must not wait for the next utterance
             frame = await self._next_frame(context)
             if frame is None:
                 break
@@ -186,6 +191,12 @@ class VoiceLoop:
                 if self._stop_event.is_set():
                     await self._turn_manager.interrupt()
                     break
+                if self._confirmer is not None and self._confirmer.waiting:
+                    reply = await self._capture_utterance(context)
+                    self._confirmer.answer(reply or "")
+                    loud_frames = 0
+                    self._phase = "thinking"
+                    continue
                 frame = await self._next_frame(context)
                 loud_frames = loud_frames + 1 if frame is not None and self._is_barge_in(frame) else 0
                 if self.barge_in_frames and loud_frames >= self.barge_in_frames:
