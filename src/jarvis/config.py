@@ -92,6 +92,8 @@ class TTSSettings:
     profile_dir: str = ""
     model: str = ""
     chunk_size: int = 4
+    # qwen_clone: seconds a turn waits for a still-loading clone before SAPI (0 = never)
+    warmup_wait_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -244,6 +246,7 @@ class RuntimeConfig:
                 "profile_dir": self.tts.profile_dir,
                 "model": self.tts.model,
                 "chunk_size": self.tts.chunk_size,
+                "warmup_wait_seconds": self.tts.warmup_wait_seconds,
             },
             "alibaba": {
                 "region": self.alibaba.region,
@@ -379,6 +382,7 @@ def load_config(
             profile_dir=_string(tts_data, "profile_dir", ""),
             model=_string(tts_data, "model", ""),
             chunk_size=_positive_int(tts_data, "chunk_size", 4, "tts.chunk_size"),
+            warmup_wait_seconds=_number(tts_data, "warmup_wait_seconds", 0.0),
         ),
         alibaba=AlibabaSettings(
             region=_choice(alibaba_data, "region", "singapore", {"singapore", "beijing"}, "alibaba"),
@@ -645,7 +649,7 @@ def _parse_allowlist(data: Mapping[str, Any]) -> list[str]:
 
 
 _DESKTOP_KEYS = {"authorized_scopes", "trusted_operations", "apps"}
-_DAEMON_KEYS = {"hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama"}
+_DAEMON_KEYS = {"hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama", "preload_voice"}
 
 
 def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:

@@ -46,6 +46,33 @@ class AckAudioCache:
         self._loaded[normalized] = data
         return data
 
+    def put(self, text: str, data: bytes) -> None:
+        """Store audio for *text* (used for the cloned-voice startup welcome)."""
+        normalized = (text or "").strip()
+        self._dir.mkdir(parents=True, exist_ok=True)
+        path = self._dir / f"{cache_key(normalized)}.{self._extension}"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(data)
+        tmp.replace(path)
+        self._loaded[normalized] = data
+
+
+def join_wavs(chunks: list[bytes]) -> bytes:
+    """Concatenate same-format WAV chunks (a streamed synthesis) into one WAV."""
+    import io  # noqa: PLC0415
+    import wave  # noqa: PLC0415
+
+    frames, params = [], None
+    for chunk in chunks:
+        with wave.open(io.BytesIO(chunk), "rb") as wav:
+            params = params or wav.getparams()
+            frames.append(wav.readframes(wav.getnframes()))
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as out:
+        out.setparams(params)
+        out.writeframes(b"".join(frames))
+    return buffer.getvalue()
+
 
 async def bytes_to_stream(data: bytes) -> AsyncIterator[bytes]:
     """Wrap already-synthesized audio bytes as a one-shot async byte stream."""

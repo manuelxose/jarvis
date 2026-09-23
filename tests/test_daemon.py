@@ -108,8 +108,8 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
                 break
         self.assertEqual(sentinel.state, "active")
         names = [e[0] for e in EVENTS]
-        # The chime must not wait for the (slow) runtime build.
-        self.assertLess(names.index("chime"), names.index("build"))
+        # The runtime is built while idle, so the chime never waits for it.
+        self.assertLess(names.index("build"), names.index("chime"))
         self.assertLess(names.index("welcome"), names.index("listening"))
         report = json.loads((Path(self.tmp.name) / "jarvis" / "startup-report.json").read_text(encoding="utf-8"))
         self.assertEqual(report["phase"], "ready")
@@ -122,6 +122,8 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sentinel.state, "sentinel")
         self.assertIn("runtime_stop", [e[0] for e in EVENTS])
         self.assertEqual(len(self.mic_callbacks), 2)  # mic reopened for the next gesture
+        await asyncio.sleep(0.05)
+        self.assertEqual([e[0] for e in EVENTS].count("build"), 2)  # next session prepared while idle
         sentinel.shutdown()
         await asyncio.wait_for(task, 2)
 

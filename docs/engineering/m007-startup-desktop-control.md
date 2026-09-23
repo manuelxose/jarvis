@@ -46,6 +46,7 @@ $env:PYTHONPATH = "src"
 | Wake / sleep / inspect / stop a running sentinel | `jarvis activate` · `jarvis sleep` · `jarvis status` · `jarvis quit` |
 | Launch / close a workspace | `jarvis workspace start dev` · `jarvis workspace stop dev [--force]` |
 | List tools and their risk class | `jarvis tools --config config.win.json` |
+| Re-record the cloned-voice welcomes (after re-enrolling the voice or changing the text/name) | `jarvis welcome record --config config.win.json` |
 
 Autostart is a per-user Startup-folder shortcut (`Jarvis Sentinel.lnk` →
 `pythonw.exe scripts\jarvis_daemon.pyw`), visible in Task Manager › Startup apps.
@@ -78,6 +79,19 @@ last startup timings: `%LOCALAPPDATA%\jarvis\startup-report.json`.
 **Music:** Jarvis never downloads anything. Put your own file somewhere (e.g.
 `C:\Users\Admin\Music\jarvis-startup.mp3`) and set `welcome.music_path`. Without a
 usable file it opens `music_url` in the browser (that cannot be ducked). Relative paths are resolved from the repo root. Files at another sample rate are resampled on load. On this laptop the owner configured `voice_samples/sample3.wav` in the gitignored `config.local.json`.
+
+**Welcome timing (movie style):** the three "all systems operational" welcomes
+(morning/afternoon/evening) are recorded once in the cloned voice
+(`%LOCALAPPDATA%\jarvis\cache\welcome`; recorded automatically in the first session
+where the clone is ready, or with `jarvis welcome record`). On activation the
+recorded welcome plays `welcome_delay_seconds` (2 s) after the music starts,
+without waiting for the voice model. A degraded welcome is never served from the
+cache: it is synthesized live (waiting up to `voice_ready_timeout_seconds`, 60 s),
+so it always tells the truth. The next session's runtime is built while the
+sentinel is idle. `tts.warmup_wait_seconds` (25 s) makes a reply that arrives
+while the model is still loading wait for the cloned voice instead of falling
+back to SAPI. `daemon.preload_voice: true` keeps the model loaded between
+sessions (instant replies, ~4.2 GB VRAM and GPU heat while idle; off by default).
 
 **Workspace task fields:** `command` or `url`, `cwd`, `depends_on`, `detect` / `ready` /
 `stop` probes (`http`, `port`, `process`, `window_title`, `command`), `timeout_seconds`
@@ -136,7 +150,7 @@ redacted: secret-looking keys → `<redacted>`, file contents → `<N chars>`.
 
 | Metric | Result | How |
 |---|---|---|
-| Sentinel idle CPU / RAM | **0.9 % of one core (0.045 % of the machine), 54 MB** without music; **117 MB** with the 190 s track preloaded (decoded once at daemon start, so music starts instantly instead of ~6 s after the chime) | psutil over 30 s, headless pythonw daemon; Task Manager |
+| Sentinel idle CPU / RAM | **0.9 % of one core (0.045 % of the machine), 54 MB** without music; **140 MB** with the 190 s track preloaded and the next runtime pre-built (decoded once at daemon start, so music starts instantly instead of ~6 s after the chime) | psutil over 30 s, headless pythonw daemon; Task Manager |
 | Detector cost | 0.04–0.06 % of a core (offline), 0.31 % live incl. PortAudio callback | `clap_eval.py`, `jarvis claps test` |
 | Detection latency (last clap → gesture) | **≈ 510 ms** (waits 1.25× your clap spacing for a 4th clap) | acoustic loopback |
 | Output stream open → first callback | ≈ 130 ms | probe; the chime now plays before the runtime is built |

@@ -51,7 +51,11 @@ def build_qwen_clone(config: RuntimeConfig) -> QwenCloneTTS:
         chunk_size=config.tts.chunk_size,
         model=config.tts.model,
     )
-    return QwenCloneTTS(command, stderr_path=str(Path("logs") / "tts-worker.log"))
+    return QwenCloneTTS(
+        command,
+        stderr_path=str(Path("logs") / "tts-worker.log"),
+        warmup_wait_seconds=getattr(config.tts, "warmup_wait_seconds", 0.0),
+    )
 
 
 def tts_available(config: RuntimeConfig) -> bool:

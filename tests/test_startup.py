@@ -17,6 +17,7 @@ from jarvis.application.startup import (
     StartupSequence,
     compose_welcome,
     greeting_for,
+    welcome_texts,
 )
 from jarvis.core.contracts import HealthReport, HealthStatus
 
@@ -202,6 +203,39 @@ class SequenceTests(unittest.IsolatedAsyncioTestCase):
         release.set()
         await seq.workspace_task
         self.assertEqual(report.workspace, {"launched": ["vscode"]})
+
+    async def test_cached_welcome_plays_shortly_after_music_without_waiting_for_the_model(self):
+        played, waited = [], []
+
+        async def slow_voice():
+            waited.append(True)
+            await asyncio.sleep(10)
+
+        async def play(audio):
+            played.append(audio)
+
+        seq, spoken = make(StartupOptions(music_path="x", welcome_delay_seconds=0.05), mixer=FakeMixer())
+        seq._wait_voice, seq._play_audio = slow_voice, play
+        seq._cached_welcome = lambda text: b"WAV" if "operativos" in text else None
+        report = await asyncio.wait_for(seq.trigger(), 2)
+        self.assertEqual((played, spoken, waited), ([b"WAV"], [], []))
+        self.assertEqual(report.welcome_source, "cache")
+        self.assertGreaterEqual(report.timings_ms["welcome_spoken"] - report.timings_ms["music_started"], 50)
+
+    async def test_degraded_welcome_is_never_served_from_cache(self):
+        async def play(audio):
+            raise AssertionError("cached audio must not claim a healthy system")
+
+        broken = HEALTHY[:-1] + [HealthReport("fast model", HealthStatus.DEGRADED, required=False)]
+        seq, spoken = make(reports=broken)
+        seq._play_audio, seq._cached_welcome = play, lambda text: b"WAV"
+        report = await seq.trigger()
+        self.assertEqual(report.welcome_source, "live")
+        self.assertIn("el modelo de lenguaje", spoken[0])
+
+    def test_welcome_texts_cover_the_three_periods(self):
+        texts = welcome_texts(StartupOptions())
+        self.assertEqual([t.split(",")[0] for t in texts], ["Buenos días", "Buenas tardes", "Buenas noches"])
 
     async def test_voice_timeout_reports_clone_unavailable(self):
         async def never():
