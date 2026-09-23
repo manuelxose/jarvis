@@ -81,6 +81,18 @@ class ActivationTests(unittest.TestCase):
 
         self.assertEqual("abre Spotify", manager.command_after_wake_word("¡Carvis! abre Spotify"))
 
+    def test_accepts_a_leading_greeting_before_the_wake_word(self):
+        manager = ActivationManager(wake_word="jarvis")
+
+        self.assertEqual("Abre Spotify!", manager.command_after_wake_word("¡Ey, Javis! ¡Abre Spotify!"))
+        self.assertEqual("abre Spotify", manager.command_after_wake_word("Hey Jarvis, abre Spotify"))
+        self.assertEqual("", manager.command_after_wake_word("¡Ey, Jalvis!"))
+        self.assertIsNone(manager.command_after_wake_word("Hey, Javi! ¡Abre Spotify!"))
+        self.assertIsNone(manager.command_after_wake_word("Oye"))
+        self.assertIsNone(manager.command_after_wake_word("oye hablé con Jarvis"))
+        self.assertEqual("a ver spotify", manager.command_after_wake_word("y jarvis a ver spotify"))
+        self.assertEqual("Averespotify.", manager.command_after_wake_word("y Jarvis Averespotify."))
+
     def test_rejects_a_similar_length_word_that_is_not_a_close_match(self):
         manager = ActivationManager(wake_word="jarvis")
 

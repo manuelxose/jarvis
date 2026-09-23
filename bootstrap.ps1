@@ -562,7 +562,7 @@ function Ensure-OllamaModel {
     }
 
     try {
-        $tagsResponse = Invoke-RestMethod -Method Get -Uri "http://localhost:11434/api/tags" -TimeoutSec 4
+        $tagsResponse = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 4
         $installedNames = @($tagsResponse.models | ForEach-Object { $_.name })
         if ($installedNames -contains $ModelName) {
             Write-Step "Modelo '$ModelName' ya disponible."

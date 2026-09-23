@@ -24,7 +24,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package
-        run: python -m pip install -e .
+        # requests: legacy/brain/llm.py (covered by test_ollama_preflight)
+        run: python -m pip install -e . requests==2.31.0
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -v

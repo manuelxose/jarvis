@@ -5,7 +5,7 @@
       {
         "name": "ollama",
         "kind": "ollama",
-        "base_url": "http://localhost:11434",
+        "base_url": "http://127.0.0.1:11434",
         "model": "mistral:7b-instruct"
       }
     ]

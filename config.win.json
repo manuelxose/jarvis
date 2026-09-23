@@ -15,20 +15,21 @@
   },
   "stt": {
     "provider": "whisper",
-    "model": "small",
+    "model": "deepdml/faster-whisper-large-v3-turbo-ct2",
     "language": "es",
-    "device": "cpu"
+    "device": "cuda"
   },
   "tts": {
-    "provider": "sapi",
-    "language": "es"
+    "provider": "qwen_clone",
+    "language": "es",
+    "chunk_size": 4
   },
   "models": {
     "providers": [
       {
         "name": "ollama",
         "kind": "ollama",
-        "base_url": "http://localhost:11434",
+        "base_url": "http://127.0.0.1:11434",
         "model": "mistral:7b-instruct"
       }
     ]

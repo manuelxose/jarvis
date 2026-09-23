@@ -95,3 +95,46 @@ class CostTracker:
             "projected_monthly_usd": round(avg_per_minute * 60 * 24 * 30, 4),
             "provider_distribution": {k: round(v, 6) for k, v in sorted(by_provider.items())},
         }
+
+
+class SpendLedger:
+    """Persisted per-day cloud spend with a hard cap (survives restarts).
+
+    Stored as a tiny JSON file in the per-user data directory. The cap is
+    checked before a request is opened, so an exhausted budget costs nothing:
+    callers raise a non-transient error and the provider chain moves on to a
+    local model instead of spending more.
+    """
+
+    def __init__(self, path, max_daily_usd: float) -> None:
+        from pathlib import Path  # noqa: PLC0415
+
+        self._path = Path(path)
+        self.max_daily_usd = max_daily_usd
+
+    def _load(self) -> dict:
+        import json  # noqa: PLC0415
+
+        today = time.strftime("%Y-%m-%d")
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        if data.get("date") != today:
+            data = {"date": today, "usd": 0.0, "by_provider": {}}
+        return data
+
+    def spent_today(self) -> float:
+        return round(self._load()["usd"], 6)
+
+    def exhausted(self) -> bool:
+        return self.max_daily_usd > 0 and self.spent_today() >= self.max_daily_usd
+
+    def record(self, provider: str, usd: float) -> None:
+        import json  # noqa: PLC0415
+
+        data = self._load()
+        data["usd"] = round(data["usd"] + usd, 6)
+        data["by_provider"][provider] = round(data["by_provider"].get(provider, 0.0) + usd, 6)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(json.dumps(data), encoding="utf-8")

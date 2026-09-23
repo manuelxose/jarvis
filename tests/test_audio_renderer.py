@@ -5,11 +5,13 @@ tests fake them in ``sys.modules`` and drive the decode → device-write path
 deterministically. No external audio dependency is imported at module load.
 """
 
+import asyncio
 import io
 import math
 import struct
 import sys
 import tempfile
+import time
 import types
 import unittest
 import wave
@@ -38,7 +40,7 @@ from jarvis.config import (
 )
 from jarvis.core.contracts import HealthStatus
 from jarvis.core.errors import ProviderUnavailable
-from jarvis.core.turn import TurnContext
+from jarvis.core.turn import TurnCancelled, TurnContext
 
 RATE = 22050
 
@@ -74,16 +76,34 @@ def make_sine_wav(
     return buffer.getvalue(), nframes
 
 
-def make_fake_sounddevice(recorder: dict) -> types.SimpleNamespace:
-    """A sounddevice stand-in whose ``play`` records its arguments."""
+def make_fake_sounddevice(recorder: dict, write=None) -> types.SimpleNamespace:
+    """A sounddevice stand-in whose ``OutputStream`` records opens and writes."""
 
-    def play(samples, samplerate=None, device=None, blocking=None):
-        recorder["play_calls"] = recorder.get("play_calls", 0) + 1
-        recorder["samplerate"] = samplerate
-        recorder["device"] = device
-        recorder["blocking"] = blocking
+    class OutputStream:
+        def __init__(self, samplerate=None, channels=None, dtype=None, device=None):
+            recorder["opens"] = recorder.get("opens", 0) + 1
+            recorder["samplerate"] = samplerate
+            recorder["device"] = device
+            recorder["dtype_out"] = dtype
+            self.active = False
 
-    return types.SimpleNamespace(play=play)
+        def start(self):
+            self.active = True
+
+        def write(self, samples):
+            if write is not None:
+                write(samples)
+            recorder["play_calls"] = recorder.get("play_calls", 0) + 1
+            recorder["written"] = recorder.get("written", 0) + len(samples)
+
+        def abort(self):
+            recorder["aborts"] = recorder.get("aborts", 0) + 1
+            self.active = False
+
+        def close(self):
+            recorder["closes"] = recorder.get("closes", 0) + 1
+
+    return types.SimpleNamespace(OutputStream=OutputStream, PortAudioError=_FakePortAudioError)
 
 
 def make_fake_numpy(recorder: dict) -> types.SimpleNamespace:
@@ -96,6 +116,12 @@ def make_fake_numpy(recorder: dict) -> types.SimpleNamespace:
         def reshape(self, *shape) -> "Samples":
             recorder["reshape"] = shape
             return self
+
+        def __len__(self) -> int:
+            return len(self.frames) // 2
+
+        def __getitem__(self, index: slice) -> "Samples":
+            return Samples(self.frames[index.start * 2:index.stop * 2])
 
     def frombuffer(frames, dtype=None):
         recorder["dtype"] = dtype
@@ -149,10 +175,10 @@ class RendererFullPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, state["played"])
         self.assertEqual(0, state["render_errors"])
         self.assertEqual(0, state["render_timeouts"])
-        self.assertEqual(1, recorder["play_calls"])
+        self.assertEqual(1, recorder["opens"])
         self.assertEqual(RATE, recorder["samplerate"])
         self.assertEqual(7, recorder["device"])
-        self.assertTrue(recorder["blocking"])
+        self.assertEqual(nframes, recorder["written"])
         self.assertEqual(nframes, recorder["sample_count"])
         self.assertEqual(nframes * 2, recorder["frames_len"])
         self.assertEqual((-1, 1), recorder["reshape"])
@@ -186,7 +212,65 @@ class WiringTests(unittest.IsolatedAsyncioTestCase):
         state = runtime.components.audio_output.state()
         self.assertEqual(1, state["played"])
         self.assertEqual(0, state["render_errors"])
-        self.assertEqual(1, recorder["play_calls"])
+        self.assertEqual(1, recorder["opens"])
+
+
+class PersistentStreamTests(unittest.IsolatedAsyncioTestCase):
+    async def test_chunks_share_one_open_stream(self):
+        recorder: dict = {}
+        blob, nframes = make_sine_wav(0.2)
+        queue = AudioOutputQueue(render=make_sounddevice_render())
+
+        async def audio():
+            for _ in range(3):
+                yield blob
+
+        with mock.patch.dict(sys.modules, {"sounddevice": make_fake_sounddevice(recorder), "numpy": make_fake_numpy({})}):
+            await queue.play(audio(), TurnContext.fresh("s"))
+        self.assertEqual(1, recorder["opens"])
+        self.assertEqual(3 * nframes, recorder["written"])
+
+    async def test_barge_in_cuts_the_chunk_on_the_device(self):
+        recorder: dict = {}
+        blob, nframes = make_sine_wav(2.0)
+        started = asyncio.Event()
+        loop = asyncio.get_running_loop()
+
+        def slow_write(_samples):
+            loop.call_soon_threadsafe(started.set)
+            time.sleep(0.01)
+
+        queue = AudioOutputQueue(render=make_sounddevice_render())
+        context = TurnContext.fresh("s")
+
+        async def audio():
+            yield blob
+            yield blob
+
+        async def cancel_when_playing():
+            await started.wait()
+            context.cancellation.cancel()
+
+        with mock.patch.dict(sys.modules, {"sounddevice": make_fake_sounddevice(recorder, slow_write), "numpy": make_fake_numpy({})}):
+            canceller = asyncio.create_task(cancel_when_playing())
+            with self.assertRaises(TurnCancelled):
+                await queue.play(audio(), context)
+            await canceller
+            await asyncio.sleep(0.1)  # let the executor thread observe the abort
+        self.assertGreaterEqual(recorder["aborts"], 1)
+        self.assertLess(recorder["written"], nframes // 2)
+        self.assertEqual(0, queue.state()["pending"])
+
+    async def test_aborted_turn_chunk_is_never_rendered(self):
+        recorder: dict = {}
+        render = make_sounddevice_render()
+        render.abort("old")
+        blob, _ = make_sine_wav(0.1)
+        with mock.patch.dict(sys.modules, {"sounddevice": make_fake_sounddevice(recorder), "numpy": make_fake_numpy({})}):
+            await render("old", blob)
+            self.assertNotIn("written", recorder)
+            await render("new", blob)
+        self.assertGreater(recorder["written"], 0)
 
 
 class PortAudioGuardTests(unittest.IsolatedAsyncioTestCase):
@@ -215,10 +299,10 @@ class DeviceFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_play_portaudio_error_maps_to_provider_unavailable(self):
         render = make_sounddevice_render()
 
-        def play(*_: object, **__: object) -> None:
+        def unplugged(_samples) -> None:
             raise _FakePortAudioError("device unplugged")
 
-        fake_sd = types.SimpleNamespace(play=play, PortAudioError=_FakePortAudioError)
+        fake_sd = make_fake_sounddevice({}, unplugged)
         fake_np = make_fake_numpy({})
         blob, _ = make_sine_wav()
 
@@ -229,10 +313,10 @@ class DeviceFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("audio", raised.exception.provider)
 
     async def test_device_failure_is_contained_by_the_queue(self):
-        def play(*_: object, **__: object) -> None:
+        def unplugged(_samples) -> None:
             raise _FakePortAudioError("device unplugged")
 
-        fake_sd = types.SimpleNamespace(play=play, PortAudioError=_FakePortAudioError)
+        fake_sd = make_fake_sounddevice({}, unplugged)
         fake_np = make_fake_numpy({})
         blob, _ = make_sine_wav()
         queue = AudioOutputQueue(render=make_sounddevice_render())

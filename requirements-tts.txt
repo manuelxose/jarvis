@@ -1,0 +1,13 @@
+# Local voice-cloning TTS worker environment (separate venv, see scripts/setup_tts_worker.bat).
+# Install with --extra-index-url https://download.pytorch.org/whl/cu118
+# torch 2.7.1+cu118 runs on NVIDIA driver 536.99 (CUDA 12.2) without a driver update.
+torch==2.7.1+cu118
+torchaudio==2.7.1+cu118
+faster-qwen3-tts==0.4.0
+qwen-tts-hf==0.1.1.post1
+# Upstream-tested pins (faster-qwen3-tts demo/constraints.txt @ v0.4.0); newer
+# transformers 5.17 breaks qwen-tts-hf (MimiConfig.rope_theta).
+transformers==5.15.1
+huggingface-hub==1.28.0
+tokenizers==0.22.2
+sounddevice==0.4.7

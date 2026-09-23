@@ -31,8 +31,16 @@ _APP_MAP: dict[str, list[str]] = {
     "explorer": ["explorer"],
     "calculadora": ["calc"],
     "powershell": ["powershell"],
-    "spotify": ["start", "spotify"],
+    # The spotify: URI works for both the desktop and the Microsoft Store install;
+    # "start spotify" only finds the desktop build.
+    "spotify": ["start", "spotify:"],
     "chrome": ["start", "chrome"],
+    "crome": ["start", "chrome"],  # common STT spelling
+    "navegador": ["start", "https://www.google.com"],
+    "cmd": ["start", "cmd"],
+    "terminal": ["start", "cmd"],
+    "consola": ["start", "cmd"],
+    "simbolo del sistema": ["start", "cmd"],
 }
 
 
@@ -111,7 +119,7 @@ class OpenApplicationTool(_CommandTool):
                 subprocess.Popen(command)
         except Exception as error:
             return f"No he podido abrir '{raw}': {error}"
-        return f"He abierto {raw}."
+        return f"Abriendo {raw}, señor."
 
 
 class OpenUrlTool(_CommandTool):

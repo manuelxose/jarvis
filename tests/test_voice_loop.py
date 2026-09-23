@@ -63,6 +63,7 @@ def _build(
     player=None,
     min_silence=6,
     max_listen=160,
+    echo_tail=0,
 ):
     """Assemble a VoiceLoop around the deterministic fakes."""
     player = player if player is not None else RecordingAudioPlayer()
@@ -83,6 +84,7 @@ def _build(
         else ActivationManager(cooldown_seconds=0.0),
         min_silence_frames=min_silence,
         max_listen_frames=max_listen,
+        echo_tail_frames=echo_tail,
     )
     return loop, manager, player
 
@@ -190,9 +192,37 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(0, len(loop.turns))
 
+    async def test_short_noise_does_not_barge_in(self):
+        loop, _, _ = _build(
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6 + [b"\xff\x7f" * 8] * 4,
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
+            model=_SlowModel(),
+        )
+
+        await loop.run()
+
+        self.assertEqual(1, len(loop.turns))
+        self.assertFalse(loop.turns[0].cancelled)
+
+    async def test_pre_roll_keeps_soft_onset_before_vad_fires(self):
+        seen = []
+
+        class _RecordingSTT(ScriptedSTT):
+            async def transcribe(self, audio, context):
+                seen.extend([frame async for frame in audio])
+                yield Transcript("Jarvis, hola", is_final=True)
+
+        soft = [bytes([n, 0]) * 8 for n in (1, 2, 3, 4)]
+        loop, _, _ = _build(soft + [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6, stt=_RecordingSTT())
+
+        await loop.run()
+
+        self.assertEqual(soft[1:], seen[:3])
+        self.assertEqual(b"\xff\x7f" * 8, seen[3])
+
     async def test_barge_in_cancels_in_flight_turn(self):
         loop, manager, _ = _build(
-            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6 + [b"\xff\x7f" * 8],
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6 + [b"\xff\x7f" * 8] * 5,
             stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
             model=_SlowModel(),
         )
@@ -202,6 +232,33 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(loop.turns))
         self.assertTrue(loop.turns[0].cancelled)
         self.assertFalse(manager.active)
+
+    async def test_speaker_tail_after_reply_is_not_heard_as_a_new_utterance(self):
+        from jarvis.application.turn_manager import TurnResult
+
+        class _InstantTurns:
+            active = False
+
+            async def handle(self, text, **_):
+                return TurnResult(transcript=text, response="ok", route="fast_model", elapsed_ms=1, trace={})
+
+            async def interrupt(self):
+                pass
+
+        frames = [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6 + [b"\xff\x7f" * 8] * 2 + [b"\x00\x00" * 8] * 6
+        for tail, expected_turns in ((0, 2), (3, 1)):
+            with self.subTest(echo_tail=tail):
+                stt = _PerUtteranceSTT([Transcript("Jarvis, hola", is_final=True), Transcript("Jarvis, eco", is_final=True)])
+                loop = VoiceLoop(
+                    audio=ScriptedAudioInput(list(frames)),
+                    vad=EnergyVAD(),
+                    stt=stt,
+                    turn_manager=_InstantTurns(),
+                    activation=ActivationManager(cooldown_seconds=0.0),
+                    echo_tail_frames=tail,
+                )
+                await loop.run()
+                self.assertEqual(expected_turns, len(loop.turns))
 
     async def test_state_reports_stopped_and_turn_count(self):
         loop, _, _ = _build(

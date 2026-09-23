@@ -37,6 +37,10 @@ def _levenshtein(a: str, b: str) -> int:
 # or a larger STT model.
 _MAX_WAKE_WORD_EDIT_DISTANCE = 1
 
+# One of these may precede the wake word; anything else before it rejects.
+# Whisper often writes a spoken "hey" as "y"/"e"/"i".
+_WAKE_GREETINGS = frozenset({"hey", "ey", "hei", "ei", "y", "e", "i", "oye", "eh", "ok", "okay", "hola"})
+
 
 def _fuzzy_matches_wake_word(word: str, wake_word: str) -> bool:
     if word == wake_word:
@@ -120,6 +124,11 @@ class ActivationManager:
         match = re.match(r"^\W*(\w+)(.*)$", text or "", flags=re.DOTALL)
         if match is None:
             return None
+        if _normalize_word(match.group(1)) in _WAKE_GREETINGS:
+            # "¡Hey, Jarvis! ..." — people naturally lead with a greeting.
+            match = re.match(r"^\W*(\w+)(.*)$", match.group(2), flags=re.DOTALL)
+            if match is None:
+                return None
         candidate = _normalize_word(match.group(1))
         if not _fuzzy_matches_wake_word(candidate, _normalize_word(self.wake_word)):
             return None

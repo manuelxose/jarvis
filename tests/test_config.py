@@ -367,9 +367,9 @@ class ConfigTests(unittest.TestCase):
 
         # The checked-in example must reference the environment variable rather
         # than embed any credential literal.
-        self.assertIn("${OPENAI_API_KEY}", raw)
+        self.assertIn("${DEEPSEEK_API_KEY}", raw)
         provider = example["models"]["providers"][0]
-        self.assertEqual("${OPENAI_API_KEY}", provider["api_key"])
+        self.assertEqual("${DEEPSEEK_API_KEY}", provider["api_key"])
         # No other secret-looking literal leaks into the committed template.
         self.assertNotIn("sk-", raw.lower())
 
@@ -380,10 +380,10 @@ class ConfigTests(unittest.TestCase):
         self.write_local(example)
 
         sentinel = "sk-test-sentinel-abc123"
-        config = load_config(self.path, {"OPENAI_API_KEY": sentinel})
+        config = load_config(self.path, {"DEEPSEEK_API_KEY": sentinel})
 
         # Cloud-before-Ollama merge contract from the committed documents.
-        self.assertEqual(["openai", "ollama"], [p.name for p in config.models.providers])
+        self.assertEqual(["deepseek", "ollama"], [p.name for p in config.models.providers])
         self.assertEqual("openai_compat", config.models.providers[0].kind)
         self.assertEqual("ollama", config.models.providers[1].kind)
         # The key resolves onto the runtime object ...

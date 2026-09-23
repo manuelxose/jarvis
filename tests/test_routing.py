@@ -97,6 +97,15 @@ class FastCommandClassifierTests(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertEqual("open_application", match.name)
 
+    def test_stt_slips_of_abre_open_known_apps_only(self):
+        for text in ("a ver spotify", "Averespotify.", "abres Spotify", "aver chrome"):
+            with self.subTest(text=text):
+                match = self.classifier.match(text)
+                self.assertIsNotNone(match)
+                self.assertEqual("open_application", match.name)
+                self.assertIn(match.arguments["application"], {"spotify", "chrome"})
+        self.assertIsNone(self.classifier.match("a ver si llueve manana"))
+
     def test_normalize_folds_accents(self):
         self.assertEqual("sube el volumen", normalize("¡Sube el volumen!"))
 
