@@ -35,7 +35,11 @@ from jarvis.adapters.models.fallback import ProviderChain
 from jarvis.adapters.models.ollama import OllamaProvider
 from jarvis.adapters.models.openai_compat import OpenAICompatProvider
 from jarvis.adapters.stt import resolve_stt, stt_available, stt_provider
-from jarvis.adapters.tts import resolve_tts, tts_available, tts_provider
+from jarvis.adapters.stt.fallback import STTChain
+from jarvis.adapters.stt.whisper import WhisperSTT
+from jarvis.adapters.tts import AckAudioCache, resolve_tts, tts_available, tts_provider
+from jarvis.adapters.tts.fallback import TTSChain
+from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
 from jarvis.adapters.tools.gateway import Risk, Tool, ToolGateway
 from jarvis.adapters.tools.windows import build_windows_tools
 from jarvis.config import RuntimeConfig
@@ -161,8 +165,8 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
     )
     tools = _build_tools(config, confirmer=None)
     audio_output = AudioOutputQueue(render=make_sounddevice_render(device=config.audio.output_device))
-    tts = resolve_tts(config)
-    stt = resolve_stt(config)
+    tts = _build_tts_chain(config)
+    stt = _build_stt_chain(config)
     audio_input = MicCapture(
         sample_rate=config.audio.sample_rate,
         channels=config.audio.channels,
@@ -178,6 +182,7 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         audio=audio_output,
         hermes=hermes,
         memory=memory,
+        ack_cache=AckAudioCache(Path("cache/tts_acks")),
     )
 
     health_components = _real_health_components(config, memory, model, hermes, audio_input, audio_output)
@@ -247,6 +252,28 @@ def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRunt
 def _build_memory(config: RuntimeConfig) -> MemoryService:
     store = MemoryStore(config.memory.db_path)
     return MemoryService(store, max_recall=config.memory.max_recall)
+
+
+def _build_tts_chain(config: RuntimeConfig):
+    """Resolve the configured TTS provider, with a local fallback when cloud is primary."""
+    primary = resolve_tts(config)
+    if tts_provider(config) != "alibaba_qwen":
+        return primary
+    return TTSChain([primary, Pyttsx3TTS()])
+
+
+def _build_stt_chain(config: RuntimeConfig):
+    """Resolve the configured STT provider, with a local fallback when cloud is primary."""
+    primary = resolve_stt(config)
+    if stt_provider(config) != "alibaba_qwen":
+        return primary
+    fallback = WhisperSTT(
+        model=config.stt.model,
+        language=config.stt.language,
+        device=config.stt.device,
+        sample_rate=config.audio.sample_rate,
+    )
+    return STTChain([primary, fallback])
 
 
 def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
@@ -367,6 +394,9 @@ def _stt_report(config: RuntimeConfig) -> HealthReport:
     if provider == "sapi":
         healthy_detail = "sapi adapter"
         degraded_detail = "sapi adapter unavailable (comtypes)"
+    elif provider == "alibaba_qwen":
+        healthy_detail = "alibaba_qwen (cloud, faster-whisper fallback)"
+        degraded_detail = "alibaba_qwen api_key or workspace_id not configured"
     else:
         healthy_detail = "whisper (faster-whisper)"
         degraded_detail = "adapter dependency unavailable"
@@ -381,9 +411,9 @@ def _tts_report(config: RuntimeConfig) -> HealthReport:
     if provider == "sapi":
         healthy_detail = "pyttsx3 adapter"
         degraded_detail = "pyttsx3 adapter unavailable"
-    elif provider == "elevenlabs":
-        healthy_detail = "elevenlabs (cloud, cloned voice)"
-        degraded_detail = "elevenlabs api_key or voice not configured"
+    elif provider == "alibaba_qwen":
+        healthy_detail = "alibaba_qwen (cloud, cloned voice, sapi fallback)"
+        degraded_detail = "alibaba_qwen api_key, voice, or workspace_id not configured"
     else:
         healthy_detail = "coqui (XTTS-v2)"
         degraded_detail = "adapter dependency unavailable"

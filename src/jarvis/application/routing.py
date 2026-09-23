@@ -193,6 +193,10 @@ class Router:
         "planifica", "planificar", "investiga", "investigar", "multipaso", "multistep",
         "autonomo", "tarea larga", "orquesta", "research", "plan ",
         "haz una tarea", "pasos", "ejecuta la tarea", "workflow",
+        "revisa mis proyectos", "revisa el repositorio", "revisa mis", "analiza este repositorio",
+        "analiza el repositorio", "repositorio", "prepara un informe", "informe",
+        "termina la tarea", "arregla el error", "arregla este", "por que falla",
+        "dime que quedo pendiente",
     )
 
     def __init__(

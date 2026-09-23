@@ -23,6 +23,7 @@ from jarvis.core.contracts import (
     TextToSpeech,
     TurnContext,
 )
+from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream
 from jarvis.core.errors import ToolExecutionError
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnCancelled
@@ -92,6 +93,7 @@ class TurnManager:
         hermes: Optional[AgentRuntime] = None,
         memory: Any = None,
         state_setter: Optional[Callable[[RuntimeState], None]] = None,
+        ack_cache: Optional[AckAudioCache] = None,
     ) -> None:
         self._router = router
         self._tools = tools
@@ -101,6 +103,7 @@ class TurnManager:
         self._hermes = hermes
         self._memory = memory
         self._state_setter = state_setter
+        self._ack_cache = ack_cache
         self._current: Optional[TurnContext] = None
         self._lock = asyncio.Lock()
 
@@ -172,8 +175,13 @@ class TurnManager:
             response = self._command_response(decision.command.name, result)
         # A command result (or its error message) is spoken so the user hears the
         # outcome rather than a silent execution; this is the milestone's spoken
-        # response guarantee for the fast-command path.
-        await self._speak_text(response, context)
+        # response guarantee for the fast-command path. A cached acknowledgement
+        # skips the TTS provider round trip entirely.
+        cached = self._ack_cache.get(response) if self._ack_cache is not None else None
+        if cached is not None:
+            await self._audio.play(bytes_to_stream(cached), context)
+        else:
+            await self._speak_text(response, context)
         return response
 
     def _command_response(self, name: str, result: Any) -> str:
@@ -190,17 +198,19 @@ class TurnManager:
         tokens = self._model.generate(prompt, context)
         chunker = SentenceChunker(tokens, context)
         collected: list[str] = []
-        try:
-            audio_stream = self._tts.synthesize(chunker, context)
-            trace.mark("playback_start_ms")
-            await self._audio.play(audio_stream, context)
-        except (TurnCancelled, asyncio.CancelledError):
-            raise
-        # Re-stream to collect the text for the result record without replaying
-        # audio twice: fakes are deterministic, real providers are not replayed.
-        tokens = self._model.generate(prompt, context)
-        async for chunk in SentenceChunker(tokens, context):
-            collected.append(chunk)
+
+        async def _tee() -> AsyncIterator[str]:
+            # Record each chunk as it is sent to TTS instead of re-generating the
+            # model response afterwards: a second generate() call would double
+            # provider cost and, for a non-deterministic model, could return text
+            # that does not match what was actually spoken.
+            async for chunk in chunker:
+                collected.append(chunk)
+                yield chunk
+
+        audio_stream = self._tts.synthesize(_tee(), context)
+        trace.mark("playback_start_ms")
+        await self._audio.play(audio_stream, context)
         return " ".join(collected)
 
     async def _handle_hermes(

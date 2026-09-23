@@ -21,6 +21,7 @@ dist/
 # Local runtime/cache artifacts
 cache/cached_responses/
 cache/screenshots/
+cache/tts_acks/
 legacy/cache/cached_responses/
 legacy/cache/screenshots/
 
@@ -29,6 +30,8 @@ config.local.json
 
 # Model bake-off evidence records (operator-owned, never committed)
 bakeoff-*.json
+tts-bakeoff-*.json
+bakeoff-audio/
 
 # OS files
 .DS_Store

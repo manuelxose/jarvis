@@ -7,18 +7,20 @@ from typing import TYPE_CHECKING
 from jarvis.core.contracts import TextToSpeech
 from jarvis.core.errors import ProviderConfigError
 
-from .elevenlabs import ElevenLabsTTS, elevenlabs_available
+from .alibaba_qwen import AlibabaQwenTTS, alibaba_qwen_tts_available
 from .local import LocalTTS, local_tts_available
 from .pyttsx3 import Pyttsx3TTS, pyttsx3_available
 
 if TYPE_CHECKING:
     from jarvis.config import RuntimeConfig
 
+_PROVIDERS = {"local", "sapi", "alibaba_qwen"}
+
 
 def tts_provider(config: RuntimeConfig) -> str:
     """Return the normalized configured TTS provider or raise a typed error."""
     provider = config.tts.provider.strip().lower()
-    if provider in {"local", "sapi", "elevenlabs"}:
+    if provider in _PROVIDERS:
         return provider
     if provider == "cloud":
         raise ProviderConfigError("cloud TTS is not supported in the offline loop", provider="tts")
@@ -30,8 +32,8 @@ def resolve_tts(config: RuntimeConfig) -> TextToSpeech:
     provider = tts_provider(config)
     if provider == "sapi":
         return Pyttsx3TTS()
-    if provider == "elevenlabs":
-        return ElevenLabsTTS(api_key=config.tts.api_key, voice_id=config.tts.voice, language=config.tts.language)
+    if provider == "alibaba_qwen":
+        return AlibabaQwenTTS.from_config(config)
     return LocalTTS(language=config.tts.language)
 
 
@@ -40,6 +42,6 @@ def tts_available(config: RuntimeConfig) -> bool:
     provider = tts_provider(config)
     if provider == "sapi":
         return pyttsx3_available()
-    if provider == "elevenlabs":
-        return elevenlabs_available(api_key=config.tts.api_key, voice_id=config.tts.voice)
+    if provider == "alibaba_qwen":
+        return alibaba_qwen_tts_available(config)
     return local_tts_available()

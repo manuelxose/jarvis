@@ -23,6 +23,7 @@ from jarvis.adapters.fakes import (
     ScriptedMemory,
     ScriptedModel,
 )
+from jarvis.adapters.tts.ack_cache import AckAudioCache, cache_key
 from jarvis.application.routing import Router
 from jarvis.application.turn_manager import SentenceChunker, TurnManager, TurnResult
 from jarvis.core.contracts import AgentStatus, AgentToken, AgentToolRequest, TurnContext
@@ -148,6 +149,34 @@ class TurnManagerFastCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([("volume_up", {})], calls)
         self.assertFalse(result.cancelled)
 
+    async def test_cached_acknowledgement_skips_tts_provider(self):
+        import tempfile
+        from pathlib import Path
+
+        async def tools(name, arguments, context):
+            return None  # falls through to the default ack text
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_dir = Path(tmp)
+            ack_text = "He subido el volumen."
+            (cache_dir / f"{cache_key(ack_text)}.wav").write_bytes(b"cached-audio")
+            tts = EchoTTS()
+            audio = RecordingAudioPlayer()
+            manager = TurnManager(
+                router=Router(),
+                tools=tools,
+                model=ScriptedModel(),
+                tts=tts,
+                audio=audio,
+                ack_cache=AckAudioCache(cache_dir),
+            )
+
+            result = await manager.handle("sube el volumen")
+
+            self.assertEqual(ack_text, result.response)
+            self.assertEqual([], tts.chunks)
+            self.assertTrue(audio.played)
+
     async def test_fast_command_none_result_uses_default_ack(self):
         async def tools(name, arguments, context):
             return None
@@ -190,6 +219,15 @@ class TurnManagerFastModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(tts.chunks)
         self.assertTrue(audio.played)
         self.assertIn("playback_start_ms", result.trace)
+
+    async def test_generates_the_model_response_exactly_once(self):
+        model = ScriptedModel(default="Hola mundo.")
+        manager = _make_manager(model=model)
+
+        result = await manager.handle("cual es la capital de francia")
+
+        self.assertEqual(1, len(model.calls))
+        self.assertEqual("Hola mundo.", result.response)
 
 
 class TurnManagerHermesTests(unittest.IsolatedAsyncioTestCase):
