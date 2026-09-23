@@ -33,5 +33,117 @@
         "model": "mistral:7b-instruct"
       }
     ]
+  },
+  "claps": {
+    "enabled": true,
+    "sensitivity": 0.5,
+    "window_seconds": 2.0,
+    "cooldown_seconds": 5.0
+  },
+  "welcome": {
+    "owner_name": "Manuel",
+    "music_path": "",
+    "music_url": "https://www.youtube.com/watch?v=BN1WwnEDWAM",
+    "music_volume": 0.55,
+    "duck_volume": 0.12,
+    "after_welcome": "fade"
+  },
+  "daemon": {
+    "hotkey": "ctrl+alt+j",
+    "wake_word": false,
+    "control_port": 47811,
+    "min_free_vram_mb_for_ollama": 5000
+  },
+  "desktop": {
+    "authorized_scopes": [
+      "/home/user/workspace"
+    ],
+    "trusted_operations": [],
+    "apps": {}
+  },
+  "workspace": {
+    "default_profile": "dev",
+    "startup_profile": "dev",
+    "profiles": {
+      "dev": {
+        "description": "Jarvis development: Ollama, VS Code (WSL) and a WSL terminal",
+        "tasks": [
+          {
+            "name": "ollama",
+            "command": [
+              "ollama",
+              "serve"
+            ],
+            "window": "hidden",
+            "detect": {
+              "http": "http://127.0.0.1:11434/api/version"
+            },
+            "timeout_seconds": 30,
+            "retries": 1
+          },
+          {
+            "name": "vscode",
+            "command": [
+              "code",
+              "--remote",
+              "wsl+Ubuntu",
+              "/home/user/workspace/jarvis"
+            ],
+            "detect": {
+              "window_title": "jarvis [WSL: Ubuntu]"
+            },
+            "stop": {
+              "window_title": "jarvis [WSL: Ubuntu]"
+            },
+            "timeout_seconds": 60,
+            "retries": 0
+          },
+          {
+            "name": "terminal",
+            "command": [
+              "wt",
+              "--title",
+              "Jarvis dev",
+              "--suppressApplicationTitle",
+              "wsl",
+              "-d",
+              "Ubuntu",
+              "--cd",
+              "/home/user/workspace/jarvis"
+            ],
+            "detect": {
+              "window_title": "Jarvis dev"
+            },
+            "stop": {
+              "window_title": "Jarvis dev"
+            },
+            "timeout_seconds": 20,
+            "retries": 0
+          }
+        ]
+      },
+      "projects": {
+        "description": "The whole WSL workspace in VS Code",
+        "tasks": [
+          {
+            "name": "workspace",
+            "command": [
+              "code",
+              "--remote",
+              "wsl+Ubuntu",
+              "/home/user/workspace"
+            ],
+            "detect": {
+              "window_title": "workspace [WSL: Ubuntu]"
+            },
+            "stop": {
+              "window_title": "workspace [WSL: Ubuntu]"
+            },
+            "timeout_seconds": 60,
+            "retries": 0
+          }
+        ]
+      }
+    }
   }
 }

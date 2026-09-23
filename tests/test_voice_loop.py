@@ -108,6 +108,21 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(turn.cancelled)
         self.assertTrue(player.played)
 
+    async def test_stop_request_ends_listening_without_waiting_for_speech(self):
+        class _EndlessSilence:
+            async def capture(self, context):
+                while True:
+                    await asyncio.sleep(0.001)
+                    yield b"\x00\x00" * 160
+
+        loop, _, _ = _build([])
+        loop._audio = _EndlessSilence()
+        task = asyncio.create_task(loop.run())
+        await asyncio.sleep(0.05)
+        loop.request_stop()  # "Jarvis, a dormir" / daemon quit while nobody speaks
+        await asyncio.wait_for(task, 1.0)
+        self.assertEqual(loop.state()["phase"], "stopped")
+
     async def test_run_stops_after_max_turns(self):
         player = RecordingAudioPlayer()
         loop, _, _ = _build(

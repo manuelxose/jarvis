@@ -44,6 +44,33 @@ _APP_MAP: dict[str, list[str]] = {
 }
 
 
+def register_apps(apps: Mapping[str, list[str]]) -> None:
+    """Add owner-configured launch commands (config ``desktop.apps``)."""
+    for name, command in apps.items():
+        _APP_MAP[_normalize(name)] = list(command)
+
+
+# Spoken names that differ from the Start Menu shortcut name.
+_START_MENU_ALIASES = {"vs code": "visual studio code", "vscode": "visual studio code", "code": "visual studio code", "word": "word", "excel": "excel"}
+
+
+def _start_menu_shortcut(name: str) -> Path | None:
+    """Best Start Menu .lnk match for *name* (exact stem first, then shortest containing)."""
+    wanted = _START_MENU_ALIASES.get(name, name)
+    best: Path | None = None
+    for base in (os.environ.get("APPDATA"), os.environ.get("ProgramData")):
+        if not base:
+            continue
+        root = Path(base) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+        for link in root.rglob("*.lnk"):
+            stem = _normalize(link.stem)
+            if stem == wanted:
+                return link
+            if wanted in stem and "uninstall" not in stem and (best is None or len(stem) < len(_normalize(best.stem))):
+                best = link
+    return best
+
+
 class _CommandTool(Tool):
     def __init__(
         self,
@@ -108,6 +135,11 @@ class OpenApplicationTool(_CommandTool):
                 if alias in raw or raw in alias:
                     command = candidate
                     break
+        if command is None and _IS_WINDOWS and raw:
+            shortcut = _start_menu_shortcut(raw)
+            if shortcut is not None:
+                os.startfile(shortcut)  # noqa: S606 - a Start Menu shortcut the owner installed
+                return f"Abriendo {shortcut.stem}, señor."
         if command is None:
             return f"No se como abrir '{raw}'."
         if not _IS_WINDOWS:

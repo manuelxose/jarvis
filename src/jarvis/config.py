@@ -188,6 +188,15 @@ class RuntimeConfig:
     logging: LoggingSettings = field(default_factory=LoggingSettings)
     timeouts: TimeoutSettings = field(default_factory=TimeoutSettings)
     latency: LatencySettings = field(default_factory=LatencySettings)
+    # M007 sections, validated at load by their owning modules and kept as plain
+    # mappings: claps (ClapTuning + enabled), welcome (StartupOptions),
+    # workspace (default_profile + profiles), desktop (scopes, trusted, apps),
+    # daemon (hotkey, wake_word, control_port...). None of them hold secrets.
+    claps: Mapping[str, Any] = field(default_factory=dict)
+    welcome: Mapping[str, Any] = field(default_factory=dict)
+    workspace: Mapping[str, Any] = field(default_factory=dict)
+    desktop: Mapping[str, Any] = field(default_factory=dict)
+    daemon: Mapping[str, Any] = field(default_factory=dict)
 
     def public_dict(self) -> dict[str, dict[str, Any]]:
         return {
@@ -279,6 +288,11 @@ class RuntimeConfig:
                 "tool_seconds": self.timeouts.tool_seconds,
             },
             "latency": {"target_first_audio_ms": self.latency.target_first_audio_ms},
+            "claps": dict(self.claps),
+            "welcome": dict(self.welcome),
+            "workspace": dict(self.workspace),
+            "desktop": dict(self.desktop),
+            "daemon": dict(self.daemon),
         }
 
 
@@ -400,6 +414,7 @@ def load_config(
         latency=LatencySettings(
             target_first_audio_ms=_positive_int(latency_data, "target_first_audio_ms", 1500, "latency.target_first_audio_ms"),
         ),
+        **_m007_sections(document),
     )
 
 
@@ -627,3 +642,41 @@ def _parse_allowlist(data: Mapping[str, Any]) -> list[str]:
     if not isinstance(raw, list) or not all(isinstance(part, str) for part in raw):
         raise ValueError("tools.allowlist must be a list of strings")
     return list(raw)
+
+
+_DESKTOP_KEYS = {"authorized_scopes", "trusted_operations", "apps"}
+_DAEMON_KEYS = {"hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama"}
+
+
+def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Validate the M007 sections with the classes that consume them."""
+    from jarvis.adapters.audio.claps import ClapTuning  # noqa: PLC0415
+    from jarvis.application.startup import StartupOptions  # noqa: PLC0415
+    from jarvis.application.workspace import parse_profiles  # noqa: PLC0415
+
+    claps = dict(_section(document, "claps"))
+    welcome = dict(_section(document, "welcome"))
+    workspace = dict(_section(document, "workspace"))
+    desktop = dict(_section(document, "desktop"))
+    daemon = dict(_section(document, "daemon"))
+    try:
+        ClapTuning(**{k: v for k, v in claps.items() if k != "enabled"})
+        StartupOptions(**{k: tuple(v) if k == "essential" else v for k, v in welcome.items()})
+    except TypeError as error:
+        raise ValueError(f"unknown claps/welcome setting: {error}") from error
+    profiles = parse_profiles(workspace.get("profiles", {}))
+    default = workspace.get("default_profile")
+    if default is not None and default not in profiles:
+        raise ValueError(f"workspace.default_profile {default!r} is not a defined profile")
+    for name, data, allowed in (("desktop", desktop, _DESKTOP_KEYS), ("daemon", daemon, _DAEMON_KEYS)):
+        unknown = set(data) - allowed
+        if unknown:
+            raise ValueError(f"unknown {name} settings: {sorted(unknown)}")
+    for key in ("authorized_scopes", "trusted_operations"):
+        value = desktop.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise ValueError(f"desktop.{key} must be a list of strings")
+    apps = desktop.get("apps", {})
+    if not isinstance(apps, dict) or not all(isinstance(v, list) and all(isinstance(p, str) for p in v) for v in apps.values()):
+        raise ValueError("desktop.apps must map names to command lists")
+    return {"claps": claps, "welcome": welcome, "workspace": workspace, "desktop": desktop, "daemon": daemon}

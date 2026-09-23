@@ -10,6 +10,8 @@ acceptance and benchmarking.
 from __future__ import annotations
 
 import asyncio
+import functools
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -43,8 +45,9 @@ from jarvis.adapters.tts.fallback import TTSChain
 from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
 from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
 from jarvis.core.circuit_breaker import CircuitBreaker
-from jarvis.adapters.tools.gateway import Risk, Tool, ToolGateway
-from jarvis.adapters.tools.windows import build_windows_tools
+from jarvis.adapters.tools.desktop import DesktopContext, SleepTool, build_desktop_tools, gpu_free_mb, windows_path_for
+from jarvis.adapters.tools.gateway import AuditLog, Risk, Tool, ToolGateway
+from jarvis.adapters.tools.windows import build_windows_tools, register_apps
 from jarvis.config import RuntimeConfig
 from jarvis.core.contracts import (
     HealthReport,
@@ -58,9 +61,13 @@ from jarvis.core.lifecycle import Supervisor
 from jarvis.core.state import RuntimeState
 from jarvis.observability.metrics import LatencyMetrics
 
+from .planner import DesktopPlanner, VoiceConfirmer
 from .routing import Router
 from .turn_manager import TurnManager, TurnResult
 from .voice_loop import VoiceLoop
+from .workspace import WorkspaceManager, parse_profiles
+
+logger = logging.getLogger("jarvis.runtime")
 
 
 @dataclass
@@ -72,6 +79,8 @@ class RuntimeComponents:
     audio_output: AudioOutputQueue
     turn_manager: TurnManager
     voice_loop: VoiceLoop
+    workspace: Optional[WorkspaceManager] = None
+    desktop: Optional[DesktopContext] = None
 
 
 class JarvisRuntime:
@@ -109,7 +118,12 @@ class JarvisRuntime:
         await self.supervisor.start()
         # Fire-and-forget: listening starts immediately while models load.
         warm_up = asyncio.create_task(
-            asyncio.to_thread(_warm_up, self.components.model, getattr(self.voice_loop, "_stt", None))
+            asyncio.to_thread(
+                _warm_up,
+                self.components.model,
+                getattr(self.voice_loop, "_stt", None),
+                _min_free_vram_for_ollama(self.config),
+            )
         )
         try:
             await self.voice_loop.run(max_turns=max_turns)
@@ -182,7 +196,11 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         timeout_seconds=config.hermes.timeout_seconds,
         restart_max=config.hermes.restart_max,
     )
-    tools = _build_tools(config, confirmer=None)
+    desktop = DesktopContext(_data_dir() / "desktop_context.json")
+    workspace = build_workspace(config)
+    confirmer = VoiceConfirmer(lambda name, args: tools.describe(name, args), timeout_seconds=config.tools.confirmation_timeout_seconds)
+    tools = _build_tools(config, confirmer=confirmer)
+    _register_desktop_tools(config, tools, desktop, workspace, hermes)
     # Chunks are written in short slices, so a long SAPI sentence needs a
     # timeout above its duration rather than the 5 s per-chunk default.
     audio_output = AudioOutputQueue(
@@ -206,7 +224,15 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         hermes=hermes,
         memory=memory,
         ack_cache=AckAudioCache(Path("cache/tts_acks")),
+        agent_tools=functools.partial(tools.execute, origin="agent"),
     )
+    turn_manager.planner = DesktopPlanner(
+        model=model,
+        gateway=tools,
+        context=lambda: {**desktop.summary(), "profiles": sorted(workspace.profiles) if workspace else []},
+        speak=turn_manager._speak_text,
+    )
+    confirmer.speak = turn_manager._speak_text
 
     health_components = _real_health_components(config, memory, model, hermes, audio_input, audio_output)
     voice_clone = next((p for p in getattr(tts, "providers", (tts,)) if isinstance(p, QwenCloneTTS)), None)
@@ -233,8 +259,10 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         # Upgrade path: AEC (e.g. WebRTC APM), then default it on.
         barge_in_frames=5 if config.audio.barge_in else 0,
         echo_tail_frames=3,
+        confirmer=confirmer,
     )
-    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop)
+    tools.register(SleepTool(voice_loop.request_stop))
+    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop, workspace, desktop)
     return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 
 
@@ -412,12 +440,50 @@ def _model_diagnostics(
 
 
 def _build_tools(config: RuntimeConfig, confirmer: Any) -> ToolGateway:
+    register_apps(config.desktop.get("apps", {}))
     return ToolGateway(
         build_windows_tools(),
         allowlist=config.tools.allowlist if config.tools.allowlist else None,
         confirmer=confirmer,
         confirmation_timeout_seconds=config.tools.confirmation_timeout_seconds,
+        authorized_scopes=[windows_path_for(p) for p in config.desktop.get("authorized_scopes", [])],
+        trusted=config.desktop.get("trusted_operations", []),
+        audit=AuditLog(_data_dir() / "audit.jsonl"),
     )
+
+
+def build_workspace(config: RuntimeConfig) -> Optional[WorkspaceManager]:
+    profiles = parse_profiles(config.workspace.get("profiles", {}))
+    if not profiles:
+        return None
+    return WorkspaceManager(profiles, state_path=_data_dir() / "workspace-state.json", log_dir=_data_dir() / "logs")
+
+
+def _register_desktop_tools(
+    config: RuntimeConfig, tools: ToolGateway, desktop: DesktopContext, workspace: Optional[WorkspaceManager], hermes: Any
+) -> None:
+    async def restart_hermes() -> None:
+        await hermes.stop()
+        await hermes.start()
+
+    default_profile = config.workspace.get("default_profile") or (next(iter(workspace.profiles)) if workspace else "dev")
+    for tool in build_desktop_tools(
+        scopes=tools.scopes,
+        data_dir=_data_dir(),
+        memory=desktop,
+        cancel_operations=tools.cancel_operations,
+        workspace=workspace,
+        default_profile=default_profile,
+        restarters={"hermes": restart_hermes},
+    ):
+        tools.register(tool)
+
+
+def _min_free_vram_for_ollama(config: RuntimeConfig) -> Optional[float]:
+    """VRAM an Ollama preload needs when the local voice clone shares the GPU."""
+    if config.tts.provider != "qwen_clone":
+        return None
+    return float(config.daemon.get("min_free_vram_mb_for_ollama", 5000))
 
 
 async def _auto_approve(name: str, arguments: Any, context: TurnContext) -> bool:
@@ -479,12 +545,18 @@ def _tts_report(config: RuntimeConfig) -> HealthReport:
     return HealthReport("TTS", HealthStatus.DEGRADED, degraded_detail, required=False)
 
 
-def _warm_up(model: Any, stt: Any) -> None:
+def _warm_up(model: Any, stt: Any, min_free_vram_mb: Optional[float] = None, free_vram: Callable[[], Optional[float]] = gpu_free_mb) -> None:
     """Best-effort preload of local models so the first turn skips cold loads."""
     # Only a primary local model is preloaded; a fallback loads on demand.
     primary = next(iter(getattr(model, "providers", ())), None)
     if isinstance(primary, OllamaProvider):
-        primary.warm_up()
+        free = free_vram() if min_free_vram_mb is not None else None
+        if free is not None and free < min_free_vram_mb:
+            # The resident voice clone owns the GPU; loading a 7B model beside it
+            # would evict one of them. Ollama still loads on demand if needed.
+            logger.warning("skipping Ollama preload: %.0f MiB VRAM free < %.0f MiB", free, min_free_vram_mb)
+        else:
+            primary.warm_up()
     for provider in getattr(stt, "providers", (stt,)):
         if isinstance(provider, WhisperSTT):
             try:

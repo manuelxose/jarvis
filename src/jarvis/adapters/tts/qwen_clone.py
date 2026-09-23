@@ -156,7 +156,9 @@ class QwenCloneTTS:
             detail = "voice clone worker warming up; using fallback voice"
         else:
             detail = f"voice clone unavailable ({self._last_error or 'not started'}); using fallback voice"
-        return HealthReport("TTS voice clone", HealthStatus.DEGRADED, detail, required=False, retryable=True)
+        # Only a dead worker is worth restarting: the supervisor retrying a worker
+        # that is merely loading its model kills it mid-load (seconds lost per retry).
+        return HealthReport("TTS voice clone", HealthStatus.DEGRADED, detail, required=False, retryable=not alive)
 
     def state(self) -> dict[str, Any]:
         ttfa = sorted(t["ttfa_ms"] for t in self._timings if t.get("ttfa_ms"))
