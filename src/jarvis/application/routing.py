@@ -71,6 +71,17 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
         "application",
         0.92,
     ),
+    # Whisper often hears "abre X" as "a ver X", "abres X" or "averespotify".
+    # Accepted only before a known app so "a ver si llueve" stays conversational.
+    (
+        re.compile(
+            r"\b(?:abres|a\s?ver(?:es|e)?)\s*"
+            r"(spotify|chrome|crome|notepad|bloc de notas|calculadora|explorador|explorer|powershell|cmd|navegador)\b"
+        ),
+        "open_application",
+        "application",
+        0.9,
+    ),
     # volume up
     (re.compile(r"\b(?:sube|subir|aumenta|más alto|mas alto)\s+(?:el\s+)?(?:volumen)\b"), "volume_up", "", 0.95),
     (re.compile(r"\bvolume\s+up\b|\b(?:sube|aumenta)\s+(?:un\s+poco\s+)?el\s+volumen"), "volume_up", "", 0.95),

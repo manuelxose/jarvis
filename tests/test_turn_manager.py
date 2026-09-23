@@ -133,6 +133,58 @@ class SentenceChunkerTests(unittest.IsolatedAsyncioTestCase):
                 pass
 
 
+async def _chunks(*tokens, **kwargs):
+    async def gen():
+        for token in tokens:
+            if isinstance(token, float):
+                await asyncio.sleep(token)
+            else:
+                yield token
+
+    return [c async for c in SentenceChunker(gen(), TurnContext.fresh("c"), **kwargs)]
+
+
+class SpanishSegmentationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_first_segment_is_released_at_the_first_sentence_end(self):
+        chunks = await _chunks("Claro.", " Ahora mismo te busco el tiempo que hara manana en Madrid.", " Y algo mas.")
+        self.assertEqual(chunks[0], "Claro.")
+
+    async def test_first_segment_can_break_at_a_comma(self):
+        chunks = await _chunks("Pues mira, segun lo que he encontrado hoy,", " el museo abre a las diez y cierra tarde")
+        self.assertEqual(chunks[0], "Pues mira, segun lo que he encontrado hoy,")
+
+    async def test_abbreviations_and_decimals_do_not_split(self):
+        text = "El Sr. Garcia y la Dra. Lopez pagaron 3.5 euros, p. ej. en efectivo. Fin de la frase larga aqui."
+        chunks = await _chunks(*[w + " " for w in text.split(" ")])
+        joined = " | ".join(chunks)
+        for fragment in ("Sr. Garcia", "Dra. Lopez", "3.5 euros", "p. ej. en"):
+            self.assertIn(fragment, joined)
+        self.assertTrue(all(not c.endswith(("Sr.", "Dra.", "ej.")) for c in chunks), chunks)
+
+    async def test_long_text_without_punctuation_is_cut_at_a_word(self):
+        words = ["palabra"] * 60
+        chunks = await _chunks(*[w + " " for w in words])
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(c) <= 220 and "palabr " not in c for c in chunks))
+        self.assertEqual(" ".join(chunks).split(), words)
+
+    async def test_stalled_stream_flushes_after_timeout(self):
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        stamps = []
+
+        async def gen():
+            yield "Estoy consultando tu calendario "
+            await asyncio.sleep(0.5)
+            yield "de esta semana."
+
+        async for chunk in SentenceChunker(gen(), TurnContext.fresh("c"), max_wait_seconds=0.1):
+            stamps.append((chunk, loop.time() - start))
+        self.assertEqual(stamps[0][0], "Estoy consultando tu calendario")
+        self.assertLess(stamps[0][1], 0.4)
+        self.assertEqual(stamps[1][0], "de esta semana.")
+
+
 class TurnManagerFastCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_fast_command_invokes_tool_and_returns_result(self):
         calls = []
@@ -243,7 +295,7 @@ class TurnManagerHermesTests(unittest.IsolatedAsyncioTestCase):
                 AgentStatus("started"),
                 AgentToken("resultado"),
                 AgentToolRequest("open_url", {"url": "https://example.com"}),
-                AgentToken("final."),
+                AgentToken(" final."),
             ]
         )
         manager = _make_manager(hermes=hermes, tools=tools)
@@ -253,6 +305,29 @@ class TurnManagerHermesTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("hermes", result.route)
         self.assertEqual("resultado final.", result.response)
         self.assertEqual(["open_url"], tool_calls)
+
+    async def test_hermes_speech_starts_before_the_agent_finishes(self):
+        spoken_at = []
+        finished = asyncio.Event()
+
+        class Agent:
+            async def respond(self, text, context):
+                yield AgentToken("Voy a revisarlo ahora.")
+                yield AgentToken(" Primer paso")
+                await asyncio.sleep(0.2)
+                finished.set()
+                yield AgentToken(" listo.")
+
+        class RecordingTTS:
+            async def synthesize(self, text, context):
+                async for chunk in text:
+                    spoken_at.append((chunk, finished.is_set()))
+                    yield chunk.encode()
+
+        manager = _make_manager(hermes=Agent(), tts=RecordingTTS())
+        result = await manager.handle("investiga algo")
+        self.assertEqual(spoken_at[0], ("Voy a revisarlo ahora.", False))
+        self.assertEqual(result.response, "Voy a revisarlo ahora. Primer paso listo.")
 
     async def test_hermes_without_tokens_returns_fallback(self):
         hermes = ScriptedHermes([AgentStatus("started")])

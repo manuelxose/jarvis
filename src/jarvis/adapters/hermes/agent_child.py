@@ -64,7 +64,7 @@ def _stream_ollama(base_url: str, model: str, text: str):
 def handle(request_id: str, turn_id: str, text: str) -> None:
     if text.strip() == "__CRASH__":
         sys.exit(1)
-    base_url = os.environ.get("JARVIS_OLLAMA_BASE_URL", "http://localhost:11434")
+    base_url = os.environ.get("JARVIS_OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     model = os.environ.get("JARVIS_OLLAMA_MODEL", "mistral:7b-instruct")
     emit(request_id, turn_id, "started", {})
     try:

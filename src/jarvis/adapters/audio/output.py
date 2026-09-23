@@ -13,6 +13,7 @@ import asyncio
 from collections import deque
 import inspect
 import io
+import threading
 import wave
 from typing import Any, AsyncIterator, Callable, Optional
 
@@ -41,17 +42,60 @@ def decode_wav(data: bytes) -> tuple[bytes, int, int, int]:
         )
 
 
-def make_sounddevice_render(
-    device: int | str | None = None,
-) -> Callable[[str, bytes], Any]:
-    """Build an async renderer that plays decoded WAV frames on a device.
+class StreamRenderer:
+    """Play WAV chunks through ONE persistent output stream, abortable mid-chunk.
 
-    The blocking ``sounddevice``/``numpy`` calls are lazy-imported and offloaded
-    to a thread so the queue worker never blocks the event loop and the contract
-    tier stays importable without those optional dependencies.
+    Reopening the device per chunk (``sd.play``) adds a gap between chunks and
+    cannot be interrupted until the chunk ends. Here chunks are written in
+    short slices to a stream that stays open while the format is unchanged;
+    :meth:`abort` stops the slice loop and drops the device buffer at once, and
+    remembers the turn so a chunk of that turn already dequeued is skipped.
+    ``sounddevice``/``numpy`` are lazy-imported so the contract tier stays
+    importable without them.
     """
 
-    def _blocking(chunk: bytes) -> None:
+    def __init__(self, device: int | str | None = None, slice_seconds: float = 0.04) -> None:
+        self._device = device
+        self._slice_seconds = slice_seconds
+        self._stream: Any = None
+        self._format: Optional[tuple[int, int]] = None
+        self._aborted: deque[str] = deque(maxlen=64)
+        self._abort = threading.Event()
+        self._playing: Optional[str] = None
+
+    def abort(self, turn_id: str) -> None:
+        self._aborted.append(turn_id)
+        if self._playing == turn_id:
+            self._abort.set()
+            stream = self._stream
+            if stream is not None:
+                try:
+                    stream.abort()  # discard audio already queued in the device buffer
+                except Exception:
+                    pass
+
+    def close(self) -> None:
+        stream, self._stream, self._format = self._stream, None, None
+        if stream is not None:
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+    def _open(self, sd: Any, rate: int, channels: int) -> Any:
+        if self._stream is not None and self._format == (rate, channels):
+            if not getattr(self._stream, "active", True):
+                self._stream.start()  # restarted after an abort
+            return self._stream
+        self.close()
+        stream = sd.OutputStream(samplerate=rate, channels=channels, dtype="int16", device=self._device)
+        stream.start()
+        self._stream, self._format = stream, (rate, channels)
+        return stream
+
+    def _blocking(self, turn_id: str, chunk: bytes) -> None:
+        if turn_id in self._aborted:
+            return
         try:
             import sounddevice as sd  # noqa: PLC0415
         except (ImportError, OSError) as error:
@@ -67,20 +111,33 @@ def make_sounddevice_render(
         if sampwidth != 2:
             raise ProviderUnavailable("unsupported WAV sample width", provider="audio")
         samples = np.frombuffer(frames, dtype=np.int16).reshape(-1, channels)
+        self._playing = turn_id
+        self._abort.clear()
         try:
-            sd.play(samples, samplerate=rate, device=device, blocking=True)
-        except (sd.PortAudioError, OSError) as error:
+            stream = self._open(sd, rate, channels)
+            step = max(1, int(rate * self._slice_seconds))
+            for start in range(0, len(samples), step):
+                if self._abort.is_set():
+                    return
+                stream.write(samples[start:start + step])
+        except (getattr(sd, "PortAudioError", OSError), OSError) as error:
+            if self._abort.is_set():
+                return  # write interrupted by our own abort
             # Device open/write failures (unplugged device, PortAudio error) must
             # reach callers as ProviderUnavailable, not as a raw driver error.
-            raise ProviderUnavailable(
-                f"audio device playback failed: {error}", provider="audio"
-            ) from error
+            self.close()
+            raise ProviderUnavailable(f"audio device playback failed: {error}", provider="audio") from error
+        finally:
+            self._playing = None
 
-    async def render(turn_id: str, chunk: bytes) -> None:
+    async def __call__(self, turn_id: str, chunk: bytes) -> None:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _blocking, chunk)
+        await loop.run_in_executor(None, self._blocking, turn_id, chunk)
 
-    return render
+
+def make_sounddevice_render(device: int | str | None = None) -> StreamRenderer:
+    """Build the persistent-stream device renderer (see :class:`StreamRenderer`)."""
+    return StreamRenderer(device)
 
 
 class AudioOutputQueue:
@@ -145,6 +202,11 @@ class AudioOutputQueue:
         else:
             self._pending = deque(item for item in self._pending if item[0] != turn_id)
         self._stats["flushed"] += before - len(self._pending)
+        # Also cut the chunk already on the device, not just the queued ones.
+        target = turn_id or self._current_turn
+        abort = getattr(self._render, "abort", None)
+        if abort is not None and target is not None:
+            abort(target)
         return before - len(self._pending)
 
     def _wake_worker(self) -> None:

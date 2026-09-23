@@ -64,6 +64,20 @@ class WindowsToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("No se como abrir", unknown)
         popen.assert_not_called()
 
+    async def test_open_application_launch_commands_on_windows(self):
+        cases = {
+            "spotify": ["cmd", "/c", "start", "", "spotify:"],
+            "el navegador": ["cmd", "/c", "start", "", "https://www.google.com"],
+            "cmd": ["cmd", "/c", "start", "", "cmd"],
+            "crome": ["cmd", "/c", "start", "", "chrome"],
+        }
+        for app, expected in cases.items():
+            with self.subTest(app=app), patch("jarvis.adapters.tools.windows._IS_WINDOWS", True), patch(
+                "jarvis.adapters.tools.windows.subprocess.Popen"
+            ) as popen:
+                await self.tools["open_application"].execute({"application": app}, self.context())
+                popen.assert_called_once_with(expected)
+
     async def test_open_url_only_allows_http_and_https(self):
         with patch("jarvis.adapters.tools.windows.webbrowser.open", return_value=True) as open_browser:
             unsupported = await self.tools["open_url"].execute(

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections import deque
 from typing import TYPE_CHECKING, AsyncIterator
 
 from jarvis.core.contracts import (
@@ -17,6 +19,7 @@ from jarvis.core.contracts import (
     TurnContext,
     VoiceActivityDetector,
 )
+from jarvis.adapters.audio.vad import rms_int16
 from jarvis.core.errors import ProviderUnavailable
 
 from .turn_manager import TurnManager, TurnResult
@@ -40,6 +43,10 @@ class VoiceLoop:
         activation: "ActivationManager",
         min_silence_frames: int = 6,
         max_listen_frames: int = 160,
+        pre_roll_frames: int = 3,
+        barge_in_frames: int = 5,
+        barge_in_energy_factor: float = 3.0,
+        echo_tail_frames: int = 0,
     ) -> None:
         self._audio = audio
         self._vad = vad
@@ -48,6 +55,17 @@ class VoiceLoop:
         self._activation = activation
         self.min_silence_frames = min_silence_frames
         self.max_listen_frames = max_listen_frames
+        # Frames heard just before the VAD fires: soft onsets ("Jar-") fall
+        # below the energy floor and were being cut off the transcript.
+        self.pre_roll_frames = pre_roll_frames
+        # Barge-in needs sustained, loud speech so Jarvis's own voice from the
+        # speakers or a short noise does not cancel the reply it is playing.
+        self.barge_in_frames = barge_in_frames
+        self.barge_in_energy_factor = barge_in_energy_factor
+        # Frames dropped right after a reply: the speaker tail and room echo of
+        # Jarvis's own voice must not be heard as the user's next utterance.
+        self.echo_tail_frames = echo_tail_frames
+        self.frames_per_second = 10  # MicCapture reads sample_rate // 10 per frame
         self._stop_event = asyncio.Event()
         self._frames: AsyncIterator[bytes] | None = None
         self._phase = "idle"
@@ -66,8 +84,11 @@ class VoiceLoop:
                 if text is None:
                     break
                 if self._activation.wake_word_required():
+                    heard = text
                     text = self._activation.command_after_wake_word(text)
                     if text is None:
+                        if heard:
+                            logger.info("ignored: no wake word at start of %r", heard)
                         continue
                     self._activation.note_activation()
                     if not text:
@@ -86,8 +107,16 @@ class VoiceLoop:
                     continue
                 if result is not None:
                     self.turns.append(result)
-                    logger.info("turn completed: route=%s", result.route)
+                    logger.info(
+                        "turn completed: route=%s total=%.0f ms trace=%s",
+                        result.route,
+                        result.elapsed_ms,
+                        result.trace,
+                    )
                 self._activation.note_turn_complete()
+                for _ in range(self.echo_tail_frames):
+                    if await self._next_frame(context) is None:
+                        break
                 attempts += 1
                 if max_turns is not None and attempts >= max_turns:
                     self._stop_event.set()
@@ -101,13 +130,17 @@ class VoiceLoop:
         self._phase = "listening"
         logger.info("listening for command")
         frames: list[bytes] = []
+        pre_roll: deque[bytes] = deque(maxlen=self.pre_roll_frames)
         silence = 0
         while len(frames) < self.max_listen_frames:
             frame = await self._next_frame(context)
             if frame is None:
                 break
-            if not frames and not self._vad.is_speech(frame):
-                continue
+            if not frames:
+                if not self._vad.is_speech(frame):
+                    pre_roll.append(frame)
+                    continue
+                frames.extend(pre_roll)
             frames.append(frame)
             if self._vad.is_speech(frame):
                 silence = 0
@@ -122,13 +155,19 @@ class VoiceLoop:
             for frame in frames:
                 yield frame
 
+        started = time.monotonic()
         parts: list[str] = []
         async for transcript in self._stt.transcribe(_gen(), context):
             text = transcript.text.strip()
             if text:
                 parts.append(text)
         result = " ".join(parts)
-        logger.info("transcript: %r", result)
+        logger.info(
+            "transcript: %r (%.1fs audio, stt %.0f ms)",
+            result,
+            len(frames) / max(self.frames_per_second, 1),
+            (time.monotonic() - started) * 1000,
+        )
         return result
 
     async def _run_turn_with_barge_in(
@@ -141,13 +180,16 @@ class VoiceLoop:
         # before any barge-in frame is processed; otherwise interrupt() sees no
         # active turn and the cancellation never reaches the in-flight work.
         await asyncio.sleep(0)
+        loud_frames = 0
         try:
             while not task.done():
                 if self._stop_event.is_set():
                     await self._turn_manager.interrupt()
                     break
                 frame = await self._next_frame(context)
-                if frame is not None and self._vad.is_speech(frame):
+                loud_frames = loud_frames + 1 if frame is not None and self._is_barge_in(frame) else 0
+                if self.barge_in_frames and loud_frames >= self.barge_in_frames:
+                    logger.info("barge-in: user speech interrupted the reply")
                     await self._turn_manager.interrupt()
                     self._activation.note_activation()
                     break
@@ -158,6 +200,12 @@ class VoiceLoop:
         if task.cancelled():
             return None
         return task.result()
+
+    def _is_barge_in(self, frame: bytes) -> bool:
+        threshold = getattr(self._vad, "threshold", None)
+        if threshold is None:
+            return self._vad.is_speech(frame)
+        return rms_int16(frame) > threshold * self.barge_in_energy_factor
 
     async def _next_frame(self, context: TurnContext) -> bytes | None:
         """Read one frame; None on exhaustion or a transient provider failure."""
