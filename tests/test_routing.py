@@ -130,6 +130,28 @@ class RouterTests(unittest.IsolatedAsyncioTestCase):
         decision = await router.route("planifica una tarea", TurnContext.fresh("c"))
         self.assertEqual("hermes", decision.route)
 
+    async def test_routes_agentic_examples_to_hermes(self):
+        router = Router()
+        examples = (
+            "revisa mis proyectos y dime que quedo pendiente",
+            "analiza este repositorio y arregla el error",
+            "investiga esto y prepara un informe",
+            "termina la tarea que dejamos ayer",
+            "analiza este repositorio y dime por que falla el build",
+        )
+        for text in examples:
+            with self.subTest(text=text):
+                decision = await router.route(text, TurnContext.fresh("c"))
+                self.assertEqual("hermes", decision.route)
+
+    async def test_simple_requests_do_not_route_to_hermes(self):
+        router = Router()
+        examples = ("hola", "cuentame un chiste", "que tiempo hace")
+        for text in examples:
+            with self.subTest(text=text):
+                decision = await router.route(text, TurnContext.fresh("c"))
+                self.assertNotEqual("hermes", decision.route)
+
     async def test_decision_is_inspectable(self):
         router = Router()
         decision = await router.route("sube el volumen", TurnContext.fresh("c"))

@@ -72,7 +72,7 @@ class ActivationSettings:
 
 @dataclass(frozen=True)
 class STTSettings:
-    provider: str = "whisper"  # whisper | sapi
+    provider: str = "whisper"  # whisper | sapi | alibaba_qwen
     model: str = "tiny"
     language: str = "es"
     device: str = "cpu"
@@ -81,10 +81,24 @@ class STTSettings:
 
 @dataclass(frozen=True)
 class TTSSettings:
-    provider: str = "local"  # local | sapi
+    provider: str = "local"  # local | sapi | alibaba_qwen
     voice: str = ""
     language: str = "es"
     api_key: Optional[str] = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class AlibabaSettings:
+    """Alibaba Cloud Model Studio settings shared by the STT and TTS adapters.
+
+    The API key lives on ``stt.api_key`` / ``tts.api_key`` like every other
+    provider; both normally resolve to the same ``${DASHSCOPE_API_KEY}``.
+    """
+
+    region: str = "singapore"  # singapore | beijing
+    workspace_id: Optional[str] = None
+    stt_model: str = ""
+    tts_model: str = ""
 
 
 @dataclass(frozen=True)
@@ -151,6 +165,7 @@ class RuntimeConfig:
     activation: ActivationSettings = field(default_factory=ActivationSettings)
     stt: STTSettings = field(default_factory=STTSettings)
     tts: TTSSettings = field(default_factory=TTSSettings)
+    alibaba: AlibabaSettings = field(default_factory=AlibabaSettings)
     models: ModelSettings = field(default_factory=ModelSettings)
     hermes: HermesSettings = field(default_factory=HermesSettings)
     tools: ToolSettings = field(default_factory=ToolSettings)
@@ -200,6 +215,12 @@ class RuntimeConfig:
                 "voice": self.tts.voice,
                 "language": self.tts.language,
                 "api_key": "<redacted>" if self.tts.api_key is not None else None,
+            },
+            "alibaba": {
+                "region": self.alibaba.region,
+                "workspace_id": self.alibaba.workspace_id,
+                "stt_model": self.alibaba.stt_model,
+                "tts_model": self.alibaba.tts_model,
             },
             "models": {
                 "providers": [
@@ -262,6 +283,7 @@ def load_config(
     activation_data = _section(document, "activation")
     stt_data = _section(document, "stt")
     tts_data = _section(document, "tts")
+    alibaba_data = _section(document, "alibaba")
     models_data = _section(document, "models")
     hermes_data = _section(document, "hermes")
     tools_data = _section(document, "tools")
@@ -304,17 +326,23 @@ def load_config(
             conversation_timeout_seconds=_positive_number(activation_data, "conversation_timeout_seconds", 8.0, "activation.conversation_timeout_seconds"),
         ),
         stt=STTSettings(
-            provider=_choice(stt_data, "provider", "whisper", {"whisper", "sapi"}, "stt"),
+            provider=_choice(stt_data, "provider", "whisper", {"whisper", "sapi", "alibaba_qwen"}, "stt"),
             model=_string(stt_data, "model", "tiny"),
             language=_string(stt_data, "language", "es"),
             device=_string(stt_data, "device", "cpu"),
             api_key=_resolve_secret(stt_data.get("api_key"), env),
         ),
         tts=TTSSettings(
-            provider=_choice(tts_data, "provider", "local", {"local", "sapi", "elevenlabs"}, "tts"),
+            provider=_choice(tts_data, "provider", "local", {"local", "sapi", "alibaba_qwen"}, "tts"),
             voice=_string(tts_data, "voice", ""),
             language=_string(tts_data, "language", "es"),
             api_key=_resolve_secret(tts_data.get("api_key"), env),
+        ),
+        alibaba=AlibabaSettings(
+            region=_choice(alibaba_data, "region", "singapore", {"singapore", "beijing"}, "alibaba"),
+            workspace_id=_optional_string(alibaba_data, "workspace_id"),
+            stt_model=_string(alibaba_data, "stt_model", "qwen3-asr-flash-realtime"),
+            tts_model=_string(alibaba_data, "tts_model", "qwen3-tts-flash-realtime"),
         ),
         models=ModelSettings(providers=tuple(_parse_providers(models_data, env))),
         hermes=HermesSettings(

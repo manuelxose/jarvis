@@ -273,10 +273,10 @@ class CliTests(unittest.TestCase):
             {"coqui (XTTS-v2)", "adapter dependency unavailable"},
         )
 
-    def test_doctor_reports_elevenlabs_detail_when_configured(self) -> None:
+    def test_doctor_reports_alibaba_qwen_detail_when_configured(self) -> None:
         stdout = io.StringIO()
         self.config_path.write_text(
-            json.dumps({"runtime": {}, "tts": {"provider": "elevenlabs", "voice": "v1"}}),
+            json.dumps({"runtime": {}, "tts": {"provider": "alibaba_qwen", "voice": "v1"}}),
             encoding="utf-8",
         )
 
@@ -287,7 +287,7 @@ class CliTests(unittest.TestCase):
         )
 
         tts = json.loads(stdout.getvalue())["components"]["TTS"]
-        self.assertEqual("elevenlabs api_key or voice not configured", tts["detail"])
+        self.assertEqual("alibaba_qwen api_key, voice, or workspace_id not configured", tts["detail"])
 
     def test_doctor_use_fakes_json_reports_ready(self) -> None:
         stdout = io.StringIO()

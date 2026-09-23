@@ -24,19 +24,25 @@ class LocalTTS:
     def __init__(self, *, language: str = "es", speaker_wav_dir: Optional[str] = None) -> None:
         self.language = language
         self.speaker_wav_dir = speaker_wav_dir
+        self._engine = None
+
+    def _load_engine(self):
+        if self._engine is None:
+            try:
+                from TTS.api import TTS  # noqa: PLC0415
+            except ImportError as error:
+                raise ProviderUnavailable(
+                    "coqui-tts is not installed; local TTS unavailable", provider="tts"
+                ) from error
+            self._engine = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
+        return self._engine
 
     async def synthesize(self, text: AsyncIterator[str], context: TurnContext) -> AsyncIterator[bytes]:
-        try:
-            from TTS.api import TTS  # noqa: PLC0415
-        except ImportError as error:
-            raise ProviderUnavailable(
-                "coqui-tts is not installed; local TTS unavailable", provider="tts"
-            ) from error
+        engine = self._load_engine()
 
         import io
         import soundfile as sf  # noqa: PLC0415
 
-        engine = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
         loop = asyncio.get_running_loop()
 
         async for chunk in text:

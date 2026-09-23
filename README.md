@@ -103,46 +103,70 @@ Reglas:
 - No subas `config.local.json` al control de versiones (ya esta en `.gitignore`).
 - Sin `config.local.json`, Jarvis usa la configuracion Ollama versionada.
 
-## Voz clonada por API (ElevenLabs, opcional)
+## Voz en la nube (Alibaba Model Studio / Qwen, opcional)
 
-Por defecto la voz es SAPI (Windows, generica, practicamente instantanea). XTTS local
-usa tus muestras de `voice_samples/` pero tarda ~87s por respuesta en CPU. Para voz
-clonada con latencia baja (modelo `eleven_flash_v2_5`, ~75ms de generacion mas la
-red) sin depender de la CPU local, usa el adaptador ElevenLabs:
+Jarvis usa un unico proveedor cloud para voz: Alibaba Cloud Model Studio (Qwen),
+con fallback local automatico (`faster-whisper` para STT, SAPI para TTS) si la
+nube falla o no esta configurada. Por defecto, sin `config.local.json`, Jarvis
+usa SAPI (TTS) y whisper local (STT); XTTS local (`provider: "local"`) usa tus
+muestras de `voice_samples/` pero tarda ~87s por respuesta en CPU.
 
-1. Crea una cuenta y una API key en ElevenLabs, y expórtala solo por variable de entorno:
-
-```powershell
-$env:ELEVENLABS_API_KEY = "sk-tu-clave"
-```
-
-2. Clona tu voz una sola vez a partir de `voice_samples/*.wav`:
+1. Crea una API key en Alibaba Cloud Model Studio (region Singapore/international)
+   y, si tu cuenta la requiere, un workspace id. Expórtalas solo por variable de entorno:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\elevenlabs_clone_voice.py
+$env:DASHSCOPE_API_KEY = "sk-tu-clave"
+$env:ALIBABA_MODEL_STUDIO_WORKSPACE_ID = "ws-tu-workspace"   # requerido para region singapore
 ```
 
-El script sube tus muestras, imprime el `voice_id` resultante y el bloque JSON listo
-para pegar. No lo vuelvas a ejecutar por sesion: cada ejecucion crea una voz clonada
-nueva en tu cuenta.
+2. Clona tu voz una sola vez a partir de una muestra WAV limpia (mono, 16-bit,
+   16kHz+, 3-60s):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\alibaba_voice_clone.py create voice_samples\sample.wav
+```
+
+El script valida la muestra (duracion, canales, formato, clipping, silencio),
+la sube y registra la voz clonada, e imprime el `voice_id` resultante junto con
+el bloque JSON listo para pegar. La voz solo sirve con el mismo `--target-model`
+usado al crearla (restriccion de Alibaba, no de Jarvis).
 
 3. Copia ese bloque a `config.local.json` (crealo si no existe):
 
 ```json
 {
   "tts": {
-    "provider": "elevenlabs",
+    "provider": "alibaba_qwen",
     "voice": "<voice_id impreso por el script>",
-    "api_key": "${ELEVENLABS_API_KEY}"
+    "api_key": "${DASHSCOPE_API_KEY}"
+  },
+  "stt": {
+    "provider": "alibaba_qwen",
+    "api_key": "${DASHSCOPE_API_KEY}"
+  },
+  "alibaba": {
+    "region": "singapore",
+    "workspace_id": "${ALIBABA_MODEL_STUDIO_WORKSPACE_ID}",
+    "tts_model": "qwen-audio-3.0-tts-flash"
   }
 }
 ```
 
-4. Comprueba el estado con `doctor`: la seccion `TTS` debe reportar
-`elevenlabs (cloud, cloned voice)` en vez de `elevenlabs api_key or voice not configured`.
+`alibaba.tts_model` debe coincidir con el `--target-model` usado en `create`.
+Verifica el `voice_id` con:
 
-La clave y el `voice_id` nunca se escriben en `config.json`, en la plantilla ni en logs.
-Sin `config.local.json`, Jarvis sigue usando SAPI.
+```powershell
+.\.venv\Scripts\python.exe scripts\alibaba_voice_clone.py test <voice_id>
+```
+
+4. Comprueba el estado con `doctor`: la seccion `TTS` debe reportar
+`alibaba_qwen (cloud, cloned voice, sapi fallback)` en vez de
+`alibaba_qwen api_key, voice, or workspace_id not configured`.
+
+La clave, el workspace id y el `voice_id` nunca se escriben en `config.json`, en
+la plantilla ni en logs. Sin `config.local.json`, Jarvis sigue usando SAPI/whisper
+local. Ver `docs/engineering/alibaba-qwen-voice-research.md` para el detalle de
+modelos, endpoints y limitaciones conocidas de esta integracion.
 
 ## Notas
 

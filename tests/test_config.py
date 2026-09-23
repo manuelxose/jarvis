@@ -100,9 +100,37 @@ class ConfigTests(unittest.TestCase):
         self.write_config({"runtime": {}, "tts": {"provider": "sapi"}})
         self.assertEqual(load_config(self.path, {}).tts.provider, "sapi")
 
-    def test_accepts_elevenlabs_tts_provider(self):
-        self.write_config({"runtime": {}, "tts": {"provider": "elevenlabs"}})
-        self.assertEqual(load_config(self.path, {}).tts.provider, "elevenlabs")
+    def test_accepts_alibaba_qwen_tts_provider(self):
+        self.write_config({"runtime": {}, "tts": {"provider": "alibaba_qwen"}})
+        self.assertEqual(load_config(self.path, {}).tts.provider, "alibaba_qwen")
+
+    def test_accepts_alibaba_qwen_stt_provider(self):
+        self.write_config({"runtime": {}, "stt": {"provider": "alibaba_qwen"}})
+        self.assertEqual(load_config(self.path, {}).stt.provider, "alibaba_qwen")
+
+    def test_alibaba_settings_default_and_override(self):
+        self.write_config({"runtime": {}})
+        config = load_config(self.path, {})
+        self.assertEqual("singapore", config.alibaba.region)
+        self.assertIsNone(config.alibaba.workspace_id)
+        self.assertEqual("qwen3-asr-flash-realtime", config.alibaba.stt_model)
+        self.assertEqual("qwen3-tts-flash-realtime", config.alibaba.tts_model)
+
+        self.write_config(
+            {
+                "runtime": {},
+                "alibaba": {"region": "beijing", "workspace_id": "ws-1", "tts_model": "qwen-audio-3.0-tts-flash"},
+            }
+        )
+        overridden = load_config(self.path, {})
+        self.assertEqual("beijing", overridden.alibaba.region)
+        self.assertEqual("ws-1", overridden.alibaba.workspace_id)
+        self.assertEqual("qwen-audio-3.0-tts-flash", overridden.alibaba.tts_model)
+
+    def test_rejects_unknown_alibaba_region(self):
+        self.write_config({"runtime": {}, "alibaba": {"region": "mars"}})
+        with self.assertRaisesRegex(ValueError, "alibaba"):
+            load_config(self.path, {})
 
     def test_normalizes_provider_case(self):
         self.write_config({"runtime": {}, "stt": {"provider": " WhIsPeR "}})
