@@ -77,8 +77,12 @@ class QwenCloneTTS:
         restart_max: int = 3,
         restart_backoff_seconds: float = 2.0,
         stderr_path: Optional[str] = None,
+        warmup_wait_seconds: float = 0.0,
     ) -> None:
         self._command = list(command)
+        # >0: a turn arriving while the model is still loading waits for the
+        # owner's voice instead of falling back to SAPI at once.
+        self._warmup_wait = max(0.0, warmup_wait_seconds)
         self._event_timeout = event_timeout_seconds
         self._restart_max = max(0, restart_max)
         self._backoff = restart_backoff_seconds
@@ -248,6 +252,10 @@ class QwenCloneTTS:
     # -- synthesis -------------------------------------------------------------------
 
     async def synthesize(self, text: AsyncIterator[str], context: TurnContext) -> AsyncIterator[bytes]:
+        warming = self._ready is not None and not self._ready.done() and self._process is not None and self._process.returncode is None
+        if warming and self._warmup_wait:
+            with suppress(asyncio.TimeoutError, ProviderUnavailable):
+                await asyncio.wait_for(self.wait_ready(), self._warmup_wait)
         if not (self._ready is not None and self._ready.done() and self._ready.result()):
             # Not transient within this turn: fail over to SAPI at once, no retry.
             reason = self._last_error or "warming up"

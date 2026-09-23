@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, TextIO
 
-COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "claps", "workspace", "autostart", "tools")
+COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "claps", "workspace", "autostart", "tools", "welcome")
 
 
 def run(command: str, args: Any, config: Any, out: TextIO, err: TextIO) -> int:
@@ -183,6 +183,47 @@ def _autostart(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
     except RuntimeError as error:
         err.write(f"error: {error}\n")
         return 1
+    return 0
+
+
+def _welcome(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
+    """Record the cloned-voice startup welcomes (after enrolling the voice or editing the text)."""
+    if (args.args or ["record"])[0] != "record":
+        err.write("usage: jarvis welcome record\n")
+        return 2
+    from jarvis.adapters.tts.ack_cache import join_wavs  # noqa: PLC0415
+    from jarvis.adapters.tts.resolve import build_qwen_clone  # noqa: PLC0415
+    from jarvis.apps.daemon import Sentinel, startup_options  # noqa: PLC0415
+    from jarvis.application.startup import welcome_texts  # noqa: PLC0415
+    from jarvis.core.turn import TurnContext  # noqa: PLC0415
+
+    cache = Sentinel.welcome_cache_for()
+    clone = build_qwen_clone(config)
+
+    async def _record() -> list[str]:
+        await clone.start()
+        try:
+            info = await asyncio.wait_for(clone.wait_ready(), 180)
+            if not info.get("profile"):
+                raise RuntimeError("no voice profile enrolled")
+            done = []
+            for text in welcome_texts(startup_options(config)):
+                async def _one(value: str = text) -> Any:
+                    yield value
+
+                chunks = [c async for c in clone.synthesize(_one(), TurnContext.fresh("welcome-cache"))]
+                cache.put(text, join_wavs(chunks))
+                done.append(text)
+            return done
+        finally:
+            await clone.stop()
+
+    try:
+        recorded = asyncio.run(_record())
+    except Exception as error:  # noqa: BLE001 - reported to the owner
+        err.write(f"error: {error}\n")
+        return 1
+    _emit(out, {"recorded": recorded})
     return 0
 
 

@@ -28,7 +28,9 @@ from typing import Any, Callable, Mapping, Optional
 
 from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_path, load_calibration
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
-from jarvis.application.startup import StartupOptions, StartupSequence
+from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream, join_wavs
+from jarvis.application.startup import StartupOptions, StartupSequence, welcome_texts
+from jarvis.core.turn import TurnContext
 from jarvis.config import RuntimeConfig
 
 logger = logging.getLogger("jarvis.daemon")
@@ -127,6 +129,13 @@ class Sentinel:
         self._stop = asyncio.Event()
         self._last_gesture: dict[str, Any] = {}
         self._mixer: Any = None
+        self._prepared: Optional[asyncio.Task[JarvisRuntime]] = None
+        self.welcome_cache = self.welcome_cache_for()
+
+    @staticmethod
+    def welcome_cache_for() -> AckAudioCache:
+        # ponytail: keyed by text only; run `jarvis welcome record` after re-enrolling the voice.
+        return AckAudioCache(_data_dir() / "cache" / "welcome")
 
     # -- activation sources (thread-safe) --------------------------------------
     def request_activation(self, source: str) -> None:
@@ -195,12 +204,29 @@ class Sentinel:
         self._activation = asyncio.Queue()
         start_hotkey_thread(str(self.config.daemon.get("hotkey", "ctrl+alt+j")), lambda: self.request_activation("hotkey"))
         preload = asyncio.create_task(self._preload_music())
-        while not self._stop.is_set():
-            activation = await self._listen()
-            if activation is None:
-                break
-            await self._session(*activation)
-        preload.cancel()
+        self._prepared = asyncio.create_task(self._prepare_runtime())
+        try:
+            while not self._stop.is_set():
+                activation = await self._listen()
+                if activation is None:
+                    break
+                await self._session(*activation)
+                self._prepared = asyncio.create_task(self._prepare_runtime())
+        finally:
+            preload.cancel()
+            if self._prepared is not None:
+                self._prepared.cancel()
+                runtime = await asyncio.gather(self._prepared, return_exceptions=True)
+                if isinstance(runtime[0], JarvisRuntime):
+                    await runtime[0].stop()
+
+    async def _prepare_runtime(self) -> JarvisRuntime:
+        """Build the next session's runtime while idle (the build takes seconds)."""
+        runtime = await asyncio.to_thread(self._runtime_factory, self.config)
+        if self.config.daemon.get("preload_voice", False):
+            # Keeps the cloned voice loaded between sessions (~4 GB VRAM).
+            await runtime.start()
+        return runtime
 
     def _get_mixer(self) -> Any:
         if self._mixer is None:
@@ -258,7 +284,8 @@ class Sentinel:
         async def start_services() -> list[Any]:
             # Built off the loop (~3 s of imports/model setup) so the chime and the
             # music are not held back; the runtime owns no thread-bound resources.
-            runtime = await asyncio.to_thread(self._runtime_factory, self.config)
+            prepared, self._prepared = self._prepared, None
+            runtime = await prepared if prepared is not None else await asyncio.to_thread(self._runtime_factory, self.config)
             holder["runtime"] = self.runtime = runtime
             await runtime.start()
             return list(runtime.supervisor.health_snapshot())
@@ -277,6 +304,8 @@ class Sentinel:
             wait_voice=wait_voice,
             start_workspace=self._workspace_starter(),
             on_phase=lambda phase, detail: logger.info("startup %s %s", phase.value, detail),
+            cached_welcome=self.welcome_cache.get,
+            play_audio=lambda audio: holder["runtime"].components.audio_output.play(bytes_to_stream(audio), TurnContext.fresh("welcome")),
         )
         offset_ms = (time.perf_counter() - gesture_at) * 1000
         try:
@@ -288,8 +317,10 @@ class Sentinel:
             if runtime is None:
                 return
             self.state = "active"
+            recorder = asyncio.create_task(self._record_welcomes(runtime, sequence.options))
             ducker = asyncio.create_task(_duck_during_speech(mixer, runtime, sequence.options)) if mixer and sequence.options.after_welcome == "restore" else None
             await runtime.run_until_stopped()
+            recorder.cancel()
             if ducker is not None:
                 ducker.cancel()
         except asyncio.CancelledError:
@@ -310,6 +341,26 @@ class Sentinel:
                 mixer.stop()
             self.runtime = None
             logger.info("voice session ended; back to sentinel")
+
+    async def _record_welcomes(self, runtime: JarvisRuntime, options: StartupOptions) -> None:
+        """Once the clone is ready, record the 'all operational' welcomes in its voice."""
+        clone = _clone(runtime)
+        missing = [text for text in welcome_texts(options) if self.welcome_cache.get(text) is None]
+        if clone is None or not missing:
+            return
+        try:
+            if not await _wait_voice(runtime):
+                return
+            for text in missing:
+                async def _one(value: str = text) -> Any:
+                    yield value
+
+                chunks = [chunk async for chunk in clone.synthesize(_one(), TurnContext.fresh("welcome-cache"))]
+                if chunks:
+                    self.welcome_cache.put(text, join_wavs(chunks))
+                    logger.info("recorded cloned-voice welcome: %s", text[:40])
+        except Exception as error:  # noqa: BLE001 - retried next session
+            logger.warning("welcome recording failed: %s", error)
 
     def _write_report(self) -> None:
         _write_json(_data_dir() / "startup-report.json", self.last_report)
@@ -348,11 +399,15 @@ class Sentinel:
         self.sleep()
 
 
-async def _wait_voice(runtime: JarvisRuntime) -> bool:
+def _clone(runtime: JarvisRuntime) -> Any:
     from jarvis.adapters.tts.qwen_clone import QwenCloneTTS  # noqa: PLC0415
 
     tts = getattr(runtime.components.turn_manager, "_tts", None)
-    clone = next((p for p in getattr(tts, "providers", (tts,)) if isinstance(p, QwenCloneTTS)), None)
+    return next((p for p in getattr(tts, "providers", (tts,)) if isinstance(p, QwenCloneTTS)), None)
+
+
+async def _wait_voice(runtime: JarvisRuntime) -> bool:
+    clone = _clone(runtime)
     if clone is None:
         return True  # no clone configured: the configured voice is the voice
     info = await clone.wait_ready()

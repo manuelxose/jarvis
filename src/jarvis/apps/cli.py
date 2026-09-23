@@ -16,6 +16,7 @@ M007 (see jarvis.apps.m007_cli)::
     jarvis workspace start|stop|status [profile] [--force]
     jarvis autostart install|remove|status
     jarvis tools                 -- registered tools and their risk class
+    jarvis welcome record        -- record the startup welcomes in the cloned voice
 """
 
 from __future__ import annotations

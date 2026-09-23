@@ -78,6 +78,21 @@ class QwenCloneTTSTest(unittest.IsolatedAsyncioTestCase):
         await tts.start()
         await asyncio.wait_for(tts.wait_ready(), 10)
 
+    async def test_warming_worker_is_not_retryable_and_turn_waits_for_it(self):
+        tts = self._tts("slow_start", warmup_wait_seconds=10)
+        await tts.start()
+        report = await tts.health()
+        self.assertFalse(report.retryable)  # the supervisor must not kill a loading model
+        chunks = [c async for c in tts.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(_pcm(chunks[0]), b"hola____")  # waited for the owner's voice
+
+    async def test_warmup_wait_is_bounded_then_falls_back(self):
+        tts = self._tts("slow_start", warmup_wait_seconds=0.1)
+        await tts.start()
+        with self.assertRaises(ProviderError):
+            async for _ in tts.synthesize(_text("hola"), TurnContext.fresh("t")):
+                pass
+
     async def test_streams_wav_chunks_per_segment(self):
         tts = self._tts("ok")
         await self._ready(tts)

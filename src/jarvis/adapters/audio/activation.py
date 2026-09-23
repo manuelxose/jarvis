@@ -38,8 +38,8 @@ def _levenshtein(a: str, b: str) -> int:
 _MAX_WAKE_WORD_EDIT_DISTANCE = 1
 
 # One of these may precede the wake word; anything else before it rejects.
-# Whisper often writes a spoken "hey" as "y"/"e"/"i".
-_WAKE_GREETINGS = frozenset({"hey", "ey", "hei", "ei", "y", "e", "i", "oye", "eh", "ok", "okay", "hola"})
+# Whisper often writes a spoken "hey" as "y"/"e"/"i" (and "Ake"/"hay" on this mic).
+_WAKE_GREETINGS = frozenset({"hey", "ey", "hei", "ei", "y", "e", "i", "oye", "eh", "ok", "okay", "hola", "ake", "eik", "hay"})
 
 
 def _fuzzy_matches_wake_word(word: str, wake_word: str) -> bool:

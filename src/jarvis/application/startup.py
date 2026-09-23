@@ -81,6 +81,8 @@ class StartupOptions:
     fade_in_seconds: float = 1.5
     duck_seconds: float = 0.35
     fade_out_seconds: float = 2.5
+    # A pre-recorded welcome (cloned voice) lands this long after the music starts.
+    welcome_delay_seconds: float = 2.0
     after_welcome: str = "fade"  # fade | restore
     activation_sound: str = ""  # empty = synthesized chime
     services_timeout_seconds: float = 20.0
@@ -96,6 +98,7 @@ class StartupReport:
     welcome: str = ""
     issues: list[str] = field(default_factory=list)
     music: str = "none"  # file | url | missing | error | none
+    welcome_source: str = "live"  # live | cache
     timings_ms: dict[str, float] = field(default_factory=dict)
     workspace: Any = None
 
@@ -106,6 +109,7 @@ class StartupReport:
             "welcome": self.welcome,
             "issues": list(self.issues),
             "music": self.music,
+            "welcome_source": self.welcome_source,
             "timings_ms": {k: round(v, 1) for k, v in self.timings_ms.items()},
             "workspace": self.workspace,
         }
@@ -146,6 +150,12 @@ def compose_welcome(
     return template.format(**values), []
 
 
+def welcome_texts(options: StartupOptions) -> list[str]:
+    """The 'all operational' welcome for each period (the cacheable ones)."""
+    healthy = [HealthReport(name, HealthStatus.HEALTHY) for name in options.essential]
+    return [compose_welcome(healthy, options, datetime.datetime(2026, 1, 1, hour))[0] for hour in (8, 15, 22)]
+
+
 class StartupSequence:
     """Run the startup experience once per activation; see module docstring."""
 
@@ -159,6 +169,8 @@ class StartupSequence:
         wait_voice: Optional[Callable[[], Awaitable[bool]]] = None,
         start_workspace: Optional[Callable[[], Awaitable[Any]]] = None,
         on_phase: Optional[Callable[[StartupPhase, dict[str, Any]], None]] = None,
+        cached_welcome: Optional[Callable[[str], Optional[bytes]]] = None,
+        play_audio: Optional[Callable[[bytes], Awaitable[None]]] = None,
         open_url: Callable[[str], Any] = webbrowser.open,
         clock: Callable[[], datetime.datetime] = datetime.datetime.now,
     ) -> None:
@@ -169,6 +181,8 @@ class StartupSequence:
         self._wait_voice = wait_voice
         self._start_workspace = start_workspace
         self._on_phase = on_phase
+        self._cached_welcome = cached_welcome
+        self._play_audio = play_audio
         self._open_url = open_url
         self._clock = clock
         self._task: Optional[asyncio.Task[StartupReport]] = None
@@ -247,18 +261,28 @@ class StartupSequence:
                 reports = [HealthReport("configuration", HealthStatus.FAILED, str(error))]
             self._mark("services_ready", started)
 
-            voice_ready = True
-            if self._wait_voice is not None:
-                try:
-                    voice_ready = bool(await asyncio.wait_for(self._wait_voice(), options.voice_ready_timeout_seconds))
-                except (asyncio.TimeoutError, Exception):  # noqa: BLE001
-                    voice_ready = False
-            self._mark("voice_ready", started)
-
-            text, issues = compose_welcome(reports, options, self._clock(), voice_ready=voice_ready)
+            text, issues = compose_welcome(reports, options, self._clock())
+            cached = self._cached_welcome(text) if (not issues and self._cached_welcome and self._play_audio) else None
+            if cached is not None:
+                # Movie timing: the recorded cloned-voice welcome needs no model,
+                # so it lands shortly after the music instead of after the load.
+                self.report.welcome_source = "cache"
+                music_at = self.report.timings_ms.get("music_started", 0.0) / 1000
+                await asyncio.sleep(max(0.0, music_at + options.welcome_delay_seconds - (time.perf_counter() - started)))
+                speak = lambda: self._play_audio(cached)  # noqa: E731
+            else:
+                voice_ready = True
+                if self._wait_voice is not None:
+                    try:
+                        voice_ready = bool(await asyncio.wait_for(self._wait_voice(), options.voice_ready_timeout_seconds))
+                    except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+                        voice_ready = False
+                self._mark("voice_ready", started)
+                text, issues = compose_welcome(reports, options, self._clock(), voice_ready=voice_ready)
+                speak = lambda: self._speak(text)  # noqa: E731
             self.report.welcome, self.report.issues = text, issues
             self._set_phase(StartupPhase.ANNOUNCING, issues=issues)
-            await self._announce(text)
+            await self._announce(speak)
             self._mark("welcome_spoken", started)
 
             required_failed = any(r.required and r.status is HealthStatus.FAILED for r in reports)
@@ -313,14 +337,14 @@ class StartupSequence:
             except Exception as error:  # noqa: BLE001
                 logger.warning("could not open music url: %s", error)
 
-    async def _announce(self, text: str) -> None:
+    async def _announce(self, speak: Callable[[], Awaitable[None]]) -> None:
         mixer, options = self._mixer, self.options
         ducked = mixer is not None and getattr(mixer, "music_playing", False)
         if ducked:
             mixer.ramp(options.duck_volume, options.duck_seconds)
             await asyncio.sleep(options.duck_seconds)
         try:
-            await self._speak(text)
+            await speak()
         except Exception as error:  # noqa: BLE001 - still finish the sequence
             logger.warning("welcome speech failed: %s", error)
             self.report.issues.append("speech failed")

@@ -80,6 +80,8 @@ class ActivationTests(unittest.TestCase):
         manager = ActivationManager(wake_word="jarvis")
 
         self.assertEqual("abre Spotify", manager.command_after_wake_word("¡Carvis! abre Spotify"))
+        # Real mishearing of "Hey Jarvis, ¿sigues activo?" on the owner's mic.
+        self.assertEqual("Series Activo", manager.command_after_wake_word("Ake Harvis Series Activo"))
 
     def test_accepts_a_leading_greeting_before_the_wake_word(self):
         manager = ActivationManager(wake_word="jarvis")

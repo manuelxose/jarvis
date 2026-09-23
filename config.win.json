@@ -22,7 +22,8 @@
   "tts": {
     "provider": "qwen_clone",
     "language": "es",
-    "chunk_size": 4
+    "chunk_size": 4,
+    "warmup_wait_seconds": 25
   },
   "models": {
     "providers": [
@@ -46,13 +47,16 @@
     "music_url": "https://www.youtube.com/watch?v=BN1WwnEDWAM",
     "music_volume": 0.55,
     "duck_volume": 0.12,
-    "after_welcome": "fade"
+    "after_welcome": "fade",
+    "welcome_delay_seconds": 2.0,
+    "voice_ready_timeout_seconds": 60
   },
   "daemon": {
     "hotkey": "ctrl+alt+j",
     "wake_word": false,
     "control_port": 47811,
-    "min_free_vram_mb_for_ollama": 5000
+    "min_free_vram_mb_for_ollama": 5000,
+    "preload_voice": false
   },
   "desktop": {
     "authorized_scopes": [
