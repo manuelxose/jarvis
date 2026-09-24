@@ -28,6 +28,8 @@ use zero-amplitude audio).
 | Idle sentinel | 1.1 % of one core, ~140 MB | music preloaded, next runtime pre-built |
 | VRAM, voice warm → evicted | 5540 → 1275 MB | eviction returns ~4.2 GB |
 
+For a like-for-like local Whisper versus Alibaba Qwen realtime STT comparison on the reference machine, follow the [STT bake-off procedure](stt-bakeoff.md); no cloud STT measurements are recorded yet.
+
 ## Targets
 
 | Target | Status |
