@@ -263,3 +263,16 @@ class ConfirmingClapTests(unittest.TestCase):
         detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
         detector._finish_event({"start": 1.0, "peak": 0.155, "floor": 0.003, "rise": 12.54, "hf": 0.081}, 0.04)
         self.assertEqual(len(detector._claps), 0)
+
+    def test_dull_first_clap_then_crisp_clap_confirms(self):
+        detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
+        detector._finish_event({"start": 1.0, "peak": 0.66, "floor": 0.002, "rise": 43.07, "hf": 0.077}, 0.05)
+        self.assertEqual(len(detector._claps), 0)  # alone it starts nothing
+        detector._finish_event({"start": 1.4, "peak": 0.5, "floor": 0.002, "rise": 50.0, "hf": 0.3}, 0.04)
+        self.assertEqual(len(detector._claps), 2)
+
+    def test_two_dull_hits_never_activate(self):
+        detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
+        for start in (1.0, 1.4):
+            detector._finish_event({"start": start, "peak": 0.66, "floor": 0.002, "rise": 43.07, "hf": 0.077}, 0.05)
+        self.assertEqual(len(detector._claps), 0)
