@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, TextIO
 
-COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "claps", "workspace", "autostart", "tools", "welcome")
+COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "restart", "claps", "workspace", "autostart", "tools", "welcome")
 
 
 def run(command: str, args: Any, config: Any, out: TextIO, err: TextIO) -> int:
@@ -58,6 +58,10 @@ def _status(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
 
 def _quit(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
     return _control("quit", config, out, err)
+
+
+def _restart(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
+    return _control("restart", config, out, err)
 
 
 def _claps(args: Any, config: Any, out: TextIO, err: TextIO) -> int:

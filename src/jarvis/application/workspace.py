@@ -285,8 +285,11 @@ def _close_windows(fragment: str) -> int:
     closed = 0
     for hwnd, title, _ in window_titles():
         if fragment.lower() in title.lower():
-            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)  # the app may still ask to save
-            closed += 1
+            try:
+                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)  # the app may still ask to save
+                closed += 1
+            except Exception:  # noqa: BLE001 - elevated windows (Task Manager) refuse it: UIPI
+                logger.info("cannot close elevated window %r", title)
     return closed
 
 

@@ -51,7 +51,7 @@ class FakeRuntime:
             workspace=None,
         )
         self.supervisor = SimpleNamespace(health_snapshot=lambda: [HealthReport(n, HealthStatus.HEALTHY) for n in ("configuration", "storage path", "audio input", "audio output", "STT", "TTS", "fast model")])
-        self.voice_loop = SimpleNamespace(request_stop=self.stopped.set)
+        self.voice_loop = SimpleNamespace(request_stop=self.stopped.set, request_stop_after_turn=self.stopped.set)
 
     async def _speak(self, text):
         self.spoken.append(text)

@@ -11,7 +11,7 @@ Commands::
 M007 (see jarvis.apps.m007_cli)::
 
     jarvis daemon               -- background sentinel (claps, Ctrl+Alt+J, control socket)
-    jarvis activate|sleep|status|quit -- talk to the running daemon
+    jarvis activate|sleep|status|quit|restart -- talk to the running daemon
     jarvis claps test|calibrate  -- live detector / owner calibration
     jarvis workspace start|stop|status [profile] [--force]
     jarvis autostart install|remove|status

@@ -78,6 +78,9 @@ class StartupOptions:
     music_url: str = ""  # opened in the browser only when no local file is usable
     music_volume: float = 0.55
     duck_volume: float = 0.12
+    # after_welcome="restore": the music continues at this background level. Louder
+    # music masks the owner's voice for the microphone (measured on the laptop).
+    background_volume: float = 0.10
     fade_in_seconds: float = 1.5
     duck_seconds: float = 0.35
     fade_out_seconds: float = 2.5
@@ -364,7 +367,7 @@ class StartupSequence:
         finally:
             if ducked:
                 if options.after_welcome == "restore":
-                    mixer.ramp(options.music_volume, options.duck_seconds * 2)
+                    mixer.ramp(options.background_volume, options.duck_seconds * 2)
                 else:
                     mixer.fade_out(options.fade_out_seconds)
 

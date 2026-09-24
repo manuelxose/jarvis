@@ -62,6 +62,12 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
     (re.compile(r"\bcancela\s+(?:la\s+)?(?:operacion|tarea|ejecucion|orden)\b"), "cancel_operations", "", 0.96),
     (re.compile(r"\b(?:haz|toma)\s+(?:una\s+)?captura(?:\s+de\s+pantalla)?\b"), "screenshot", "", 0.93),
     (re.compile(r"^\s*(?:a\s+dormir|duermete|descansa|modo\s+reposo|vete\s+a\s+dormir)\s*$"), "sleep", "", 0.96),
+    # Startup music and the assistant itself
+    (re.compile(r"\b(?:para|pare|parar|quita|quitar|apaga|apagar|deten|detener|corta|silencia|stop)\s+(?:la\s+|esa\s+|el\s+)?(?:musica|cancion)\b|\bstop\s+the\s+music\b"), "music", "", 0.95, {"action": "stop"}),
+    (re.compile(r"\bbaja\s+(?:la\s+|un\s+poco\s+la\s+)?musica\b|\bmusica\s+mas\s+baja\b"), "music", "", 0.94, {"action": "lower"}),
+    (re.compile(r"\bsube\s+(?:la\s+|un\s+poco\s+la\s+)?musica\b|\bmusica\s+mas\s+alta\b"), "music", "", 0.94, {"action": "raise"}),
+    (re.compile(r"^\s*(?:reiniciate|reinicia(?:te)?\s+(?:el\s+)?asistente|reinicia\s+jarvis|restart\s+yourself)\s*$"), "assistant_restart", "", 0.95),
+    (re.compile(r"^\s*(?:apagate(?:\s+del\s+todo)?|apaga\s+(?:el\s+)?asistente|apaga\s+jarvis|desconectate|shut\s+down)\s*$"), "assistant_shutdown", "", 0.95),
     # M009 local desktop commands (no LLM round trip)
     (re.compile(r"\b(?:actividad|uso|trafico|consumo)\s+de\s+(?:la\s+)?red\b|\bnetwork\s+(?:activity|usage|traffic)\b|\bcuanto\s+(?:estoy\s+)?(?:descargando|subiendo)\b"), "network_stats", "", 0.93),
     (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:la\s+)?(?:cpu|memoria|ram|gpu|grafica|procesador)\b|\b(?:cpu|ram|gpu|memory)\s+usage\b|\bcomo\s+va\s+la\s+grafica\b|\bcuanta\s+(?:ram|memoria)\b"), "system_stats", "", 0.92),

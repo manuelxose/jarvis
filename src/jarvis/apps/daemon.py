@@ -132,6 +132,8 @@ class Sentinel:
             policy["preload"] = "always"  # pre-M009 setting
         self.voice = VoiceModelManager(self._clone_factory, VoicePolicy.from_config(policy))
         self._tasks: set[asyncio.Task[Any]] = set()
+        self._after_session = ""  # "restart" | "shutdown": requested by voice
+        self.restart_requested = False
         self._claps_enabled = bool(config.claps.get("enabled", True))
         self._wake = self._make_wake_detector()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -265,6 +267,11 @@ class Sentinel:
                 if activation is None:
                     break
                 await self._session(*activation)
+                if self._after_session:
+                    self.restart_requested = self._after_session == "restart"
+                    logger.info("%s requested by voice", self._after_session)
+                    self._stop.set()
+                    break
                 self._prepared = asyncio.create_task(self._prepare_runtime())
         finally:
             preload.cancel()
@@ -407,9 +414,13 @@ class Sentinel:
             if runtime is None:
                 return
             self.state = "active"
+            self._register_session_tools(runtime, mixer)
+            # The owner may answer the welcome ("para la música") without the wake word.
+            if hasattr(runtime, "activation"):
+                runtime.activation.note_turn_complete()
             recorder = asyncio.create_task(self._record_welcomes(runtime, sequence.options))
             watchdog = asyncio.create_task(self._idle_watchdog(runtime))
-            ducker = asyncio.create_task(_duck_during_speech(mixer, runtime, sequence.options)) if mixer and sequence.options.after_welcome == "restore" else None
+            ducker = asyncio.create_task(_duck_during_speech(mixer, runtime, sequence.options)) if mixer and mixer.music_playing else None
             await runtime.run_until_stopped()
             watchdog.cancel()
             recorder.cancel()
@@ -436,8 +447,36 @@ class Sentinel:
                 mixer.stop()
             await asyncio.gather(acquire, return_exceptions=True)
             await self.voice.release("session")  # warm -> cooldown (reused by the next session)
+            if runtime is not None:
+                _release_models(runtime)
             self.runtime = None
+            self.sequence = None  # its closures hold the finished runtime
             logger.info("voice session ended; back to sentinel")
+
+    def _register_session_tools(self, runtime: JarvisRuntime, mixer: Any) -> None:
+        """Voice control of this session's music and of the daemon itself."""
+        from jarvis.adapters.tools.desktop import AssistantControlTool, MusicTool  # noqa: PLC0415
+
+        tools = getattr(runtime.components, "tools", None)
+        if tools is None:
+            return
+        tools.register(MusicTool(mixer, media_key=lambda: tools.execute("media_play_pause", {}, TurnContext.fresh("music"))))
+        tools.register(AssistantControlTool("restart", lambda: self._end_session("restart")))
+        tools.register(AssistantControlTool("shutdown", lambda: self._end_session("shutdown")))
+
+    def _end_session(self, then: str) -> None:
+        self._after_session = then
+        if self.runtime is not None:
+            self.runtime.voice_loop.request_stop_after_turn()
+
+    def request_restart(self) -> None:
+        """Control socket / CLI: restart now (ends a session, or the idle sentinel)."""
+        self._after_session = "restart"
+        if self.runtime is not None and self.state == "active":
+            self.runtime.voice_loop.request_stop()
+        else:
+            self.restart_requested = True
+            self._stop.set()
 
     def _on_startup_phase(self, phase: Any, detail: dict[str, Any]) -> None:
         hub.publish("startup.progress", phase=phase.value)
@@ -510,10 +549,11 @@ class Sentinel:
 
     def sleep(self) -> None:
         """Stop talking: ends the session, or interrupts a startup in progress."""
-        if self.runtime is not None and self.state == "active":
+        if self.state == "starting" and self.sequence is not None and self.sequence.running:
+            self._spawn(self.sequence.cancel())  # music fades, no welcome
+        if self.runtime is not None:
+            # Also covers a startup that finishes right now: the loop exits at once.
             self.runtime.voice_loop.request_stop()
-        elif self.state == "starting" and self.sequence is not None:
-            self._spawn(self.sequence.cancel())  # music fades, no welcome, back to sentinel
 
     def shutdown(self) -> None:
         self._stop.set()
@@ -526,6 +566,17 @@ def _metrics() -> dict[str, Any]:
     from jarvis.adapters.tools.desktop import gpu_status  # noqa: PLC0415
 
     return {"cpu_percent": psutil.cpu_percent(0.2), "ram_percent": psutil.virtual_memory().percent, "gpu": gpu_status()}
+
+
+def _release_models(runtime: JarvisRuntime) -> None:
+    """Free the finished session's Whisper model (RAM + ~1 GB VRAM) right away."""
+    import gc  # noqa: PLC0415
+
+    stt = getattr(runtime.voice_loop, "_stt", None)
+    for provider in getattr(stt, "providers", (stt,)):
+        if hasattr(provider, "_model"):
+            provider._model = None
+    gc.collect()
 
 
 def _clone(runtime: JarvisRuntime) -> Any:
@@ -543,15 +594,33 @@ async def _wait_voice(runtime: JarvisRuntime) -> bool:
     return bool(info.get("profile"))
 
 
+# Mic RMS (int16) per unit of music gain through the laptop speakers, measured
+# p95 on the target laptop (music at gain 0.8 -> -20.7 dBFS at the mic).
+MUSIC_MIC_COUPLING = 3800.0
+
+
 async def _duck_during_speech(mixer: Any, runtime: JarvisRuntime, options: StartupOptions) -> None:
-    """Keep restored music under Jarvis's voice for the rest of the session."""
+    """While the music plays: duck it under Jarvis's voice and keep the VAD above it.
+
+    ponytail: the energy VAD threshold is raised by the music's expected level at
+    the mic (measured coupling), so the music is not mistaken for the owner still
+    talking. Upgrade path: acoustic echo cancellation with the mixer as reference.
+    """
+    vad = getattr(runtime.voice_loop, "_vad", None)
+    base = getattr(vad, "threshold", None)
     ducked = False
-    while mixer.music_playing:
-        speaking = runtime.components.audio_output.state().get("current_turn") is not None
-        if speaking != ducked:
-            mixer.ramp(options.duck_volume if speaking else options.music_volume, options.duck_seconds)
-            ducked = speaking
-        await asyncio.sleep(0.05)
+    try:
+        while mixer.music_playing:
+            speaking = runtime.components.audio_output.state().get("current_turn") is not None
+            if speaking != ducked:
+                mixer.ramp(options.background_volume * 0.4 if speaking else options.background_volume, options.duck_seconds)
+                ducked = speaking
+            if base is not None:
+                vad.threshold = base + 1.5 * MUSIC_MIC_COUPLING * mixer.gain
+            await asyncio.sleep(0.05)
+    finally:
+        if base is not None:
+            vad.threshold = base
 
 
 def _write_json(path: Path, data: Mapping[str, Any]) -> None:
@@ -580,6 +649,9 @@ async def serve(sentinel: Sentinel, port: int) -> asyncio.AbstractServer:
                 reply = sentinel.status()
             elif command == "quit":
                 sentinel.shutdown()
+                reply = {"ok": True}
+            elif command == "restart":
+                sentinel.request_restart()
                 reply = {"ok": True}
             else:
                 reply = {"ok": False, "error": "unknown command"}
@@ -631,4 +703,25 @@ async def run_daemon(config: RuntimeConfig) -> int:
         return 3
     async with server:
         await sentinel.run()
+    if sentinel.restart_requested:
+        # The port is free now: start a fresh daemon exactly as this one was started.
+        relaunch()
     return 0
+
+
+def relaunch_argv(executable: str, argv: list[str]) -> list[str]:
+    """Command that starts this daemon again (pythonw launcher or `python -m jarvis daemon`)."""
+    if argv and argv[0].lower().endswith(".pyw"):
+        return [executable, *argv]
+    return [executable, "-m", "jarvis", *argv[1:]]
+
+
+def relaunch() -> None:
+    import os  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    command = relaunch_argv(sys.executable, list(sys.argv))
+    logger.info("restarting: %s", command)
+    subprocess.Popen(command, cwd=os.getcwd(), creationflags=flags, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)

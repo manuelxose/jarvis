@@ -75,6 +75,7 @@ class VoiceLoop:
         self._last_error: str | None = None
         self.turns: list[TurnResult] = []
         self.last_activity = time.monotonic()  # session start / last completed turn
+        self._stop_after_turn = False
 
     async def run(self, max_turns: int | None = None) -> None:
         """Run the loop until stopped, the audio source is exhausted, or *max_turns* turns complete."""
@@ -120,6 +121,9 @@ class VoiceLoop:
                     )
                 self._activation.note_turn_complete()
                 self.last_activity = time.monotonic()
+                if self._stop_after_turn:
+                    self._stop_event.set()
+                    break
                 for _ in range(self.echo_tail_frames):
                     if await self._next_frame(context) is None:
                         break
@@ -244,6 +248,10 @@ class VoiceLoop:
 
     def request_stop(self) -> None:
         self._stop_event.set()
+
+    def request_stop_after_turn(self) -> None:
+        """Stop once the current turn has finished speaking (goodbyes are heard)."""
+        self._stop_after_turn = True
 
     def state(self) -> dict[str, object]:
         return {

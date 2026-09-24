@@ -137,7 +137,32 @@ and logged, never raised.
 | Simultaneous wake word + clap, repeated activation | `test_daemon.test_duplicate_activations_during_startup_are_ignored` |
 | Application launch failure | `test_workspace` (missing executable, dependents skipped) |
 
-## 7. Not verified (needs you, with sound)
+## 7. Voice control added after the first real session (2026-09-24)
+
+Your real two-clap activation at 09:36 was confirmed 70 ms after the second clap. The
+same log showed a problem: with the music restored at full volume the microphone
+heard the song, the energy VAD never saw silence, every capture ran 16 s and
+Whisper transcribed lyrics, so "Hey Jarvis, apágate" was lost. Fixes:
+
+- After the welcome the music continues at `welcome.background_volume` (0.10), and
+  while it plays the VAD threshold is raised by the music's measured level at the
+  mic (`MUSIC_MIC_COUPLING`, heuristic; upgrade path: echo cancellation).
+- Finished sessions free their Whisper model (the listener stayed at 1.1 GB).
+
+| Say ("Jarvis, …") | Effect |
+|---|---|
+| "para / quita / apaga la música" | fades out the startup music (else pauses the media player) |
+| "baja / sube la música" | music quieter / louder |
+| "a dormir" | ends the conversation; claps work again (the goodbye is no longer cut off) |
+| "reiníciate" | restarts the background listener (back in ~3 s, then clap) |
+| "apágate" | stops the listener completely, after a spoken "confirmo" (starting it again needs the command line or a new Windows sign-in) |
+
+Right after the welcome you can speak without saying "Jarvis" for a few seconds.
+The `dev` profile now also opens **Task Manager** (Windows processes; Windows
+elevates it, so Jarvis can open but not close it) and a **"Jarvis procesos"** terminal
+running `htop` (WSL processes; closed with the profile). CLI: `jarvis restart`.
+
+## 8. Not verified (needs you, with sound)
 
 - **Your real two claps** (`jarvis claps test --seconds 30`), including from across the room.
 - **Typing next to the laptop** while `jarvis claps test` runs for a minute: any
