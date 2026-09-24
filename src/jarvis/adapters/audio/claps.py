@@ -27,11 +27,14 @@ from typing import Any, Callable, Optional
 
 _HOP_SECONDS = 0.01
 _HF_CUTOFF_HZ = 1500.0
-# Loudness hysteresis for the confirming clap: the first clap already passed the
-# strict gates, and people's second clap is usually a few dB softer. Only the
-# loudness gate is relaxed: relaxing the shape gates let drum hits in music
-# confirm (measured on a 190 s track), relaxing loudness did not.
+# Hysteresis for the confirming clap: the first clap already passed the strict
+# gates, and people's second clap is often a few dB softer or much duller (a
+# cupped hand; the owner's measured 0.08 high-frequency share against a 0.2
+# gate). Loudness and the high-frequency gate are relaxed; the confidence
+# threshold is not: relaxing it let drum hits in music confirm (190 s track),
+# relaxing these two did not.
 _CONFIRM_RELAX_DB = 6.0
+_CONFIRM_HF_FACTOR = 0.3
 
 
 @dataclass(frozen=True)
@@ -244,12 +247,13 @@ class ClapDetector:
 
     def _finish_event(self, event: dict[str, Any], decay: float) -> None:
         tuning = self.tuning
+        min_hf = tuning.min_hf_ratio * (_CONFIRM_HF_FACTOR if self._claps else 1.0)
         snr = event["peak"] / max(event["floor"], 1e-6)
         rise_score = _clamp01((math.log10(event["rise"]) - math.log10(2.5)) / (math.log10(20) - math.log10(2.5)))
         decay_score = _clamp01(1.0 - decay / tuning.max_decay_seconds)
         # min_hf_ratio is already a hard gate: score only the margin above it, so a
         # dull-sounding mic does not lose the same clap twice.
-        hf_score = _clamp01(0.5 + (event["hf"] - tuning.min_hf_ratio) / max(tuning.min_hf_ratio, 1e-3))
+        hf_score = _clamp01(0.5 + (event["hf"] - min_hf) / max(min_hf, 1e-3))
         snr_score = _clamp01(math.log10(snr / tuning.onset_ratio + 1e-9) / 1.0 + 0.5)
         confidence = (rise_score * decay_score * hf_score * snr_score) ** 0.25
         features = {
@@ -259,7 +263,7 @@ class ClapDetector:
             "decay_s": round(decay, 3),
             "hf_ratio": round(event["hf"], 3),
         }
-        if event["hf"] < tuning.min_hf_ratio or confidence < tuning.confidence_threshold:
+        if event["hf"] < min_hf or confidence < tuning.confidence_threshold:
             self._reject(event, decay, "shape", features)
             return
         start = event["start"]

@@ -238,3 +238,28 @@ class TwoClapTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConfirmingClapTests(unittest.TestCase):
+    """Features logged from the owner's real attempts on 2026-09-24."""
+
+    def detector_with_candidate(self):
+        detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
+        detector._finish_event({"start": 1.0, "peak": 0.5, "floor": 0.001, "rise": 50.0, "hf": 0.3}, 0.04)
+        self.assertEqual(len(detector._claps), 1)
+        return detector
+
+    def test_dull_second_clap_confirms(self):
+        detector = self.detector_with_candidate()
+        detector._finish_event({"start": 1.4, "peak": 0.155, "floor": 0.003, "rise": 12.54, "hf": 0.081}, 0.04)
+        self.assertEqual(len(detector._claps), 2)
+
+    def test_slow_thump_still_does_not_confirm(self):
+        detector = self.detector_with_candidate()
+        detector._finish_event({"start": 1.4, "peak": 0.18, "floor": 0.0016, "rise": 3.46, "hf": 0.067}, 0.03)
+        self.assertEqual(len(detector._claps), 0)  # rejected: it also interrupts the candidate
+
+    def test_dull_hit_cannot_start_a_candidate(self):
+        detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
+        detector._finish_event({"start": 1.0, "peak": 0.155, "floor": 0.003, "rise": 12.54, "hf": 0.081}, 0.04)
+        self.assertEqual(len(detector._claps), 0)
