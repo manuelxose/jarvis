@@ -5,7 +5,7 @@ reversibility. The gateway validates arguments, applies an allowlist, enforces
 permission policy, and gates destructive/externally-visible actions behind
 trace-bound, expiring confirmation.
 
-Risk policy (M007):
+Risk policy:
 
 * LOW (``READ_ONLY``/``REVERSIBLE``): runs automatically.
 * ``MEDIUM``: runs automatically when every path it touches is inside an
@@ -46,6 +46,7 @@ logger = logging.getLogger("jarvis.tools")
 
 
 class Risk(str, enum.Enum):
+    """Risk class of a tool call; it decides whether the call runs, runs in scope, or needs spoken confirmation."""
     READ_ONLY = "read_only"
     REVERSIBLE = "reversible"
     MEDIUM = "medium"
@@ -150,6 +151,7 @@ class AuditLog:
 
 
 def within(path: str | Path, scopes: Iterable[Path]) -> bool:
+    """Return True when *path* resolves inside one of *scopes* (symlinks and ``..`` resolved)."""
     try:
         resolved = Path(path).expanduser().resolve()
     except (OSError, RuntimeError):

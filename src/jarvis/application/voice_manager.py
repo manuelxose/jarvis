@@ -33,6 +33,7 @@ _MODES = ("adaptive", "always", "on_demand")
 
 
 class VoiceState(str, enum.Enum):
+    """Lifecycle state of the shared cloned-voice model."""
     COLD = "cold"  # not loaded (also after eviction)
     SPECULATIVE = "speculative"  # loading/loaded on a first clap, not yet confirmed
     WARM = "warm"  # held by a session
@@ -41,6 +42,7 @@ class VoiceState(str, enum.Enum):
 
 @dataclass(frozen=True)
 class VoicePolicy:
+    """When to load, keep and evict the cloned-voice model (the ``voice`` config section)."""
     preload: str = "adaptive"
     speculative: bool = True
     predictive_on_wake_word: bool = True
@@ -83,6 +85,13 @@ def _default_free_vram() -> Optional[float]:
 
 
 class VoiceModelManager:
+    """Own the single cloned-voice TTS instance shared by every session.
+
+    Loads it speculatively on the first clap, holds it while a session runs,
+    keeps it warm for ``cooldown_seconds`` afterwards and evicts it under VRAM
+    pressure or when a GPU-heavy app is running, never during synthesis.
+    """
+
     def __init__(
         self,
         factory: Callable[[], Any],

@@ -6,7 +6,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.audio.output import AudioOutputQueue
-from jarvis.adapters.fakes import ScriptedAudioInput
 from jarvis.core.turn import TurnCancelled, TurnContext
 
 

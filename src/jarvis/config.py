@@ -32,32 +32,22 @@ _MAX_PROVIDER_TIMEOUT_SECONDS = 300.0
 
 @dataclass(frozen=True)
 class RuntimeSettings:
+    """``runtime`` section: turn-level deadlines."""
     command_deadline_ms: int = 500
 
 
 @dataclass(frozen=True)
-class ProviderSettings:
-    fast_model_api_key: Optional[str] = field(default=None, repr=False)
-
-
-@dataclass(frozen=True)
 class MemorySettings:
+    """``memory`` section: SQLite path and recall size."""
     db_path: str = "memory/jarvis.db"
-    retention_days: int = 90
     max_recall: int = 6
 
 
 @dataclass(frozen=True)
-class SecuritySettings:
-    confirm_destructive: bool = True
-    allow_arbitrary_shell: bool = False
-
-
-@dataclass(frozen=True)
 class AudioSettings:
+    """``audio`` section: capture format, devices and barge-in."""
     sample_rate: int = 16000
     channels: int = 1
-    chunk_size: int = 1024
     input_device: Optional[int] = None
     output_device: Optional[int] = None
     # Energy barge-in: only safe with a headset (no acoustic echo cancellation).
@@ -66,6 +56,7 @@ class AudioSettings:
 
 @dataclass(frozen=True)
 class ActivationSettings:
+    """``activation`` section: how the voice loop opens a turn."""
     mode: str = "wake_word"  # wake_word | push_to_talk | manual | continuous
     wake_word: str = "jarvis"
     cooldown_seconds: float = 1.2
@@ -74,6 +65,7 @@ class ActivationSettings:
 
 @dataclass(frozen=True)
 class STTSettings:
+    """``stt`` section: speech-to-text provider and model."""
     provider: str = "whisper"  # whisper | sapi | alibaba_qwen
     model: str = "tiny"
     language: str = "es"
@@ -83,6 +75,7 @@ class STTSettings:
 
 @dataclass(frozen=True)
 class TTSSettings:
+    """``tts`` section: text-to-speech provider, voice and clone worker."""
     provider: str = "local"  # local | sapi | alibaba_qwen | qwen_clone
     voice: str = ""
     language: str = "es"
@@ -112,6 +105,7 @@ class AlibabaSettings:
 
 @dataclass(frozen=True)
 class ModelProviderConfig:
+    """One entry of ``models.providers``: an OpenAI-compatible or Ollama endpoint."""
     name: str = ""
     kind: str = "openai_compat"  # openai_compat | ollama
     base_url: Optional[str] = None
@@ -128,6 +122,7 @@ class ModelProviderConfig:
 
 @dataclass(frozen=True)
 class ModelSettings:
+    """``models`` section: provider chain (first is primary) and daily spend cap."""
     providers: tuple[ModelProviderConfig, ...] = ()
     # Hard daily spend cap across cloud LLM providers; once reached, turns fall
     # back to local models until midnight.
@@ -136,6 +131,7 @@ class ModelSettings:
 
 @dataclass(frozen=True)
 class HermesSettings:
+    """``hermes`` section: the supervised agent child process."""
     command: tuple[str, ...] = ()
     timeout_seconds: float = 300.0
     restart_max: int = 3
@@ -143,41 +139,16 @@ class HermesSettings:
 
 @dataclass(frozen=True)
 class ToolSettings:
+    """``tools`` section: allowlist and confirmation timeout."""
     allowlist: frozenset[str] = frozenset()
     confirmation_timeout_seconds: float = 30.0
 
 
 @dataclass(frozen=True)
-class StartupSettings:
-    cue_phrase: str = "Jarvis listo"
-    startup_sound: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class LoggingSettings:
-    level: str = "INFO"
-
-
-@dataclass(frozen=True)
-class TimeoutSettings:
-    stt_seconds: float = 15.0
-    tts_seconds: float = 20.0
-    model_seconds: float = 60.0
-    hermes_seconds: float = 300.0
-    tool_seconds: float = 30.0
-
-
-@dataclass(frozen=True)
-class LatencySettings:
-    target_first_audio_ms: int = 1500
-
-
-@dataclass(frozen=True)
 class RuntimeConfig:
+    """The whole validated configuration (``config.json`` merged with ``config.local.json``)."""
     runtime: RuntimeSettings
-    providers: ProviderSettings
     memory: MemorySettings
-    security: SecuritySettings
     audio: AudioSettings = field(default_factory=AudioSettings)
     activation: ActivationSettings = field(default_factory=ActivationSettings)
     stt: STTSettings = field(default_factory=STTSettings)
@@ -186,11 +157,7 @@ class RuntimeConfig:
     models: ModelSettings = field(default_factory=ModelSettings)
     hermes: HermesSettings = field(default_factory=HermesSettings)
     tools: ToolSettings = field(default_factory=ToolSettings)
-    startup: StartupSettings = field(default_factory=StartupSettings)
-    logging: LoggingSettings = field(default_factory=LoggingSettings)
-    timeouts: TimeoutSettings = field(default_factory=TimeoutSettings)
-    latency: LatencySettings = field(default_factory=LatencySettings)
-    # M007 sections, validated at load by their owning modules and kept as plain
+    # Desktop/daemon sections, validated at load by their owning modules and kept as plain
     # mappings: claps (ClapTuning + enabled), welcome (StartupOptions),
     # workspace (default_profile + profiles), desktop (scopes, trusted, apps),
     # daemon (hotkey, wake_word, control_port...). None of them hold secrets.
@@ -199,24 +166,14 @@ class RuntimeConfig:
     workspace: Mapping[str, Any] = field(default_factory=dict)
     desktop: Mapping[str, Any] = field(default_factory=dict)
     daemon: Mapping[str, Any] = field(default_factory=dict)
-    voice: Mapping[str, Any] = field(default_factory=dict)  # VoicePolicy (M009)
+    voice: Mapping[str, Any] = field(default_factory=dict)  # VoicePolicy
 
     def public_dict(self) -> dict[str, dict[str, Any]]:
         return {
             "runtime": {"command_deadline_ms": self.runtime.command_deadline_ms},
-            "providers": {
-                "fast_model_api_key": (
-                    "<redacted>" if self.providers.fast_model_api_key is not None else None
-                )
-            },
             "memory": {
                 "db_path": self.memory.db_path,
-                "retention_days": self.memory.retention_days,
                 "max_recall": self.memory.max_recall,
-            },
-            "security": {
-                "confirm_destructive": self.security.confirm_destructive,
-                "allow_arbitrary_shell": self.security.allow_arbitrary_shell,
             },
             "audio": {
                 "sample_rate": self.audio.sample_rate,
@@ -279,19 +236,6 @@ class RuntimeConfig:
                 "allowlist": sorted(self.tools.allowlist),
                 "confirmation_timeout_seconds": self.tools.confirmation_timeout_seconds,
             },
-            "startup": {
-                "cue_phrase": self.startup.cue_phrase,
-                "startup_sound": self.startup.startup_sound,
-            },
-            "logging": {"level": self.logging.level},
-            "timeouts": {
-                "stt_seconds": self.timeouts.stt_seconds,
-                "tts_seconds": self.timeouts.tts_seconds,
-                "model_seconds": self.timeouts.model_seconds,
-                "hermes_seconds": self.timeouts.hermes_seconds,
-                "tool_seconds": self.timeouts.tool_seconds,
-            },
-            "latency": {"target_first_audio_ms": self.latency.target_first_audio_ms},
             "claps": dict(self.claps),
             "welcome": dict(self.welcome),
             "workspace": dict(self.workspace),
@@ -318,9 +262,7 @@ def load_config(
 
     env = os.environ if environ is None else environ
     runtime_data = _section(document, "runtime", required=True)
-    providers_data = _section(document, "providers")
     memory_data = _section(document, "memory")
-    security_data = _section(document, "security")
     audio_data = _section(document, "audio")
     activation_data = _section(document, "activation")
     stt_data = _section(document, "stt")
@@ -329,10 +271,6 @@ def load_config(
     models_data = _section(document, "models")
     hermes_data = _section(document, "hermes")
     tools_data = _section(document, "tools")
-    startup_data = _section(document, "startup")
-    logging_data = _section(document, "logging")
-    timeouts_data = _section(document, "timeouts")
-    latency_data = _section(document, "latency")
 
     deadline = runtime_data.get("command_deadline_ms", 500)
     if isinstance(deadline, bool) or not isinstance(deadline, int) or deadline <= 0:
@@ -340,24 +278,13 @@ def load_config(
 
     return RuntimeConfig(
         runtime=RuntimeSettings(command_deadline_ms=deadline),
-        providers=ProviderSettings(
-            fast_model_api_key=_resolve_secret(
-                providers_data.get("fast_model_api_key"), env
-            )
-        ),
         memory=MemorySettings(
             db_path=_string(memory_data, "db_path", "memory/jarvis.db"),
-            retention_days=_positive_int(memory_data, "retention_days", 90, "memory.retention_days"),
             max_recall=_positive_int(memory_data, "max_recall", 6, "memory.max_recall"),
-        ),
-        security=SecuritySettings(
-            confirm_destructive=_bool(security_data, "confirm_destructive", True),
-            allow_arbitrary_shell=_bool(security_data, "allow_arbitrary_shell", False),
         ),
         audio=AudioSettings(
             sample_rate=_positive_int(audio_data, "sample_rate", 16000, "audio.sample_rate"),
             channels=_positive_int(audio_data, "channels", 1, "audio.channels"),
-            chunk_size=_positive_int(audio_data, "chunk_size", 1024, "audio.chunk_size"),
             input_device=_optional_int(audio_data, "input_device"),
             output_device=_optional_int(audio_data, "output_device"),
             barge_in=_bool(audio_data, "barge_in", False),
@@ -405,22 +332,7 @@ def load_config(
             allowlist=frozenset(_parse_allowlist(tools_data)),
             confirmation_timeout_seconds=_positive_number(tools_data, "confirmation_timeout_seconds", 30.0, "tools.confirmation_timeout_seconds"),
         ),
-        startup=StartupSettings(
-            cue_phrase=_string(startup_data, "cue_phrase", "Jarvis listo"),
-            startup_sound=_optional_string(startup_data, "startup_sound"),
-        ),
-        logging=LoggingSettings(level=_string(logging_data, "level", "INFO")),
-        timeouts=TimeoutSettings(
-            stt_seconds=_positive_number(timeouts_data, "stt_seconds", 15.0, "timeouts.stt_seconds"),
-            tts_seconds=_positive_number(timeouts_data, "tts_seconds", 20.0, "timeouts.tts_seconds"),
-            model_seconds=_positive_number(timeouts_data, "model_seconds", 60.0, "timeouts.model_seconds"),
-            hermes_seconds=_positive_number(timeouts_data, "hermes_seconds", 300.0, "timeouts.hermes_seconds"),
-            tool_seconds=_positive_number(timeouts_data, "tool_seconds", 30.0, "timeouts.tool_seconds"),
-        ),
-        latency=LatencySettings(
-            target_first_audio_ms=_positive_int(latency_data, "target_first_audio_ms", 1500, "latency.target_first_audio_ms"),
-        ),
-        **_m007_sections(document),
+        **_desktop_sections(document),
     )
 
 
@@ -653,12 +565,12 @@ def _parse_allowlist(data: Mapping[str, Any]) -> list[str]:
 _DESKTOP_KEYS = {"authorized_scopes", "trusted_operations", "apps"}
 _DAEMON_KEYS = {
     "hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama",
-    "preload_voice", "session_idle_seconds", "metrics_interval_seconds", "events_log",
+    "session_idle_seconds", "metrics_interval_seconds", "events_log",
 }
 
 
-def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    """Validate the M007 sections with the classes that consume them."""
+def _desktop_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Validate the desktop/daemon sections with the classes that consume them."""
     from jarvis.adapters.audio.claps import ClapTuning  # noqa: PLC0415
     from jarvis.application.startup import StartupOptions  # noqa: PLC0415
     from jarvis.application.workspace import parse_profiles  # noqa: PLC0415

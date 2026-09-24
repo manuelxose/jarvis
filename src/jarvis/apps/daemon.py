@@ -21,7 +21,6 @@ logging to ``%LOCALAPPDATA%\\jarvis\\logs\\daemon.log``.
 from __future__ import annotations
 
 import asyncio
-import ctypes
 import json
 import logging
 import sys
@@ -35,7 +34,7 @@ from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_pa
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
 from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
 from jarvis.observability.event_hub import JsonlSink, hub
-from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream, join_wavs
+from jarvis.adapters.tts.ack_cache import bytes_to_stream, join_wavs
 from jarvis.application.startup import StartupOptions, StartupSequence, welcome_texts
 from jarvis.core.turn import TurnContext
 from jarvis.config import RuntimeConfig
@@ -47,6 +46,7 @@ _BLOCK = 320  # 20 ms at 16 kHz
 
 
 def clap_tuning(config: RuntimeConfig) -> ClapTuning:
+    """Clap detector settings: config values over the saved calibration."""
     values = {k: v for k, v in config.claps.items() if k != "enabled"}
     tuning = ClapTuning(**values)
     # A saved calibration refines thresholds unless the owner pinned them in config.
@@ -55,6 +55,7 @@ def clap_tuning(config: RuntimeConfig) -> ClapTuning:
 
 
 def startup_options(config: RuntimeConfig) -> StartupOptions:
+    """Welcome sequence options from the ``welcome`` config section."""
     values = dict(config.welcome)
     if "essential" in values:
         values["essential"] = tuple(values["essential"])
@@ -112,6 +113,13 @@ def start_hotkey_thread(spec: str, on_press: Callable[[], None]) -> Optional[thr
 # -- sentinel ---------------------------------------------------------------------
 
 class Sentinel:
+    """Background daemon that waits for an activation and runs one voice session at a time.
+
+    Listens for claps, the hotkey, the optional wake word and control-socket
+    commands; on activation it plays the startup sequence, runs the voice loop
+    until the owner sends it to sleep, then returns to listening.
+    """
+
     def __init__(
         self,
         config: RuntimeConfig,
@@ -127,10 +135,7 @@ class Sentinel:
         self.detector = ClapDetector(clap_tuning(config))
         self.detector.on_candidate = lambda clap: self._threadsafe(self._on_candidate, clap)
         self.detector.on_candidate_expired = lambda reason: self._threadsafe(self._on_candidate_expired, reason)
-        policy = dict(config.voice)
-        if config.daemon.get("preload_voice") and "preload" not in policy:
-            policy["preload"] = "always"  # pre-M009 setting
-        self.voice = VoiceModelManager(self._clone_factory, VoicePolicy.from_config(policy))
+        self.voice = VoiceModelManager(self._clone_factory, VoicePolicy.from_config(config.voice))
         self._tasks: set[asyncio.Task[Any]] = set()
         self._after_session = ""  # "restart" | "shutdown": requested by voice
         self._voice_gate: Optional[asyncio.Event] = None
@@ -685,6 +690,7 @@ async def serve(sentinel: Sentinel, port: int) -> asyncio.AbstractServer:
 
 
 def send_command(command: str, port: int = DEFAULT_PORT, timeout: float = 5.0) -> dict[str, Any]:
+    """Send one command to the running daemon's control socket and return its JSON reply."""
     import socket  # noqa: PLC0415
 
     with socket.create_connection(("127.0.0.1", port), timeout=timeout) as conn:
@@ -699,6 +705,7 @@ def send_command(command: str, port: int = DEFAULT_PORT, timeout: float = 5.0) -
 
 
 def configure_file_logging() -> Path:
+    """Log to a rotating ``daemon.log`` in the data directory; return its path."""
     log_dir = _data_dir() / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     path = log_dir / "daemon.log"
@@ -713,6 +720,7 @@ def configure_file_logging() -> Path:
 
 
 async def run_daemon(config: RuntimeConfig) -> int:
+    """Run the sentinel and its control socket until ``quit``; refuses a second instance."""
     sentinel = Sentinel(config)
     port = int(config.daemon.get("control_port", DEFAULT_PORT))
     try:
@@ -736,6 +744,7 @@ def relaunch_argv(executable: str, argv: list[str]) -> list[str]:
 
 
 def relaunch() -> None:
+    """Start a detached copy of this daemon (used by the voice ``reiníciate`` command)."""
     import os  # noqa: PLC0415
     import subprocess  # noqa: PLC0415
 

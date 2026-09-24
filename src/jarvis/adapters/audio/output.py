@@ -17,7 +17,7 @@ import threading
 import wave
 from typing import Any, AsyncIterator, Callable, Optional
 
-from jarvis.core.contracts import AudioPlayer, TurnContext
+from jarvis.core.contracts import TurnContext
 from jarvis.core.errors import ProviderUnavailable
 from jarvis.core.turn import TurnCancelled
 

@@ -33,6 +33,7 @@ _SECRET_PATTERNS = (
 
 @dataclass(frozen=True)
 class MemoryRecord:
+    """One stored memory row (tier, category, content and usage timestamps)."""
     id: int
     tier: str
     category: str

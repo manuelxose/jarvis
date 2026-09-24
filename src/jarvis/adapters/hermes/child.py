@@ -16,7 +16,6 @@ import time
 from typing import AsyncIterator, Optional
 
 from jarvis.core.contracts import (
-    AgentRuntime,
     AgentStatus,
     AgentToken,
     AgentToolRequest,
@@ -31,6 +30,7 @@ from . import protocol
 
 
 def default_command() -> list[str]:
+    """Command that starts the bundled Ollama-backed agent child."""
     return [sys.executable, "-m", "jarvis.adapters.hermes.agent_child"]
 
 

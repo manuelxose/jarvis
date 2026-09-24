@@ -1,8 +1,8 @@
-"""M007 real-hardware checks: speaker -> room -> microphone.
+"""Real-hardware checks: speaker -> room -> microphone.
 
-    python scripts/m007_hardware_check.py loopback --trials 5
-    python scripts/m007_hardware_check.py music --seconds 30 [--file song.mp3]
-    python scripts/m007_hardware_check.py speech FILE.wav [FILE.wav ...]
+    python scripts/hardware_check.py loopback --trials 5
+    python scripts/hardware_check.py music --seconds 30 [--file song.mp3]
+    python scripts/hardware_check.py speech FILE.wav [FILE.wav ...]
 
 loopback: plays a synthetic three-clap pattern through the default speakers
 while recording the default microphone, and runs the live detector on the

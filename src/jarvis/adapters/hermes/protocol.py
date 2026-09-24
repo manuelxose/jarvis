@@ -31,6 +31,7 @@ CANCEL = "cancel"
 
 @dataclass(frozen=True)
 class HermesMessage:
+    """One decoded JSON-lines message exchanged with the Hermes child."""
     request_id: str
     turn_id: str
     event_type: str
@@ -39,6 +40,7 @@ class HermesMessage:
 
 
 def new_request_id() -> str:
+    """Return a fresh unique request id."""
     return uuid.uuid4().hex
 
 
@@ -48,6 +50,7 @@ def encode_message(
     event_type: str,
     payload: Optional[Mapping[str, Any]] = None,
 ) -> str:
+    """Serialize one protocol message as a single JSON line."""
     return json.dumps(
         {
             "request_id": request_id,

@@ -1,4 +1,4 @@
-"""Desktop planner, spoken confirmation and M007 routing."""
+"""Desktop planner, spoken confirmation and desktop routing."""
 
 import asyncio
 import json

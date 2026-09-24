@@ -1,225 +1,152 @@
-# Jarvis Local (Automatizado)
+# Jarvis
 
-## Arranque en un comando (Windows)
+Asistente de voz en español, local-first, para Windows. Se despierta con dos
+palmadas, te saluda con **tu propia voz clonada** (generada en tu GPU, sin salir
+del equipo), arranca tu entorno de trabajo y controla el escritorio por voz con
+una política de riesgos explícita.
 
-Desde la carpeta `jarvis/`:
+- **Activación**: dos palmadas, `Ctrl+Alt+J`, «hey Jarvis» (opcional) o `jarvis activate`.
+- **Voz**: Faster Qwen3-TTS 0.6B clonando tu voz en local; SAPI de Windows como respaldo.
+- **Oído**: `faster-whisper` (CUDA si hay GPU NVIDIA).
+- **Cerebro**: cualquier endpoint compatible con OpenAI (p. ej. DeepSeek) con tope de gasto diario y
+  respaldo automático a Ollama local; comandos frecuentes resueltos sin LLM en < 1 ms.
+- **Escritorio**: ventanas, aplicaciones, ficheros, comandos, perfiles de trabajo (VS Code, terminal,
+  servicios), con confirmación hablada para todo lo destructivo y registro de auditoría.
+- **Privacidad**: la grabación de tu voz, la memoria y los registros se quedan en tu equipo; las claves
+  solo se leen de variables de entorno.
 
-```powershell
-.\run_jarvis.bat
-```
+## Requisitos
 
-El flujo automatico realiza:
-- Detectar o instalar Python 3.11 (via `winget`).
-- Crear `.venv` si no existe.
-- Instalar dependencias solo cuando cambia `requirements.txt`.
-- Detectar o instalar Ollama.
-- Arrancar `ollama serve` si no esta activo.
-- Verificar o descargar `mistral:7b-instruct`.
-- Preparar muestras WAV en `voice_samples/` para el proveedor XTTS opcional.
-- Lanzar `python -m jarvis run` (el `main.py` de la v1 quedo en `legacy/`).
+- Windows 10/11 con micrófono y altavoces (la ejecución se puede lanzar desde WSL).
+- Python 3.11 (el bootstrap lo instala si falta).
+- Para la voz clonada: GPU NVIDIA con ≥ 6 GB de VRAM (probado en RTX 3070 Laptop 8 GB).
+- Opcional: [Ollama](https://ollama.com) para el modelo local, una API key de un proveedor
+  compatible con OpenAI para el modelo en la nube.
 
-Si `winget` no esta disponible, intenta instalacion directa por URL para Python y Ollama.
-
-## Comandos utiles
-
-Preparar entorno sin arrancar Jarvis:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\bootstrap.ps1
-```
-
-El bypass solo afecta a la ventana actual de PowerShell. Despues del bootstrap,
-usa siempre `.\.venv\Scripts\python.exe` para ejecutar Jarvis y las pruebas.
-El bootstrap usa cmdlets nativos compatibles con `ConstrainedLanguage`.
-
-Forzar reinstalacion de dependencias:
+## Instalación (Windows)
 
 ```powershell
-.\run_jarvis.ps1 -ForceDependencies
+git clone https://github.com/manuelxose/jarvis.git
+cd jarvis
+.\bootstrap.ps1          # Python 3.11, .venv, dependencias, Ollama y mistral:7b-instruct
 ```
 
-Usar un Python concreto ya instalado:
+Opciones: `-SkipModelPull` (no descargar el modelo de Ollama), `-ForceDependencies`
+(reinstalar dependencias), `-PythonPath C:\ruta\python.exe` (usar un Python concreto),
+`-Run` (arrancar al terminar; equivale a `.\run_jarvis.bat`).
 
-```powershell
-.\run_jarvis.ps1 -PythonPath "C:\Ruta\python.exe"
-```
-
-Usa una ruta real. Ejemplo:
-
-```powershell
-.\run_jarvis.ps1 -PythonPath "C:\Users\usuario\AppData\Local\Programs\Python\Python311\python.exe"
-```
-
-Saltar descarga del modelo (si ya esta):
-
-```powershell
-.\bootstrap.ps1 -SkipModelPull
-```
-
-## Ruta cloud-first opcional (configuracion local no versionada)
-
-Por defecto Jarvis usa Ollama local. Para priorizar un proveedor cloud compatible con
-OpenAI sin guardar ninguna credencial en el repositorio:
-
-1. Copia la plantilla versionada a su hermano ignorado:
-
-```powershell
-Copy-Item config.local.example.json config.local.json
-```
-
-2. Proporciona la clave solo por variable de entorno (nunca dentro de un archivo versionado):
-
-```powershell
-$env:DEEPSEEK_API_KEY = "sk-tu-clave"
-```
-
-`config.local.json` referencia `${DEEPSEEK_API_KEY}` y el valor se resuelve en tiempo de
-ejecucion; la clave nunca se escribe en `config.json`, en la plantilla, en logs ni en informes.
-
-3. Comprueba el enrutado con `doctor`:
-
-```powershell
-.\.venv\Scripts\python.exe -m jarvis doctor
-.\.venv\Scripts\python.exe -m jarvis doctor --json
-```
-
-La salida muestra la seccion `model routing`:
-
-```text
-model routing:
-  primary: deepseek (kind=openai_compat, model=deepseek-flash, base_url=https://api.deepseek.com, api_key=present)
-  fallback: ollama (kind=ollama, model=mistral:7b-instruct, base_url=http://127.0.0.1:11434, api_key=none)
-  local fallback ready: yes
-```
-
-`local fallback ready: yes` significa que Ollama responde; `no` significa que el primario
-cloud sigue configurado pero el fallback local no esta disponible. En modo JSON, `model`
-expone `provider_order`, `primary`, `fallbacks` y `local_fallback_ready`, y la clave solo
-aparece como `has_api_key: true/false` (nunca el valor).
-
-Coste: cada respuesta cloud registra sus tokens (`stream_options.include_usage`) y los
-valora con `input_usd_per_million`/`output_usd_per_million` del proveedor. El gasto del dia
-se guarda en `%LOCALAPPDATA%\jarvis\spend.json`; al alcanzar `models.max_daily_usd`
-(por defecto 1.0 USD) Jarvis deja de llamar a la nube hasta medianoche y responde con
-Ollama. Sin tarifas configuradas el tope no puede contar el gasto (`priced: false` en
-`doctor --json`). Cualquier endpoint compatible con OpenAI (p. ej. Qwen en Model Studio)
-sirve: copia su id de modelo y tarifas de la pagina oficial de precios.
-La plantilla de DeepSeek desactiva el razonamiento (`"extra_body": {"thinking": {"type": "disabled"}}`):
-con el razonamiento activo, `deepseek-flash` gastaba el limite de tokens pensando y la voz
-empezaba ~1 s mas tarde y se cortaba.
-
-Reglas:
-- Manten `config.json` y `config.local.example.json` libres de secretos.
-- No subas `config.local.json` al control de versiones (ya esta en `.gitignore`).
-- Sin `config.local.json`, Jarvis usa la configuracion Ollama versionada.
-
-## Voz clonada local (Faster Qwen3-TTS 0.6B, recomendada)
-
-Jarvis habla con tu propia voz clonada en la GPU local (RTX 3070); la muestra de voz
-nunca sale del equipo. Detalles, medidas y arquitectura:
-`docs/engineering/local-voice-clone.md`.
-
-1. Entorno aislado del motor de voz (solo descarga el modelo 0.6B Base, ~2 GB):
-
-```powershell
-scripts\setup_tts_worker.bat
-```
-
-2. Graba tu voz (lee en voz alta el texto que aparece, ~10 s, sitio silencioso):
+En los ejemplos siguientes, `jarvis <comando>` significa:
 
 ```powershell
 $env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m jarvis.voice_profile record
+.\.venv\Scripts\python.exe -m jarvis <comando> --config config.win.json
 ```
 
-Genera `%LOCALAPPDATA%\jarvis\voice\default\preview.wav`: escuchalo antes de usarlo.
-Tambien puedes importar un WAV de 16 bits:
-`... -m jarvis.voice_profile enroll --audio mi_voz.wav --text "transcripcion exacta"`
-(modo por defecto: huella de voz, el mas rapido; `--icl` usa el audio en contexto, mas lento). Otros comandos: `status`, `prepare`
-(regenera la vista previa), `delete` (borra perfil, grabacion y condicionamiento).
+## Puesta en marcha
 
-3. `config.win.json` ya usa `"tts": {"provider": "qwen_clone", "chunk_size": 4}`. Mientras el modelo se
-calienta (~20 s), si no hay perfil, o si el motor falla, Jarvis habla con la voz SAPI de
-Windows y `doctor` lo indica (`TTS voice clone: degraded ...`).
+1. **Motor de voz clonada** (entorno aislado, descarga solo el modelo 0.6B, ~2 GB):
 
-Interrupcion por voz (barge-in): desactivada por defecto porque sin cancelacion de eco
-los altavoces interrumpirian a Jarvis; con auriculares activa `"audio": {"barge_in": true}`.
+   ```powershell
+   scripts\setup_tts_worker.bat
+   ```
 
-## Voz en la nube (Alibaba Model Studio / Qwen, opcional)
+2. **Graba tu voz** (lee en voz alta el texto que aparece, ~10 s, en un sitio silencioso):
 
-Jarvis usa un unico proveedor cloud para voz: Alibaba Cloud Model Studio (Qwen),
-con fallback local automatico (`faster-whisper` para STT, SAPI para TTS) si la
-nube falla o no esta configurada. Por defecto, sin `config.local.json`, Jarvis
-usa SAPI (TTS) y whisper local (STT); XTTS local (`provider: "local"`) usa tus
-muestras de `voice_samples/` pero tarda ~87s por respuesta en CPU.
+   ```powershell
+   .\.venv\Scripts\python.exe -m jarvis.voice_profile record
+   ```
 
-1. Crea una API key en Alibaba Cloud Model Studio (region Singapore/international)
-   y, si tu cuenta la requiere, un workspace id. Expórtalas solo por variable de entorno:
+   Escucha `%LOCALAPPDATA%\jarvis\voice\default\preview.wav`. También puedes importar un WAV:
+   `... -m jarvis.voice_profile enroll --audio mi_voz.wav --text "transcripción exacta"`.
 
-```powershell
-$env:DASHSCOPE_API_KEY = "sk-tu-clave"
-$env:ALIBABA_MODEL_STUDIO_WORKSPACE_ID = "ws-tu-workspace"   # requerido para region singapore
+3. **Modelo en la nube** (opcional): copia la plantilla y da la clave por variable de entorno.
+
+   ```powershell
+   Copy-Item config.local.example.json config.local.json
+   $env:DEEPSEEK_API_KEY = "sk-..."
+   ```
+
+4. **Calibra las palmadas** con tu micrófono y comprueba la detección:
+
+   ```powershell
+   jarvis claps calibrate
+   jarvis claps test --seconds 30
+   ```
+
+5. **Diagnóstico**: `jarvis doctor` (o `doctor --json`) muestra el estado de cada componente,
+   el enrutado de modelos y si el respaldo local está listo. Nunca imprime secretos.
+
+6. **Arranque automático** al iniciar sesión (acceso directo en la carpeta Inicio, sin
+   privilegios de administrador): `jarvis autostart install`.
+
+## Uso
+
+Da dos palmadas. Suena un aviso, entra la música (si configuraste `welcome.music_path`), se
+abre tu perfil de trabajo y Jarvis te saluda. Después habla con normalidad: «Jarvis, …».
+
+| Comando | Qué hace |
+|---|---|
+| `jarvis daemon` | Centinela en primer plano (palmadas, atajo, socket de control) |
+| `jarvis activate` · `sleep` · `status` · `restart` · `quit` | Controlar el centinela en marcha |
+| `jarvis run` | Bucle de voz directo, sin centinela |
+| `jarvis workspace start\|stop\|status [perfil] [--force]` | Perfiles de trabajo |
+| `jarvis tools` | Herramientas registradas y su clase de riesgo |
+| `jarvis welcome record` | Regrabar los saludos con la voz clonada |
+| `jarvis demo` · `accept` · `benchmark` | Demo, aceptación y benchmark sin hardware (adaptadores falsos) |
+
+Ejemplos de voz: «arranca mi entorno de desarrollo», «¿qué está usando la GPU?», «minimiza
+chrome», «baja la música», «cancela la operación», «a dormir». Lista completa y política de
+riesgos en [docs/desktop-control.md](docs/desktop-control.md).
+
+## Configuración
+
+`config.win.json` es la configuración completa de Windows; `config.json` es una base mínima
+(solo Ollama) para CI y otros sistemas. Tus ajustes personales y proveedores cloud van en
+`config.local.json` (ignorado por git), que se fusiona encima. Los valores `"${VAR}"` se leen
+de variables de entorno. Referencia completa: [docs/configuration.md](docs/configuration.md).
+
+Voz en la nube con Alibaba Model Studio (Qwen) como alternativa a la voz local:
+`scripts\alibaba_voice_clone.py create voice_samples\muestra.wav` registra la voz y muestra el
+bloque de configuración a copiar; detalles en [docs/alibaba-qwen.md](docs/alibaba-qwen.md).
+
+## Desarrollo
+
+La suite no necesita audio, GPU ni Windows (usa adaptadores falsos) y corre en Linux/WSL:
+
+```bash
+python3.11 -m venv .venv-dev && . .venv-dev/bin/activate
+pip install -e . numpy soundfile
+python -m unittest discover -s tests
 ```
 
-2. Clona tu voz una sola vez a partir de una muestra WAV limpia (mono, 16-bit,
-   16kHz+, 3-60s):
+CI (GitHub Actions) ejecuta lo mismo en Python 3.11 y compila `src` y `tests`.
 
-```powershell
-.\.venv\Scripts\python.exe scripts\alibaba_voice_clone.py create voice_samples\sample.wav
+```
+src/jarvis/
+  core/           puertos, errores, turnos y cancelación, supervisor
+  adapters/       audio, STT, TTS (incl. worker de voz clonada), LLM, memoria, Hermes, herramientas
+  application/    composición, enrutado, turnos, bucle de voz, arranque, ciclo de vida de la voz
+  apps/           CLI, centinela, comandos de operador, autoarranque
+  observability/  logs con redacción de secretos, trazas, métricas, coste, eventos
+scripts/          bootstrap del worker TTS, benchmarks y comprobaciones con hardware real
+tests/            suite unittest (590+ tests)
+docs/             arquitectura, configuración, control del escritorio, voz, rendimiento
 ```
 
-El script valida la muestra (duracion, canales, formato, clipping, silencio),
-la sube y registra la voz clonada, e imprime el `voice_id` resultante junto con
-el bloque JSON listo para pegar. La voz solo sirve con el mismo `--target-model`
-usado al crearla (restriccion de Alibaba, no de Jarvis).
+## Documentación
 
-3. Copia ese bloque a `config.local.json` (crealo si no existe):
+- [Arquitectura](docs/architecture.md): capas, flujo de una activación y de un turno, datos locales.
+- [Configuración](docs/configuration.md): todas las secciones y valores por defecto.
+- [Control del escritorio](docs/desktop-control.md): comandos de voz, riesgos, perfiles de trabajo.
+- [Voz clonada local](docs/voice-clone.md): diseño del worker, medidas, operación y modos degradados.
+- [Rendimiento](docs/performance.md): benchmarks, objetivos y cuellos de botella.
+- [Alibaba Qwen](docs/alibaba-qwen.md): referencia de la voz en la nube opcional.
 
-```json
-{
-  "tts": {
-    "provider": "alibaba_qwen",
-    "voice": "<voice_id impreso por el script>",
-    "api_key": "${DASHSCOPE_API_KEY}"
-  },
-  "stt": {
-    "provider": "alibaba_qwen",
-    "api_key": "${DASHSCOPE_API_KEY}"
-  },
-  "alibaba": {
-    "region": "singapore",
-    "workspace_id": "${ALIBABA_MODEL_STUDIO_WORKSPACE_ID}",
-    "tts_model": "qwen-audio-3.0-tts-flash"
-  }
-}
-```
+## Privacidad y seguridad
 
-`alibaba.tts_model` debe coincidir con el `--target-model` usado en `create`.
-Verifica el `voice_id` con:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\alibaba_voice_clone.py test <voice_id>
-```
-
-4. Comprueba el estado con `doctor`: la seccion `TTS` debe reportar
-`alibaba_qwen (cloud, cloned voice, sapi fallback)` en vez de
-`alibaba_qwen api_key, voice, or workspace_id not configured`.
-
-La clave, el workspace id y el `voice_id` nunca se escriben en `config.json`, en
-la plantilla ni en logs. Sin `config.local.json`, Jarvis sigue usando SAPI/whisper
-local. Ver `docs/engineering/alibaba-qwen-voice-research.md` para el detalle de
-modelos, endpoints y limitaciones conocidas de esta integracion.
-
-## Notas
-
-- Necesitas `winget` habilitado para instalacion automatica de Python/Ollama.
-- Si faltan archivos de voz (`*.wav`), el script avisa y no inicia Jarvis en modo `-Run`.
-- Primer arranque puede tardar varios minutos por descargas.
-- El instalador usa `--prefer-binary` y dependencias con ruedas Windows para evitar compilacion C++.
-- La voz activa usa SAPI de Windows (`tts.provider: sapi`), que evita la síntesis XTTS de ~87 s en CPU. XTTS queda disponible como alternativa si se cambia el proveedor y se mantienen muestras WAV.
-- Ollama conserva el modelo caliente durante 10 minutos y limita las respuestas a 128 tokens; las conversaciones no hacen una llamada adicional de clasificación de intención.
-- `COQUI_TOS_AGREED=1` solo se usa si se activa XTTS.
-- Wake word se ejecuta en `onnxruntime` (sin `tflite-runtime`).
-- `audio.input_device: null` con `auto_select_input: true` selecciona automáticamente cualquier micrófono disponible mediante WASAPI o WDM-KS; si PortAudio no puede abrir su driver, usa FFmpeg DirectShow.
-- El modelo STT se carga desde la caché local (`local_files_only: true`) para evitar consultas repetidas a Hugging Face.
+- La muestra de tu voz, su condicionamiento, la caché de audio, la memoria de conversaciones y
+  los logs se guardan en `%LOCALAPPDATA%\jarvis` o en carpetas ignoradas por git.
+- Sin `config.local.json`, Jarvis no llama a ningún servicio en la nube.
+- Las acciones de riesgo alto se confirman de viva voz justo antes de ejecutarse; las peticiones que
+  vienen de un agente nunca heredan permisos de confianza; Jarvis no tiene ruta de elevación (UAC).
+- Cada decisión de herramienta queda en `audit.jsonl` con los argumentos sensibles redactados.

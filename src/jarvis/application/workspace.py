@@ -32,7 +32,7 @@ import urllib.request
 import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
 
 logger = logging.getLogger("jarvis.workspace")
 
@@ -43,6 +43,7 @@ _WINDOW_MODES = ("gui", "hidden", "new_console")
 
 @dataclass(frozen=True)
 class TaskSpec:
+    """One step of a workspace profile: a command or URL plus readiness and stop probes."""
     name: str
     command: tuple[str, ...] = ()
     url: str = ""
@@ -59,6 +60,7 @@ class TaskSpec:
 
 @dataclass(frozen=True)
 class Profile:
+    """A named set of tasks started and stopped together."""
     name: str
     tasks: tuple[TaskSpec, ...]
     description: str = ""
@@ -227,6 +229,7 @@ def resolve_executable(name: str) -> str:
 
 
 def default_spawn(task: TaskSpec, log_dir: Path) -> Any:
+    """Start a task's command; hidden tasks log to ``<log_dir>/<task>.log``."""
     argv = [resolve_executable(task.command[0]), *task.command[1:]]
     kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL, "cwd": task.cwd or None}
     if task.window == "hidden":
@@ -297,6 +300,7 @@ def _close_windows(fragment: str) -> int:
 
 @dataclass
 class TaskResult:
+    """Outcome of one task in a start/stop run."""
     name: str
     status: str  # already_running | launched | opened | failed | timeout | skipped
     elapsed_ms: float = 0.0
@@ -309,6 +313,12 @@ class TaskResult:
 
 
 class WorkspaceManager:
+    """Start and stop workspace profiles concurrently, respecting dependencies.
+
+    Records the PID and creation time of what it launched so a later process only
+    stops its own launches; anything already running is left alone.
+    """
+
     def __init__(
         self,
         profiles: Mapping[str, Profile],

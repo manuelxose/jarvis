@@ -6,6 +6,7 @@ import enum
 
 
 class RuntimeState(str, enum.Enum):
+    """Coarse state of the runtime, reported by the supervisor and ``jarvis run``."""
     STARTING = "starting"
     READY = "ready"
     LISTENING = "listening"

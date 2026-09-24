@@ -1,7 +1,7 @@
-# Alibaba Cloud Model Studio / DashScope Qwen voice APIs — production research
+# Alibaba Cloud Model Studio / DashScope Qwen voice APIs — reference
 
-Research for the planned `src/jarvis/adapters/stt/alibaba_qwen.py` and
-`src/jarvis/adapters/tts/alibaba_qwen.py` adapters, targeting the Singapore
+Background research behind the optional cloud voice adapters
+(`src/jarvis/adapters/stt/alibaba_qwen.py`, `src/jarvis/adapters/tts/alibaba_qwen.py`), targeting the Singapore
 (international) region. All claims below are sourced from Alibaba Cloud's
 official Model Studio documentation (`alibabacloud.com/help/en/model-studio/*`),
 fetched 2026-09-21. Model Studio's English docs are not exposed as raw HTML in

@@ -48,7 +48,7 @@ _FILE_COMMAND = re.compile(
 # match before the captured group, so `action` can be injected deterministically.
 _ENTORNO = r"(?:mi|el|nuestro)\s+entorno(?:\s+de\s+(?:desarrollo|trabajo))?"
 _COMMAND_PATTERNS: tuple[tuple, ...] = (
-    # M007 workspace / system control (before the generic "abre X")
+    # Workspace / system control (before the generic "abre X")
     (re.compile(r"\b(?:arranca|inicia|prepara|levanta|enciende|pon en marcha|start)\s+" + _ENTORNO), "workspace", "", 0.95, {"action": "start"}),
     (re.compile(r"\b(?:apaga|cierra|para|deten|detén|shut down)\s+" + _ENTORNO), "workspace", "", 0.95, {"action": "stop"}),
     (re.compile(r"\babre\s+mis\s+proyectos\b"), "workspace", "", 0.93, {"action": "start", "profile": "projects"}),
@@ -68,7 +68,7 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
     (re.compile(r"\bsube\s+(?:la\s+|un\s+poco\s+la\s+)?musica\b|\bmusica\s+mas\s+alta\b"), "music", "", 0.94, {"action": "raise"}),
     (re.compile(r"^\s*(?:reiniciate|reinicia(?:te)?\s+(?:el\s+)?asistente|reinicia\s+jarvis|restart\s+yourself)\s*$"), "assistant_restart", "", 0.95),
     (re.compile(r"^\s*(?:apagate(?:\s+del\s+todo)?|apaga\s+(?:el\s+)?asistente|apaga\s+jarvis|desconectate|shut\s+down)\s*$"), "assistant_shutdown", "", 0.95),
-    # M009 local desktop commands (no LLM round trip)
+    # Local desktop commands (no LLM round trip)
     (re.compile(r"\b(?:actividad|uso|trafico|consumo)\s+de\s+(?:la\s+)?red\b|\bnetwork\s+(?:activity|usage|traffic)\b|\bcuanto\s+(?:estoy\s+)?(?:descargando|subiendo)\b"), "network_stats", "", 0.93),
     (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:la\s+)?(?:cpu|memoria|ram|gpu|grafica|procesador)\b|\b(?:cpu|ram|gpu|memory)\s+usage\b|\bcomo\s+va\s+la\s+grafica\b|\bcuanta\s+(?:ram|memoria)\b"), "system_stats", "", 0.92),
     (re.compile(r"\b(?:minimiza|minimize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "minimize"}),

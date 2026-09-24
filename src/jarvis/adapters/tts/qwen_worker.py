@@ -40,6 +40,7 @@ _OUT_LOCK = threading.Lock()
 
 
 def emit(event: dict) -> None:
+    """Write one event as a JSON line on stdout (thread-safe)."""
     line = json.dumps(event, separators=(",", ":"))
     with _OUT_LOCK:
         _OUT.write(line + "\n")
@@ -47,6 +48,7 @@ def emit(event: dict) -> None:
 
 
 def load_model(model_name: str, device: str):
+    """Load Faster Qwen3-TTS in bfloat16 on *device*."""
     import torch  # noqa: PLC0415
     from faster_qwen3_tts import FasterQwen3TTS  # noqa: PLC0415
 
@@ -106,6 +108,8 @@ def build_prompt(model, profile_dir: Path, meta: dict) -> dict:
 
 
 class Engine:
+    """The loaded model plus the owner's cached voice conditioning; streams audio chunks for a text."""
+
     def __init__(self, model, prompt: dict | None, meta: dict | None, language: str, chunk_size: int) -> None:
         self.model = model
         self.prompt = prompt
@@ -146,6 +150,7 @@ def _vram() -> dict:
 
 
 def serve(args) -> int:
+    """Worker main loop: load the model, report ``ready``, then synthesize requests from stdin until EOF."""
     import torch  # noqa: PLC0415
 
     started = time.monotonic()
@@ -367,6 +372,7 @@ def bench(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point: ``serve`` (default), ``prepare`` or ``bench``."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("command", nargs="?", default="serve", choices=("serve", "prepare", "bench"))
     parser.add_argument("--model", default=DEFAULT_MODEL)

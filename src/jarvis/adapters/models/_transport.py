@@ -14,7 +14,7 @@ import urllib.request
 from typing import AsyncIterator, Mapping, Optional
 
 from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
-from jarvis.core.turn import TurnCancelled, TurnContext
+from jarvis.core.turn import TurnContext
 
 # Persona + spoken-reply constraints: short answers cut generation and TTS time alike.
 VOICE_SYSTEM_PROMPT = (
@@ -28,6 +28,7 @@ MAX_RESPONSE_TOKENS = 150
 
 
 def voice_messages(prompt: str) -> list[dict]:
+    """Chat messages for a voice turn: the spoken-style system prompt plus the user text."""
     return [
         {"role": "system", "content": VOICE_SYSTEM_PROMPT},
         {"role": "user", "content": prompt},

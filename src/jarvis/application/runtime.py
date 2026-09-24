@@ -24,10 +24,8 @@ from jarvis.adapters.audio.input import MicCapture
 from jarvis.adapters.audio.output import AudioOutputQueue, make_sounddevice_render
 from jarvis.adapters.fakes import (
     EchoTTS,
-    RecordingAudioPlayer,
     ScriptedAudioInput,
     ScriptedHermes,
-    ScriptedMemory,
     ScriptedModel,
     ScriptedSTT,
 )
@@ -40,7 +38,7 @@ from jarvis.adapters.models.openai_compat import OpenAICompatProvider
 from jarvis.adapters.stt import resolve_stt, stt_available, stt_provider
 from jarvis.adapters.stt.fallback import STTChain
 from jarvis.adapters.stt.whisper import WhisperSTT
-from jarvis.adapters.tts import AckAudioCache, resolve_tts, tts_available, tts_provider
+from jarvis.adapters.tts import resolve_tts, tts_available, tts_provider
 from jarvis.adapters.tts.fallback import TTSChain
 from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
 from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
@@ -55,7 +53,7 @@ from jarvis.adapters.tools.desktop import (
     gpu_free_mb,
     windows_path_for,
 )
-from jarvis.adapters.tools.gateway import AuditLog, Risk, Tool, ToolGateway
+from jarvis.adapters.tools.gateway import AuditLog, ToolGateway
 from jarvis.adapters.tools.windows import build_windows_tools, register_apps
 from jarvis.config import RuntimeConfig
 from jarvis.core.contracts import (
@@ -81,6 +79,7 @@ logger = logging.getLogger("jarvis.runtime")
 
 @dataclass
 class RuntimeComponents:
+    """The wired adapters of one runtime, exposed for diagnostics and tests."""
     memory: Optional[MemoryService]
     model: ModelProvider
     hermes: Any
@@ -471,6 +470,7 @@ def _build_tools(config: RuntimeConfig, confirmer: Any) -> ToolGateway:
 
 
 def build_workspace(config: RuntimeConfig) -> Optional[WorkspaceManager]:
+    """Workspace manager for the configured profiles, or None when there are none."""
     profiles = parse_profiles(config.workspace.get("profiles", {}))
     if not profiles:
         return None

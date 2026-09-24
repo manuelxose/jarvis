@@ -1,4 +1,3 @@
-import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -7,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.tts.fallback import TTSChain
 from jarvis.core.circuit_breaker import CircuitBreaker
-from jarvis.core.errors import ProviderConfigError, ProviderError, ProviderUnavailable
+from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
 from jarvis.core.turn import TurnContext
 
 

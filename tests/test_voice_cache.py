@@ -1,6 +1,5 @@
 """Versioned voice cache and cache-aware fast-command acknowledgements."""
 
-import asyncio
 import io
 import sys
 import tempfile

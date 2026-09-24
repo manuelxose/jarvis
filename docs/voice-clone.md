@@ -1,4 +1,4 @@
-# Local cloned-voice TTS (M006) — architecture, measurements, operations
+# Local cloned-voice TTS — architecture, measurements, operations
 
 Jarvis speaks every route (fast command, cloud LLM, Hermes, Ollama) through one
 local voice-cloning engine: Faster Qwen3-TTS with `Qwen/Qwen3-TTS-12Hz-0.6B-Base`
@@ -58,7 +58,7 @@ Pins matter: `transformers` 5.17.0 (the newest at install time) breaks
 `torchaudio` 2.11 fails to load against torch 2.7.1. `requirements-tts.txt`
 holds the upstream-tested set.
 
-## Phase B spike results (20 warm trials each)
+## Latency spike results (20 warm trials each)
 
 Reference used: the upstream project's public demo clip (13.1 s, English
 speaker). **No owner recording was available.** These runs measure
@@ -168,31 +168,13 @@ IPC and playback add about 26 ms on top of the model's own TTFA (578 ms
 worker-side p50). The 700 ms target holds at the median and fails at p95
 under sustained load. The cause is GPU thermal throttling, not the pipeline.
 
-## Owner voice enrolled (2026-09-23)
-
-The owner confirmed `voice_samples/` is their own voice. The profile
-`%LOCALAPPDATA%\jarvis\voice\default` uses `sample2.wav` 0.8–13.3 s: 12.5 s,
-RMS −19.4 dBFS, peak −2.7 dBFS, no clipping, x-vector mode, with the transcript
-stored. An ICL variant for comparison is in `...\voice\owner-icl`.
-
-| Check | x-vector (default) | ICL |
-|---|---|---|
-| Whisper round-trip of the Spanish preview | exact text | exact text |
-| Speaker-embedding cosine vs the owner reference | **0.967** | 0.943 |
-| Control: unrelated demo speaker vs the owner reference | 0.925 | |
-
-This encoder separates speakers only weakly (the control scores 0.925), so
-the similarity numbers slightly favour x-vector but do not replace a human
-listening check. Previews: `...\voice\default\preview.wav` and
-`...\voice\owner-icl\preview.wav`.
-
 ## End-to-end: DeepSeek + owner's cloned voice (20 typed turns, 3 s apart)
 
 `scripts/e2e_turns.py` builds the production runtime from `config.win.json`
 and `config.local.json`, then runs router → DeepSeek `deepseek-flash`
 (thinking disabled) → chunker → clone TTS → speakers. The clock starts at
 turn start, i.e. after STT; add STT (about 350 ms per 8 s of audio,
-whisper turbo on CUDA, D022) for the time from the end of speech.
+whisper turbo on CUDA) for the time from the end of speech.
 
 | Stage (from turn start) | p50 | p95 | max |
 |---|---|---|---|
@@ -233,21 +215,3 @@ per turn. Options to close the gap:
   clone. Mistral 7B plus the clone does not fit in 8 GB, as measured.
 * Release a shorter first phrase, at the cost of prosody.
 * Fix the laptop cooling so TTFA stays at the cool-GPU numbers.
-
-## SAPI fallback voice bug fixed
-
-The old pyttsx3 adapter created the SAPI engine on the event-loop thread and
-drove it from an executor thread. Even on a single thread, pyttsx3's sapi5
-driver hangs on the second `runAndWait()` of an engine. Any SAPI turn froze
-after its first sentence. This reproduced on the laptop, and it stalled the
-baseline run. SAPI is now driven directly through `comtypes`: a synchronous
-`SpVoice.Speak` into an `SpFileStream` on one dedicated thread. A 10 s
-watchdog abandons a stuck thread. Verified on the laptop: 6 sentences across
-3 turns, 26–407 ms per turn, 22.05 kHz.
-
-### Still PENDING (needs the owner)
-
-* Listening check of `preview.wav` (x-vector vs ICL): identity and
-  naturalness.
-* Spoken microphone-to-first-audio run over 20 turns (needs a human speaking).
-* Barge-in with a headset (`audio.barge_in: true`).

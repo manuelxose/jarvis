@@ -89,6 +89,8 @@ class _CommandTool(Tool):
 
 
 class TimeTool(_CommandTool):
+    """Speak the current time."""
+
     def __init__(self) -> None:
         super().__init__("time", "Report the current time.", Risk.READ_ONLY)
 
@@ -97,6 +99,8 @@ class TimeTool(_CommandTool):
 
 
 class DateTool(_CommandTool):
+    """Speak today's date."""
+
     def __init__(self) -> None:
         super().__init__("date", "Report the current date.", Risk.READ_ONLY)
 
@@ -106,6 +110,8 @@ class DateTool(_CommandTool):
 
 
 class SystemInfoTool(_CommandTool):
+    """Report the OS, machine and uptime."""
+
     def __init__(self) -> None:
         super().__init__("system_info", "Report basic system state.", Risk.READ_ONLY)
 
@@ -119,6 +125,8 @@ class SystemInfoTool(_CommandTool):
 
 
 class OpenApplicationTool(_CommandTool):
+    """Launch an allowlisted application by spoken name."""
+
     def __init__(self) -> None:
         super().__init__(
             "open_application",
@@ -155,6 +163,8 @@ class OpenApplicationTool(_CommandTool):
 
 
 class OpenUrlTool(_CommandTool):
+    """Open an http(s) URL in the default browser."""
+
     def __init__(self) -> None:
         super().__init__(
             "open_url",
@@ -309,6 +319,8 @@ class _WindowsKeyTool(_CommandTool):
 
 
 class VolumeSetTool(_CommandTool):
+    """Set the master volume to a percentage."""
+
     def __init__(self) -> None:
         super().__init__(
             "volume_set",
@@ -320,7 +332,7 @@ class VolumeSetTool(_CommandTool):
     async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
         level = str(arguments.get("level", ""))
         if not _IS_WINDOWS:
-            return f"El control de volumen no esta disponible fuera de Windows."
+            return "El control de volumen no esta disponible fuera de Windows."
         try:
             value = max(0, min(100, int(float(level))))
         except ValueError:
@@ -334,6 +346,8 @@ class VolumeSetTool(_CommandTool):
 
 
 class StopTool(_CommandTool):
+    """Cancel the current turn ("para")."""
+
     def __init__(self) -> None:
         super().__init__("stop", "Stop or cancel the current action.", Risk.READ_ONLY)
 
@@ -343,6 +357,8 @@ class StopTool(_CommandTool):
 
 
 class RepeatTool(_CommandTool):
+    """Acknowledge a repeat request."""
+
     def __init__(self) -> None:
         super().__init__("repeat", "Repeat the last response.", Risk.READ_ONLY)
 

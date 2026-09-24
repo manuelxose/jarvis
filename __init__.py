@@ -1,2 +1,0 @@
-"""Jarvis local assistant package."""
-

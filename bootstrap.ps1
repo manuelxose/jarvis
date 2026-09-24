@@ -2,8 +2,6 @@ param(
     [switch]$Run,
     [switch]$SkipModelPull,
     [switch]$ForceDependencies,
-    [switch]$NoMonitor,
-    [switch]$WithMonitor,
     [string]$PythonPath
 )
 
@@ -58,7 +56,7 @@ print(f"{sys.version_info.major}.{sys.version_info.minor}")
         }
 
         $v = ($probeOutput -join "") -replace '^\s+|\s+$', ''
-        return ($v -eq "3.10" -or $v -eq "3.11")
+        return ($v -eq "3.11")
     } catch {
         return $false
     } finally {
@@ -87,7 +85,7 @@ function Get-Python311Path {
         if ($resolved -and (Test-CompatiblePython -CandidatePath $resolved.Path)) {
             return $resolved.Path
         }
-        throw "El valor de -PythonPath no es valido o no es Python 3.10/3.11: $PythonPath"
+        throw "El valor de -PythonPath no es valido o no es Python 3.11: $PythonPath"
     }
 
     if ($env:PYTHON311_BIN -and (Test-CompatiblePython -CandidatePath $env:PYTHON311_BIN)) {
@@ -187,7 +185,7 @@ function Ensure-Python311 {
     $pythonPath = Get-Python311Path
     if (-not $pythonPath) {
         throw (
-            "No se pudo detectar Python 3.10/3.11 tras la instalacion. " +
+            "No se pudo detectar Python 3.11 tras la instalacion. " +
             "Instalalo manualmente y relanza con -PythonPath `"<ruta>\python.exe`"."
         )
     }
@@ -391,165 +389,6 @@ function Install-PythonDependencies {
     Set-Content -Path $depsStampFile -Value $requirementsHash -Encoding ascii
 }
 
-# ---------------------------------------------------------------------------
-# ffmpeg (necesario para convertir m4a/mp3/ogg -> WAV)
-# ---------------------------------------------------------------------------
-
-function Get-FfmpegPath {
-    $inPath = Get-Command ffmpeg -ErrorAction SilentlyContinue
-    if ($inPath) { return $inPath.Source }
-
-    $localFfmpeg = Join-Path $ProjectRoot ".tools\ffmpeg\bin\ffmpeg.exe"
-    if (Test-Path $localFfmpeg) { return $localFfmpeg }
-
-    return $null
-}
-
-function Install-FfmpegWinget {
-    Write-Step "Instalando ffmpeg con winget..."
-    try {
-        # Invocar winget como proceso nativo; capturar resultado sin lanzar excepcion
-        $proc = Start-Process `
-            -FilePath "winget" `
-            -ArgumentList @(
-                "install", "--id", "Gyan.FFmpeg",
-                "--exact", "--silent",
-                "--accept-package-agreements",
-                "--accept-source-agreements"
-            ) `
-            -PassThru -Wait -NoNewWindow `
-            -ErrorAction Stop
-
-        if ($proc.ExitCode -ne 0) {
-            Write-Step "winget termino con codigo $($proc.ExitCode) (puede ser 'ya instalado'). Verificando..."
-        }
-
-        # Refrescar PATH de la sesion actual para ver el nuevo binario
-        $machinePath = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name Path -ErrorAction SilentlyContinue).Path
-        $userPath    = (Get-ItemProperty -Path "HKCU:\Environment" -Name Path -ErrorAction SilentlyContinue).Path
-        if ($machinePath -or $userPath) {
-            $env:Path = "$machinePath;$userPath"
-        }
-        return $true
-    } catch {
-        Write-Step "winget no disponible o fallo: $($_.Exception.Message)"
-        return $false
-    }
-}
-
-function Install-FfmpegDirect {
-    # Descarga el zip de la build esencial de BtbN (GitHub Releases)
-    $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-    $tmpZip    = Join-Path $env:TEMP ("ffmpeg_dl_" + (New-Guid).Guid + ".zip")
-    $toolsDir  = Join-Path $ProjectRoot ".tools"
-    $ffmpegDir = Join-Path $toolsDir "ffmpeg"
-
-    try {
-        Write-Step "Descargando ffmpeg (esto puede tardar un momento)..."
-        Invoke-WebRequest -Uri $ffmpegUrl -OutFile $tmpZip -UseBasicParsing -ErrorAction Stop
-
-        Write-Step "Descomprimiendo ffmpeg en .tools/ffmpeg ..."
-        if (Test-Path $ffmpegDir) { Remove-Item $ffmpegDir -Recurse -Force -ErrorAction SilentlyContinue }
-        Expand-Archive -Path $tmpZip -DestinationPath $toolsDir -Force -ErrorAction Stop
-
-        # El zip contiene una subcarpeta con nombre largo; la renombramos a 'ffmpeg'
-        $extracted = Get-ChildItem -Path $toolsDir -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "ffmpeg-*" } |
-            Select-Object -First 1
-        if ($extracted -and $extracted.FullName -ne $ffmpegDir) {
-            Rename-Item -Path $extracted.FullName -NewName "ffmpeg" -Force -ErrorAction Stop
-        }
-
-        # Agregar al PATH de la sesion actual
-        $binPath = Join-Path $ffmpegDir "bin"
-        $env:Path = "$binPath;$env:Path"
-        Write-Step "ffmpeg instalado localmente en .tools/ffmpeg/bin"
-        return $true
-    } catch {
-        Write-Step "Descarga directa de ffmpeg fallo: $($_.Exception.Message)"
-        return $false
-    } finally {
-        Remove-Item -Path $tmpZip -Force -ErrorAction SilentlyContinue
-    }
-}
-
-function Ensure-Ffmpeg {
-    $ffmpegPath = Get-FfmpegPath
-    if ($ffmpegPath) {
-        Write-Step "ffmpeg detectado: $ffmpegPath"
-        return
-    }
-
-    Write-Step "ffmpeg no encontrado. Instalando automaticamente..."
-
-    # --- Intento 1: winget (solo si el ejecutable existe y es invocable) ----
-    $wingetExe = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if ($wingetExe) {
-        Install-FfmpegWinget | Out-Null
-    }
-
-    # --- Comprobacion tras winget ------------------------------------------
-    $ffmpegPath = Get-FfmpegPath
-    if ($ffmpegPath) {
-        Write-Step "ffmpeg listo (via winget): $ffmpegPath"
-        return
-    }
-
-    # --- Intento 2: descarga directa (siempre como fallback) ---------------
-    Install-FfmpegDirect | Out-Null
-    $ffmpegPath = Get-FfmpegPath
-
-    if ($ffmpegPath) {
-        Write-Step "ffmpeg listo (descarga directa): $ffmpegPath"
-    } else {
-        Write-Warning ("ffmpeg no pudo instalarse automaticamente. " +
-            "La conversion de formatos de audio no estara disponible. " +
-            "Instala ffmpeg manualmente desde https://ffmpeg.org/download.html")
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Normalizacion de muestras de voz
-# ---------------------------------------------------------------------------
-
-function Invoke-NormalizeVoiceSamples {
-    param([string]$VenvPython)
-
-    $scriptPath  = Join-Path $ProjectRoot "legacy\normalize_voice_samples.py"
-    $samplesDir  = Join-Path $ProjectRoot "voice_samples"
-
-    if (-not (Test-Path $scriptPath)) {
-        Write-Warning "normalize_voice_samples.py no encontrado. Saltando normalizacion."
-        return
-    }
-    if (-not (Test-Path $samplesDir)) {
-        Write-Warning "voice_samples/ no existe. Saltando normalizacion."
-        return
-    }
-
-    # Comprobar si hay algo que normalizar (formatos no-WAV o nombres no canonicos)
-    $audioFormats = @('*.mp3','*.m4a','*.aac','*.ogg','*.flac','*.opus','*.wma','*.aiff','*.aif')
-    $nonWav = @()
-    foreach ($pattern in $audioFormats) {
-        $nonWav += @(Get-ChildItem -Path $samplesDir -Filter $pattern -File -ErrorAction SilentlyContinue)
-    }
-    $wavFiles  = @(Get-ChildItem -Path $samplesDir -Filter '*.wav' -File -ErrorAction SilentlyContinue)
-    $badNames  = @($wavFiles | Where-Object { $_.Name -notmatch '^sample\d+\.wav$' })
-
-    if ($nonWav.Count -eq 0 -and $badNames.Count -eq 0) {
-        Write-Step "Muestras de voz ya normalizadas. Sin cambios necesarios."
-        return
-    }
-
-    Write-Step "Normalizando muestras de voz (conversion a WAV + renombrado)..."
-    & $VenvPython $scriptPath --dir $samplesDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "La normalizacion de muestras termino con errores (codigo $LASTEXITCODE). Revisa los mensajes anteriores."
-    } else {
-        Write-Step "Normalizacion de muestras completada."
-    }
-}
-
 function Ensure-OllamaModel {
     param(
         [string]$OllamaPath,
@@ -577,28 +416,9 @@ function Ensure-OllamaModel {
     Assert-LastExitCode "Descarga de modelo $ModelName"
 }
 
-function Validate-VoiceSamples {
-    $voiceDir = Join-Path $ProjectRoot "voice_samples"
-    if (-not (Test-Path $voiceDir)) {
-        throw "No existe la carpeta voice_samples."
-    }
-
-    $wavCount = @(Get-ChildItem -Path $voiceDir -Filter 'sample*.wav' -File -ErrorAction SilentlyContinue).Count
-    if ($wavCount -lt 1) {
-        $message = "No hay archivos WAV en voice_samples. Agrega archivos de audio (wav, mp3, m4a...) y vuelve a ejecutar."
-        if ($Run) {
-            throw $message
-        }
-        Write-Warning $message
-        return
-    }
-
-    Write-Step "Muestras de voz listas: $wavCount archivo(s) WAV canonical(es)."
-}
-
 function Stop-OrphanJarvisPython {
     $rootNormalized = $ProjectRoot.ToLowerInvariant().Replace("/", "\")
-    $targets = @("main.py", "monitor_status.py", "-m jarvis")
+    $targets = @("-m jarvis")
 
     try {
         $pyProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -636,65 +456,6 @@ function Stop-OrphanJarvisPython {
     }
 }
 
-function Start-JarvisMonitor {
-    param(
-        [string]$VenvPython,
-        [string]$LogPath
-    )
-
-    if ($NoMonitor -or -not $WithMonitor) {
-        if ($NoMonitor) {
-            Write-Step "Monitor desactivado por parametro (-NoMonitor)."
-        } else {
-            Write-Step "Monitor desactivado por defecto. Usa -WithMonitor para abrir ventana adicional."
-        }
-        return $null
-    }
-
-    $monitorScript = Join-Path $ProjectRoot "legacy\monitor_status.py"
-    if (-not (Test-Path $monitorScript)) {
-        Write-Warning "monitor_status.py no encontrado. Continuando sin monitor."
-        return $null
-    }
-
-    try {
-        $args = @(
-            $monitorScript,
-            "--project-root", $ProjectRoot,
-            "--log-path", $LogPath,
-            "--refresh-seconds", "2"
-        )
-
-        $monitorProcess = Start-Process `
-            -FilePath $VenvPython `
-            -ArgumentList $args `
-            -PassThru `
-            -WindowStyle Normal
-
-        Write-Step "Monitor iniciado en ventana separada (PID $($monitorProcess.Id))."
-        return $monitorProcess
-    } catch {
-        Write-Warning "No se pudo iniciar monitor: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-function Stop-JarvisMonitor {
-    param($MonitorProcess)
-
-    if ($null -eq $MonitorProcess) {
-        return
-    }
-
-    try {
-        if (-not $MonitorProcess.HasExited) {
-            Stop-Process -Id $MonitorProcess.Id -Force -ErrorAction SilentlyContinue
-        }
-    } catch {
-        # Monitor best-effort cleanup.
-    }
-}
-
 try {
     Write-Step "Inicio de bootstrap automatico para Jarvis..."
     $env:COQUI_TOS_AGREED = "1"
@@ -708,41 +469,20 @@ try {
     Ensure-OllamaRunning -OllamaPath $ollamaPath
     Ensure-OllamaModel -OllamaPath $ollamaPath -ModelName "mistral:7b-instruct"
 
-    Ensure-Ffmpeg
-    Invoke-NormalizeVoiceSamples -VenvPython $venvPython
-    Validate-VoiceSamples
-
     if ($Run) {
         Stop-OrphanJarvisPython
 
-        $logDir = Join-Path $ProjectRoot "logs"
-        if (-not (Test-Path $logDir)) {
-            New-Item -Path $logDir -ItemType Directory -Force | Out-Null
-        }
-
-        $jarvisLog = Join-Path $logDir "jarvis.log"
-        if (Test-Path $jarvisLog) {
-            Remove-Item -Path $jarvisLog -Force -ErrorAction SilentlyContinue
-        }
-        $env:JARVIS_LOG_FILE = $jarvisLog
-
-        $monitorProcess = Start-JarvisMonitor -VenvPython $venvPython -LogPath $jarvisLog
         Write-Step "Arrancando Jarvis..."
-        try {
-            # Jarvis v2 lives in src/jarvis; the old root-level main.py no longer exists.
-            # The bootstrap installs runtime dependencies, not the local package itself.
-            # Add src explicitly so the launcher works from a fresh virtual environment.
-            $srcPath = Join-Path $ProjectRoot "src"
-            if ($env:PYTHONPATH) {
-                $env:PYTHONPATH = "$srcPath;$($env:PYTHONPATH)"
-            } else {
-                $env:PYTHONPATH = $srcPath
-            }
-            & $venvPython -m jarvis --config (Join-Path $ProjectRoot "config.win.json") run
-            Assert-LastExitCode "Ejecucion de jarvis"
-        } finally {
-            Stop-JarvisMonitor -MonitorProcess $monitorProcess
+        # The bootstrap installs runtime dependencies, not the package itself,
+        # so src is added explicitly for a fresh virtual environment.
+        $srcPath = Join-Path $ProjectRoot "src"
+        if ($env:PYTHONPATH) {
+            $env:PYTHONPATH = "$srcPath;$($env:PYTHONPATH)"
+        } else {
+            $env:PYTHONPATH = $srcPath
         }
+        & $venvPython -m jarvis --config (Join-Path $ProjectRoot "config.win.json") run
+        Assert-LastExitCode "Ejecucion de jarvis"
     } else {
         Write-Step "Preparacion completa."
         Write-Host "Para arrancar Jarvis ahora: .\run_jarvis.ps1" -ForegroundColor Green

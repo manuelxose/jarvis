@@ -42,6 +42,7 @@ def resolve_tts(config: RuntimeConfig) -> TextToSpeech:
 
 
 def build_qwen_clone(config: RuntimeConfig) -> QwenCloneTTS:
+    """Build the cloned-voice TTS adapter from the configuration."""
     from jarvis.voice_profile import default_profile_dir  # noqa: PLC0415
 
     command = worker_command(

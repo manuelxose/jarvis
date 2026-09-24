@@ -60,6 +60,13 @@ def voice_identity(config: Any) -> dict[str, Any]:
 
 
 class VoiceCache:
+    """Versioned on-disk cache of synthesized phrases (welcomes, acknowledgements).
+
+    Entries are keyed by the voice identity (profile, version, model, settings)
+    plus the text, so re-enrolling the voice invalidates them. The cache is
+    LRU-bounded by entry count and bytes, and safe to share between processes.
+    """
+
     def __init__(self, directory: Path, identity: Mapping[str, Any], *, max_entries: int = 300, max_bytes: int = 64 * 2**20) -> None:
         self.dir = Path(directory)
         self.identity = dict(identity)

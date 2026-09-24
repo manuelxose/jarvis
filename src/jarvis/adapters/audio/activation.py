@@ -51,6 +51,7 @@ def _fuzzy_matches_wake_word(word: str, wake_word: str) -> bool:
 
 
 class ActivationMode(str, enum.Enum):
+    """How a voice turn is opened: wake word, push-to-talk, manual trigger or always listening."""
     WAKE_WORD = "wake_word"
     PUSH_TO_TALK = "push_to_talk"
     MANUAL = "manual"

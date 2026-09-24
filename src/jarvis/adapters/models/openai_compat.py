@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import AsyncIterator
 
-from jarvis.core.contracts import ModelProvider, TurnContext
-from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
+from jarvis.core.contracts import TurnContext
+from jarvis.core.errors import ProviderConfigError
 from jarvis.observability.cost import ProviderRate, SpendLedger, UsageRecord, estimate_cost
 
 from ._transport import MAX_RESPONSE_TOKENS, stream_lines, voice_messages

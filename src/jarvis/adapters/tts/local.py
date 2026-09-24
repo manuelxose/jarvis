@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from typing import AsyncIterator, Optional
 
-from jarvis.core.contracts import TextToSpeech, TurnContext
+from jarvis.core.contracts import TurnContext
 from jarvis.core.errors import ProviderUnavailable
 
 
 def local_tts_available() -> bool:
+    """Return True when Coqui ``TTS`` (XTTS) is importable."""
     try:
         import TTS  # noqa: F401
 

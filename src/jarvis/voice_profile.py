@@ -27,12 +27,14 @@ MIN_RATE = 16000
 
 
 def default_profile_dir(name: str = "default") -> Path:
+    """Directory of a named voice profile under ``%LOCALAPPDATA%\\jarvis\\voice``."""
     base = os.environ.get("LOCALAPPDATA") or os.path.join(Path.home(), ".local", "share")
     return Path(base) / "jarvis" / "voice" / name
 
 
 @dataclass
 class ReferenceReport:
+    """Quality measurements of a reference recording and the problems found."""
     duration_s: float
     sample_rate: int
     peak_dbfs: float
@@ -62,6 +64,7 @@ def _dbfs(value: float) -> float:
 
 
 def validate_reference(path: Path, start_s: float = 0.0, duration_s: float | None = None) -> ReferenceReport:
+    """Measure a reference WAV (duration, level, clipping, sample rate) and list problems."""
     samples, rate = _read_mono(Path(path), start_s, duration_s)
     n = len(samples) or 1
     peak = max((abs(s) for s in samples), default=0)
@@ -144,6 +147,7 @@ def _swapped(samples: array.array) -> bytes:
 
 
 def status(profile_dir: Path) -> dict:
+    """Describe the enrolled profile, or report that none exists."""
     profile_dir = Path(profile_dir)
     meta_path = profile_dir / "profile.json"
     if not (profile_dir / "reference.wav").is_file() or not meta_path.is_file():
@@ -159,6 +163,7 @@ def status(profile_dir: Path) -> dict:
 
 
 def delete(profile_dir: Path) -> bool:
+    """Remove a profile with its recording and cached conditioning; return True if it existed."""
     profile_dir = Path(profile_dir)
     if not profile_dir.exists():
         return False
@@ -199,6 +204,7 @@ def prepare(profile_dir: Path, worker_python: str, text: str = "") -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point: ``record``, ``enroll``, ``prepare``, ``status``, ``delete``."""
     import argparse  # noqa: PLC0415
 
     from jarvis.adapters.tts.qwen_clone import default_worker_python  # noqa: PLC0415

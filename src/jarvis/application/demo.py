@@ -18,7 +18,6 @@ from jarvis.adapters.fakes import ScriptedSTT
 from jarvis.application.runtime import build_runtime
 from jarvis.config import RuntimeConfig
 from jarvis.core.contracts import Transcript
-from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnContext
 
 # Known file content the hardware acceptance writes and expects to read back.
