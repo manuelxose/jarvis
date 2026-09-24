@@ -11,12 +11,67 @@ whichever provider is retried next, then continues reading the live stream.
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator, Callable, Optional
+from typing import AsyncIterator, Callable, Optional, Sequence
+
+from jarvis.config import TTSRoutingEvidence
 
 from jarvis.core.circuit_breaker import CircuitBreaker
 from jarvis.core.contracts import TextToSpeech, TurnContext
 from jarvis.core.errors import ProviderConfigError, ProviderError, ProviderUnavailable
 from jarvis.core.turn import TurnCancelled
+
+
+def order_tts_candidates(
+    providers: Sequence[TextToSpeech], profile: str,
+    evidence: Sequence[TTSRoutingEvidence] = (),
+) -> tuple[list[TextToSpeech], str]:
+    """Order only composed adapters; return a safe, non-measurement diagnostic reason.
+
+    Called once at composition, never during a turn. Equal scores retain input order.
+    """
+    candidates = list(providers)
+    if profile not in {"auto", "fast", "cheap", "quality"}:
+        raise ProviderConfigError("invalid TTS routing profile", provider="tts")
+    names = [provider.name for provider in candidates]
+    if len(names) != len(set(names)):
+        raise ProviderConfigError("duplicate resolved TTS provider", provider="tts")
+    rows = {row.provider: row for row in evidence}
+    if len(rows) != len(evidence):
+        raise ProviderConfigError("duplicate TTS routing evidence provider", provider="tts")
+    if set(rows) - set(names):
+        if profile != "auto":
+            raise ProviderConfigError("TTS routing evidence names an unavailable provider", provider="tts")
+        return candidates, "evidence names unavailable provider; configured order retained"
+    if len(candidates) < 2:
+        return candidates, "single candidate; configured order retained"
+    selected = [rows.get(name) for name in names]
+    if any(row is None or not row.complete for row in selected):
+        if profile != "auto":
+            raise ProviderConfigError("TTS routing requires complete evidence for every resolved provider", provider="tts")
+        return candidates, "missing or incomplete comparable evidence; configured order retained"
+    if len({row.run_id for row in selected}) != 1:
+        if profile != "auto":
+            raise ProviderConfigError("TTS routing evidence must share one operator run_id", provider="tts")
+        return candidates, "mismatched operator runs; configured order retained"
+
+    if profile in {"fast", "cheap", "quality"}:
+        metric = {"fast": "first_audio_ms", "cheap": "usd_per_character", "quality": "quality"}[profile]
+        reverse = profile == "quality"
+        return sorted(candidates, key=lambda p: (-1 if reverse else 1) * getattr(rows[p.name], metric)), "measured evidence"
+
+    def benefit(metric: str, value: float) -> float:
+        values = [getattr(row, metric) for row in selected]
+        low, high = min(values), max(values)
+        return 1.0 if high == low else (high - value) / (high - low)
+
+    def score(provider: TextToSpeech) -> float:
+        row = rows[provider.name]
+        return (0.35 * benefit("first_audio_ms", row.first_audio_ms)
+                + 0.25 * benefit("usd_per_character", row.usd_per_character)
+                + 0.20 * row.quality + 0.10 * row.reliability
+                + 0.10 * row.integration)
+
+    return sorted(candidates, key=lambda p: -score(p)), "measured evidence"
 
 
 class _BufferedText:

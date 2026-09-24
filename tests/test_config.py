@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.config import load_config
+from jarvis.core.errors import ProviderConfigError
 
 
 # Committed, git-tracked configuration documents. These are read directly (never
@@ -330,6 +331,48 @@ class ConfigTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "duplicate"):
             load_config(self.path, {})
+
+    def test_tts_routing_defaults_and_redacts_evidence(self):
+        self.write_config({"runtime": {}})
+        self.assertEqual("auto", load_config(self.path, {}).tts.profile)
+        self.write_config({"runtime": {}, "tts": {"profile": " FAST ", "routing_evidence": [{
+            "provider": "sapi", "run_id": "private-run", "source": "private-provenance",
+            "first_audio_ms": 10, "usd_per_character": 0,
+            "quality": 1, "reliability": 0, "integration": 0.5,
+        }]}})
+        config = load_config(self.path, {})
+        self.assertEqual("fast", config.tts.profile)
+        self.assertEqual(0.0, config.tts.routing_evidence[0].usd_per_character)
+        for output in (repr(config), repr(config.tts.routing_evidence[0]), json.dumps(config.public_dict())):
+            self.assertNotIn("private-run", output)
+            self.assertNotIn("private-provenance", output)
+            self.assertNotIn("first_audio_ms", output)
+
+    def test_tts_evidence_rejects_malformed_rows(self):
+        base = {"provider": "sapi", "source": "operator", "run_id": "run",
+                "first_audio_ms": 20, "usd_per_character": 0.01,
+                "quality": 0.5, "reliability": 1, "integration": 0}
+        invalid = [
+            ("profile", {"profile": "turbo"}),
+            ("list", {"routing_evidence": {"sapi": base}}),
+            ("entries", {"routing_evidence": [42]}),
+            ("provider", {"routing_evidence": [{**base, "provider": "unknown"}]}),
+            ("duplicate", {"routing_evidence": [base, base]}),
+            ("source", {"routing_evidence": [{**base, "source": ""}]}),
+            ("run_id", {"routing_evidence": [{**base, "run_id": None}]}),
+            ("finite", {"routing_evidence": [{**base, "quality": float("nan")}]}),
+            ("finite", {"routing_evidence": [{**base, "first_audio_ms": float("inf")}]}),
+            ("finite", {"routing_evidence": [{**base, "quality": True}]}),
+            ("range", {"routing_evidence": [{**base, "usd_per_character": -1}]}),
+            ("range", {"routing_evidence": [{**base, "reliability": 1.1}]}),
+            ("unknown", {"routing_evidence": [{**base, "api_key": "secret"}]}),
+        ]
+        for message, tts in invalid:
+            with self.subTest(message=message, tts=tts):
+                self.write_config({"runtime": {}, "tts": tts})
+                with self.assertRaisesRegex(ProviderConfigError, message) as caught:
+                    load_config(self.path, {})
+                self.assertNotIn("secret", str(caught.exception))
 
     # -- Committed template contract (secret-free local override) ----------
 
