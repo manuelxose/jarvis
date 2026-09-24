@@ -17,10 +17,14 @@ from jarvis.core.contracts import (
     TurnContext,
     WakeDetector,
 )
+from jarvis.observability.cost import UsageRecord
 
 
 class ScriptedModel:
     """Yield scripted tokens from a prompt-keyed (or default) response map."""
+
+    name = "scripted"
+    model = "scripted-model"
 
     def __init__(
         self,
@@ -31,6 +35,7 @@ class ScriptedModel:
         self._responses = responses
         self._default = default
         self.calls: list[str] = []
+        self.last_usage_record: UsageRecord | None = None
 
     def _response(self, prompt: str) -> str:
         if callable(self._responses):
@@ -42,12 +47,21 @@ class ScriptedModel:
         return self._default
 
     async def generate(self, prompt: str, context: TurnContext) -> AsyncIterator[str]:
+        self.last_usage_record = None
         self.calls.append(prompt)
         response = self._response(prompt)
-        for word in response.split(" "):
+        words = response.split(" ")
+        for word in words:
             context.cancellation.raise_if_cancelled()
             yield word + " "
             await asyncio.sleep(0)
+        self.last_usage_record = UsageRecord(
+            provider=self.name,
+            kind="llm",
+            model=self.model,
+            input_tokens=len(prompt.split()),
+            output_tokens=len(words),
+        )
 
 
 class FailingModel:
@@ -70,14 +84,23 @@ class FailingModel:
 class EchoTTS:
     """Synthesize each text chunk into deterministic bytes."""
 
+    name = "echo_tts"
+
     def __init__(self) -> None:
         self.chunks: list[str] = []
+        self.last_usage_record: UsageRecord | None = None
 
     async def synthesize(self, text: AsyncIterator[str], context: TurnContext) -> AsyncIterator[bytes]:
+        self.last_usage_record = None
         async for chunk in text:
             context.cancellation.raise_if_cancelled()
             self.chunks.append(chunk)
             yield chunk.encode("utf-8")
+        self.last_usage_record = UsageRecord(
+            provider=self.name,
+            kind="tts",
+            characters=sum(len(chunk) for chunk in self.chunks),
+        )
 
 
 class ScriptedSTT:

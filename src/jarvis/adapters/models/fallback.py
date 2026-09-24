@@ -30,12 +30,18 @@ class ProviderChain:
         self._retries = max(0, retries)
         self._backoff_seconds = max(0.0, backoff_seconds)
         self._on_select = on_select
+        self.last_provider: Optional[ModelProvider] = None
 
     @property
     def providers(self) -> tuple[ModelProvider, ...]:
         return tuple(self._providers)
 
+    @property
+    def last_usage_record(self):
+        return getattr(self.last_provider, "last_usage_record", None)
+
     async def generate(self, prompt: str, context: TurnContext) -> AsyncIterator[str]:
+        self.last_provider = None
         if not self._providers:
             raise ProviderUnavailable("no model providers configured")
         last_error: Optional[Exception] = None
@@ -51,6 +57,7 @@ class ProviderChain:
                     async for token in provider.generate(prompt, context):
                         got_first = True
                         yield token
+                    self.last_provider = provider
                     return
                 except ProviderConfigError as error:
                     last_error = error

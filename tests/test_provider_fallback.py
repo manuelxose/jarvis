@@ -116,6 +116,32 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
             async for _ in chain.generate("hi", TurnContext.fresh("c")):
                 pass
 
+    async def test_last_usage_record_comes_from_the_fallback_when_primary_fails(self):
+        chain = ProviderChain(
+            [FailingModel(failures=1), ScriptedModel(default="respuesta de reserva")],
+            retries=0,
+            backoff_seconds=0,
+        )
+        [t async for t in chain.generate("hi", TurnContext.fresh("c"))]
+        self.assertIsNotNone(chain.last_usage_record)
+        self.assertEqual("scripted", chain.last_usage_record.provider)
+
+    async def test_last_usage_record_is_none_before_any_call(self):
+        chain = ProviderChain([ScriptedModel()], retries=0, backoff_seconds=0)
+        self.assertIsNone(chain.last_usage_record)
+
+    async def test_last_usage_record_resets_at_the_start_of_each_call(self):
+        model = ScriptedModel()
+        chain = ProviderChain([model], retries=0, backoff_seconds=0)
+        [t async for t in chain.generate("hi", TurnContext.fresh("c"))]
+        self.assertIsNotNone(chain.last_usage_record)
+
+        failing_chain = ProviderChain([FailingModel(failures=10)], retries=0, backoff_seconds=0)
+        with self.assertRaises(ProviderUnavailable):
+            async for _ in failing_chain.generate("hi", TurnContext.fresh("c")):
+                pass
+        self.assertIsNone(failing_chain.last_usage_record)
+
 
 class _CloudFallbackHandler(BaseHTTPRequestHandler):
     """Deterministic in-process server: cloud SSE + local Ollama NDJSON."""

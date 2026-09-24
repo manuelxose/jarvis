@@ -55,15 +55,21 @@ class TTSChain:
         self._backoff_seconds = max(0.0, backoff_seconds)
         self._breaker = breaker or CircuitBreaker()
         self._on_select = on_select
+        self.last_provider: Optional[TextToSpeech] = None
 
     @property
     def providers(self) -> tuple[TextToSpeech, ...]:
         return tuple(self._providers)
 
+    @property
+    def last_usage_record(self):
+        return getattr(self.last_provider, "last_usage_record", None)
+
     def _name(self, provider: TextToSpeech) -> str:
         return getattr(provider, "name", type(provider).__name__)
 
     async def synthesize(self, text: AsyncIterator[str], context: TurnContext) -> AsyncIterator[bytes]:
+        self.last_provider = None
         if not self._providers:
             raise ProviderUnavailable("no TTS providers configured")
         buffered = _BufferedText(text)
@@ -83,6 +89,7 @@ class TTSChain:
                         got_first = True
                         yield audio
                     self._breaker.record_success(name)
+                    self.last_provider = provider
                     return
                 except ProviderConfigError as error:
                     last_error = error
