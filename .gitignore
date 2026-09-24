@@ -101,3 +101,6 @@ tmp/
 *.pt
 bench-tts/
 .venv-tts/
+
+# Windows download metadata
+*:Zone.Identifier
