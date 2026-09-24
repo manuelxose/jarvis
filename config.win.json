@@ -46,12 +46,14 @@
     "owner_name": "Manuel",
     "music_path": "",
     "music_url": "https://www.youtube.com/watch?v=BN1WwnEDWAM",
-    "music_volume": 0.55,
-    "duck_volume": 0.12,
+    "music_volume": 1.0,
+    "duck_volume": 0.1,
     "after_welcome": "restore",
     "welcome_delay_seconds": 2.0,
     "voice_ready_timeout_seconds": 8,
-    "background_volume": 0.1
+    "background_volume": 0.1,
+    "fade_in_seconds": 0.4,
+    "duck_seconds": 0.8
   },
   "daemon": {
     "hotkey": "ctrl+alt+j",
