@@ -614,6 +614,8 @@ def command_risk(argv: list[str]) -> Risk:
         return Risk.HIGH_RISK
     line = " ".join(argv)
     program = Path(argv[0]).name.lower().removesuffix(".exe").removesuffix(".cmd")
+    if re.fullmatch(r"python3(?:\.\d+)?", program):
+        program = "python"
     if _DESTRUCTIVE.search(line) or program in {"powershell", "pwsh", "cmd", "bash", "sh", "wsl"}:
         return Risk.HIGH_RISK
     if program not in _DEV_PROGRAMS:
