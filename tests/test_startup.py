@@ -131,7 +131,7 @@ class SequenceTests(unittest.IsolatedAsyncioTestCase):
         mixer = FakeMixer()
         seq, _ = make(StartupOptions(music_path="x", after_welcome="restore"), mixer=mixer)
         await seq.trigger()
-        self.assertEqual(mixer.calls[-1], ("ramp", StartupOptions().music_volume))
+        self.assertEqual(mixer.calls[-1], ("ramp", StartupOptions().background_volume))  # quiet enough to hear the owner
 
     async def test_duplicate_trigger_joins_running_sequence(self):
         seq, spoken = make(services_delay=0.05)

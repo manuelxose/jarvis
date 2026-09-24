@@ -46,7 +46,15 @@ from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
 from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
 from jarvis.adapters.tts.voice_cache import VoiceCache, voice_identity
 from jarvis.core.circuit_breaker import CircuitBreaker
-from jarvis.adapters.tools.desktop import DesktopContext, SleepTool, build_desktop_tools, gpu_free_mb, windows_path_for
+from jarvis.adapters.tools.desktop import (
+    AssistantControlTool,
+    DesktopContext,
+    MusicTool,
+    SleepTool,
+    build_desktop_tools,
+    gpu_free_mb,
+    windows_path_for,
+)
 from jarvis.adapters.tools.gateway import AuditLog, Risk, Tool, ToolGateway
 from jarvis.adapters.tools.windows import build_windows_tools, register_apps
 from jarvis.config import RuntimeConfig
@@ -268,7 +276,10 @@ def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> Jarvi
         echo_tail_frames=3,
         confirmer=confirmer,
     )
-    tools.register(SleepTool(voice_loop.request_stop))
+    tools.register(SleepTool(voice_loop.request_stop_after_turn))
+    tools.register(MusicTool(media_key=lambda: tools.execute("media_play_pause", {}, TurnContext.fresh("music"))))
+    tools.register(AssistantControlTool("restart"))  # only the daemon can restart itself
+    tools.register(AssistantControlTool("shutdown", voice_loop.request_stop_after_turn))
     components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop, workspace, desktop)
     return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 

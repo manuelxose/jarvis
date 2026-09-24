@@ -50,7 +50,8 @@
     "duck_volume": 0.12,
     "after_welcome": "restore",
     "welcome_delay_seconds": 2.0,
-    "voice_ready_timeout_seconds": 8
+    "voice_ready_timeout_seconds": 8,
+    "background_volume": 0.1
   },
   "daemon": {
     "hotkey": "ctrl+alt+j",
@@ -121,6 +122,43 @@
             },
             "stop": {
               "window_title": "Jarvis dev"
+            },
+            "timeout_seconds": 20,
+            "retries": 0
+          },
+          {
+            "name": "task_manager",
+            "command": [
+              "cmd",
+              "/c",
+              "start",
+              "",
+              "taskmgr"
+            ],
+            "window": "hidden",
+            "detect": {
+              "process": "Taskmgr.exe"
+            },
+            "timeout_seconds": 20,
+            "retries": 0
+          },
+          {
+            "name": "processes",
+            "command": [
+              "wt",
+              "--title",
+              "Jarvis procesos",
+              "--suppressApplicationTitle",
+              "wsl",
+              "-d",
+              "Ubuntu",
+              "htop"
+            ],
+            "detect": {
+              "window_title": "Jarvis procesos"
+            },
+            "stop": {
+              "window_title": "Jarvis procesos"
             },
             "timeout_seconds": 20,
             "retries": 0

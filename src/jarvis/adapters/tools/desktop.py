@@ -256,7 +256,10 @@ class WindowTool(DesktopTool):
         for hwnd in handles:
             if action == "close":
                 # WM_CLOSE: the app still asks about unsaved work (never a kill).
-                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+                try:
+                    win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+                except Exception:  # noqa: BLE001 - elevated window (Task Manager): Windows refuses
+                    continue
             elif action in ("minimize", "maximize", "restore"):
                 win32gui.ShowWindow(hwnd, {"minimize": win32con.SW_MINIMIZE, "maximize": win32con.SW_MAXIMIZE, "restore": win32con.SW_RESTORE}[action])
             else:
@@ -980,6 +983,50 @@ class SleepTool(DesktopTool):
     async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
         self._request_sleep()
         return ToolResult("Hasta luego. Estaré atento.")
+
+
+class MusicTool(DesktopTool):
+    """Startup music: stop / lower / raise. Without startup music, media keys (Spotify...)."""
+
+    def __init__(self, mixer: Any = None, media_key: Optional[Callable[[], Awaitable[Any]]] = None) -> None:
+        super().__init__("music", "Stop, lower or raise the music that is playing.", Risk.REVERSIBLE,
+                         {"action": {"required": True, "type": "string", "enum": ["stop", "lower", "raise"]}})
+        self.mixer, self._media_key = mixer, media_key
+
+    async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
+        action, mixer = arguments["action"], self.mixer
+        if mixer is not None and getattr(mixer, "music_playing", False):
+            if action == "stop":
+                mixer.fade_out(1.2)
+                return ToolResult("Música detenida.")
+            level = mixer.gain * (0.5 if action == "lower" else 1.6)
+            mixer.ramp(min(max(level, 0.05), 1.0), 0.4)
+            return ToolResult("Música más baja." if action == "lower" else "Música más alta.")
+        if action == "stop" and self._media_key is not None:
+            await self._media_key()  # pause whatever player is active
+            return ToolResult("Pausado.")
+        return ToolResult("No está sonando la música de arranque.", ok=False)
+
+
+class AssistantControlTool(DesktopTool):
+    """'Reiníciate' / 'apágate': restart or fully stop the background assistant."""
+
+    def __init__(self, action: str, callback: Optional[Callable[[], Any]] = None) -> None:
+        name = "assistant_restart" if action == "restart" else "assistant_shutdown"
+        risk = Risk.REVERSIBLE if action == "restart" else Risk.HIGH_RISK
+        super().__init__(name, f"{action.capitalize()} the Jarvis background assistant.", risk)
+        self.action, self.callback = action, callback
+
+    def describe(self, arguments: Mapping[str, Any]) -> str:
+        return "apagarme por completo; para volver a usarme tendrás que arrancarme a mano o reiniciar la sesión de Windows"
+
+    async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
+        if self.callback is None:
+            return ToolResult("Solo puedo reiniciarme cuando funciono en segundo plano.", ok=False)
+        self.callback()  # takes effect after this reply has been spoken
+        if self.action == "restart":
+            return ToolResult("Reiniciando. En unos segundos vuelvo a estar atento a tus palmadas.")
+        return ToolResult("Apagando. Hasta pronto.")
 
 
 class CancelOperationsTool(DesktopTool):
