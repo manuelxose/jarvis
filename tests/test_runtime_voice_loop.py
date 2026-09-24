@@ -11,14 +11,14 @@ from dataclasses import replace
 from pathlib import Path
 
 from jarvis.application.runtime import build_runtime
-from jarvis.config import load_config
+from committed_config import load_committed_config
 
 
 class RuntimeVoiceLoopTests(unittest.IsolatedAsyncioTestCase):
     async def test_fake_runtime_completes_one_deterministic_turn(self):
         temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temporary_directory.cleanup)
-        config = load_config("config.json")
+        config = load_committed_config()
         config = replace(
             config,
             memory=replace(

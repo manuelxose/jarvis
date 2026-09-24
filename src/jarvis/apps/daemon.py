@@ -201,7 +201,9 @@ class Sentinel:
         if self.state != "candidate":
             return
         self.state = "sentinel"
-        logger.info("activation candidate cancelled: %s", reason)
+        last = self.detector.rejected[-1] if self.detector.rejected else None
+        recent = last if last and self.detector.now - last["time"] < 2.0 else None
+        logger.info("activation candidate cancelled: %s%s", reason, f" (last rejected sound: {recent})" if recent else "")
         hub.publish("activation.cancelled", reason=reason)
         self._spawn(self.voice.cancel_speculation(reason))
 

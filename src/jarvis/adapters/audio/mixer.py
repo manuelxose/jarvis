@@ -95,7 +95,8 @@ class Mixer:
         path = Path(path)
         if self._cache is not None and self._cache[0] == str(path):
             with self._lock:
-                self._music, self._pos = self._cache[1], 0
+                # A fade-out left over from the last session would drop the new track.
+                self._music, self._pos, self._stop_at_silence = self._cache[1], 0, False
             return
         if not path.is_file():
             raise FileNotFoundError(f"music file not found: {path}")
@@ -114,7 +115,7 @@ class Mixer:
         data = np.ascontiguousarray(data[:, :2], dtype=np.float32)
         self._cache = (str(path), data)
         with self._lock:
-            self._music, self._pos = data, 0
+            self._music, self._pos, self._stop_at_silence = data, 0, False
 
     def play_sfx(self, samples: Any = None) -> None:
         with self._lock:
@@ -127,13 +128,15 @@ class Mixer:
 
     def play_music(self, volume: float, fade_seconds: float = 1.5, start_seconds: float | str = 0.0) -> None:
         """Start the loaded track; ``start_seconds="auto"`` skips a quiet intro."""
-        if self._music is None:
+        music = self._music
+        if music is None:
             raise RuntimeError("no music loaded")
         if start_seconds == "auto":
-            start_seconds = find_loud_start(self._music, self.rate)
+            start_seconds = find_loud_start(music, self.rate)
         start = int(max(0.0, float(start_seconds)) * self.rate)
         with self._lock:
-            self._pos = min(start, max(0, len(self._music) - 1))
+            self._music = music
+            self._pos = min(start, max(0, len(music) - 1))
             self._gain, self._stop_at_silence = 0.0, False
         self.ramp(volume, fade_seconds)
         self._ensure_stream()
@@ -160,6 +163,7 @@ class Mixer:
     def stop(self) -> None:
         with self._lock:
             self._music, self._sfx, self._gain, self._target = None, [], 0.0, 0.0
+            self._stop_at_silence = False
         self._close_stream()
         self.level = 0.0
 

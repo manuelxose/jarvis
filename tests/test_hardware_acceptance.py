@@ -13,14 +13,14 @@ from dataclasses import replace
 from pathlib import Path
 
 from jarvis.application.demo import NOTAS_CONTENT, run_hardware_acceptance
-from jarvis.config import load_config
+from committed_config import load_committed_config
 
 
 class HardwareAcceptanceTests(unittest.TestCase):
     def test_scripted_run_reads_real_file_and_speaks_response(self):
         temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temporary_directory.cleanup)
-        config = load_config("config.json")
+        config = load_committed_config()
         config = replace(
             config,
             memory=replace(

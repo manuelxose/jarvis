@@ -133,6 +133,16 @@ change in Jarvis fixes this.
 * Rollback: set `"tts": {"provider": "sapi"}` (or `"local"` for XTTS) in
   `config.win.json`. The worker venv can be deleted independently.
 
+## Short phrases
+
+Single words ("Hecho.", "en", "lo") give the model too little context: in
+repeated silent tests about one take in four came out in another language, and
+some takes never reached end-of-speech and babbled for seconds. Two defences:
+each request is capped at `1.5 s + 0.12 s per character` of generated audio
+(`max_tokens_for` in `qwen_worker.py`, about twice normal speaking time), and
+fixed replies are short sentences instead of single words ("Listo, señor.",
+"Siguiente canción."), which came out in Spanish 8/8 times.
+
 ## Degraded modes
 
 | Condition | Behaviour |

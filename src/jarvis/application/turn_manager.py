@@ -331,7 +331,7 @@ class TurnManager:
         if isinstance(result, str):
             return result
         if result is None or result is True:
-            return _COMMAND_ACKS.get(name, "Hecho.")
+            return _COMMAND_ACKS.get(name, "Listo, señor.")
         if result is False:
             return "No he podido completar la accion."
         return str(result)
@@ -457,13 +457,13 @@ _COMMAND_ACKS = {
     "volume_set": "Volumen ajustado.",
     "mute": "Sonido silenciado.",
     "unmute": "Sonido restaurado.",
-    "media_play_pause": "Hecho.",
-    "media_next": "Siguiente.",
-    "media_previous": "Anterior.",
-    "open_application": "Abriendo.",
+    "media_play_pause": "Listo, señor.",
+    "media_next": "Siguiente canción.",
+    "media_previous": "Canción anterior.",
+    "open_application": "Abriendo la aplicación.",
     "open_url": "Abriendo el enlace.",
-    "stop": "Hecho.",
-    "repeat": "Hecho.",
+    "stop": "Listo, señor.",
+    "repeat": "Listo, señor.",
     "time": "",
     "date": "",
     "system_info": "",

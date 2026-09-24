@@ -223,6 +223,14 @@ class TwoClapTests(unittest.TestCase):
         detector._finish_event(event, 0.06)
         self.assertEqual(len(detector.accepted), 1)  # was rejected at confidence 0.46
 
+    def test_softer_second_clap_still_confirms_but_cannot_start_alone(self):
+        signal = claps([1.0], 3.0, amplitude=0.5)  # first clap about -16 dBFS
+        soft = clap(0.2)  # second clap about -24 dBFS, under the -20 dBFS gate
+        start = int(1.4 * RATE)
+        signal[start:start + soft.size] += soft
+        self.assertEqual(len(run(self.detector(min_peak_dbfs=-20.0), signal)), 1)
+        self.assertEqual(run(self.detector(min_peak_dbfs=-20.0), claps([1.0, 1.4], 3.0, amplitude=0.2)), [])
+
     def test_claps_required_is_validated(self):
         with self.assertRaises(ValueError):
             ClapTuning(claps_required=1)

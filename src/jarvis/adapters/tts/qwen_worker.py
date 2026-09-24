@@ -107,6 +107,20 @@ def build_prompt(model, profile_dir: Path, meta: dict) -> dict:
     return prompt
 
 
+# The 12 Hz codec emits 12 tokens per second of audio. Short texts ("Hecho.")
+# sometimes never hit end-of-speech and the model babbles for seconds in no
+# particular language; cap each request at about twice normal speaking time.
+_TOKENS_PER_SECOND = 12
+_MAX_SECONDS_BASE = 1.5
+_MAX_SECONDS_PER_CHAR = 0.12
+
+
+def max_tokens_for(text: str) -> int:
+    """Generation budget for *text*: room for slow speech, not for runaway babble."""
+    seconds = _MAX_SECONDS_BASE + _MAX_SECONDS_PER_CHAR * len(text.strip())
+    return int(seconds * _TOKENS_PER_SECOND)
+
+
 class Engine:
     """The loaded model plus the owner's cached voice conditioning; streams audio chunks for a text."""
 
@@ -125,6 +139,7 @@ class Engine:
             chunk_size=self.chunk_size,
             voice_clone_prompt=self.prompt,
             ref_text=self.meta.get("ref_text", ""),
+            max_new_tokens=max_tokens_for(text),
         )
         for audio, sr, _timing in self.model.generate_voice_clone_streaming(**kwargs):
             yield audio, sr
