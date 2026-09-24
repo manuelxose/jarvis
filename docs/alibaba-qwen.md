@@ -271,6 +271,29 @@ Region handling: the SDK defaults to the Beijing public endpoint. Call `dashscop
 
 **Recommendation**: take the `dashscope` dependency (pin `>=1.27.0`, current known-good `1.27.6`) rather than hand-rolling the WebSocket protocol with raw `websockets` — it is official, current, actively released, and explicitly supports the Singapore realtime path. Before finalizing, re-fetch `dashscope/dashscope-sdk-python`'s `README.md` and `dashscope/audio/qwen_tts_realtime/` source directly to confirm exact class/method signatures (see Unverified section).
 
+## Operator-gated TTS routing (no measured winner yet)
+
+S08 recorded **no comparative TTS measurements** in this repository. AUTO therefore keeps the configured primary (`alibaba_qwen` or `qwen_clone`) before Windows SAPI unless complete, comparable operator evidence is supplied. FAST, CHEAP, and QUALITY require complete evidence for **both resolved adapters** from the same run; they fail configuration rather than claim an unmeasured improvement. `local` and `sapi` are singletons and an explicit profile does not create an alternative provider. No routing choice makes a network probe or changes the existing TTS chain's retries, breaker, or committed-stream fallback rules.
+
+Opt in on the target Windows machine using the same Spanish prompts, voice/model settings, output device, network conditions and warm-up regime for each candidate. Repeat multiple trials and record first audible output latency (ms) from request start; read actual billed USD per character from the provider's invoice, not a guessed tariff. Record successful playback fraction as reliability and score listening quality and integration on 0–1 scales with a named human assessor and repeatable criteria. Keep the run ID, date, machine/config description and source notes with the evidence; do not put prompts, audio, credentials or personally identifying transcripts in the config. Compare only rows from the **same** run. A local provider may have an explicitly measured zero USD rate; an absent price stays unpriced (`usd: null`) in `turn.cost`, not free. Actual successful provider and synthesized character count determine the estimate; cached acknowledgements make no TTS call and have no TTS charge. First-provider failures and open circuits continue to try the next candidate (normally SAPI when the configured primary is first).
+
+Non-secret example (replace sample measurements with your own; values below are **illustrative, not a benchmark**):
+
+```json
+{
+  "tts": {
+    "provider": "alibaba_qwen",
+    "profile": "fast",
+    "routing_evidence": [
+      {"provider": "alibaba_qwen", "run_id": "windows-comparison-1", "source": "operator invoice and listening notes", "first_audio_ms": 120, "usd_per_character": 0.0001, "quality": 0.8, "reliability": 0.9, "integration": 0.8},
+      {"provider": "sapi", "run_id": "windows-comparison-1", "source": "operator local trials", "first_audio_ms": 180, "usd_per_character": 0, "quality": 0.5, "reliability": 0.9, "integration": 0.9}
+    ]
+  }
+}
+```
+
+`profile` may be `auto` (default), `fast`, `cheap`, or `quality`. With missing or mismatched rows, AUTO retains configured order and logs a nonsecret reason; explicit profiles reject them. Logs expose only the profile, adapter order and reason, never measurements or provenance. Pricing is optional and attributed by the serving adapter name, including fallback; confirm billed character semantics with your provider before treating estimates as invoice totals. There is **no claimed winner** until target-machine evidence exists.
+
 ## Unverified / could not confirm
 
 These items could not be pinned to an unambiguous primary-source statement

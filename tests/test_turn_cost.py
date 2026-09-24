@@ -182,6 +182,16 @@ class _RepeatTool(Tool):
         return ToolResult("Hecho.", ok=True)
 
 
+class _CountedTTS(EchoTTS):
+    def __init__(self):
+        self.calls = 0
+
+    async def synthesize(self, text, context):
+        self.calls += 1
+        async for chunk in super().synthesize(text, context):
+            yield chunk
+
+
 class CachedAckCostTests(unittest.IsolatedAsyncioTestCase):
     async def test_cached_ack_fast_command_yields_zero_tts_entries(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -198,11 +208,12 @@ class CachedAckCostTests(unittest.IsolatedAsyncioTestCase):
 
             from jarvis.adapters.audio.output import AudioOutputQueue
 
+            tts = _CountedTTS()
             manager = TurnManager(
                 router=Router(),
                 tools=ToolGateway([_RepeatTool()]).execute,
                 model=ScriptedModel(),
-                tts=EchoTTS(),
+                tts=tts,
                 audio=AudioOutputQueue(render=render),
                 ack_cache=cache,
                 pricing=_PRICING,
@@ -212,6 +223,7 @@ class CachedAckCostTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual("fast_command", result.route)
             self.assertEqual([], result.cost["entries"])
             self.assertEqual(0.0, result.cost["total_usd"])
+            self.assertEqual(0, tts.calls)
 
 
 if __name__ == "__main__":
