@@ -130,6 +130,7 @@ class ClapDetector:
         self._ring: deque[Any] = deque(maxlen=6)
         self._event: Optional[dict[str, Any]] = None
         self._claps: list[Clap] = []
+        self._dull_first: Optional[Clap] = None
         self._last_onset = -1e9
         self._suspended_until = -1e9
         self._suspended = False
@@ -247,15 +248,20 @@ class ClapDetector:
 
     def _finish_event(self, event: dict[str, Any], decay: float) -> None:
         tuning = self.tuning
-        min_hf = tuning.min_hf_ratio * (_CONFIRM_HF_FACTOR if self._claps else 1.0)
+        relaxed_hf = tuning.min_hf_ratio * _CONFIRM_HF_FACTOR
+        min_hf = relaxed_hf if self._claps else tuning.min_hf_ratio
         snr = event["peak"] / max(event["floor"], 1e-6)
         rise_score = _clamp01((math.log10(event["rise"]) - math.log10(2.5)) / (math.log10(20) - math.log10(2.5)))
         decay_score = _clamp01(1.0 - decay / tuning.max_decay_seconds)
-        # min_hf_ratio is already a hard gate: score only the margin above it, so a
-        # dull-sounding mic does not lose the same clap twice.
-        hf_score = _clamp01(0.5 + (event["hf"] - min_hf) / max(min_hf, 1e-3))
         snr_score = _clamp01(math.log10(snr / tuning.onset_ratio + 1e-9) / 1.0 + 0.5)
-        confidence = (rise_score * decay_score * hf_score * snr_score) ** 0.25
+
+        def score(gate: float) -> float:
+            # The HF gate is already hard: score only the margin above it, so a
+            # dull-sounding mic does not lose the same clap twice.
+            hf_score = _clamp01(0.5 + (event["hf"] - gate) / max(gate, 1e-3))
+            return (rise_score * decay_score * hf_score * snr_score) ** 0.25
+
+        confidence = score(min_hf)
         features = {
             "peak_dbfs": round(_dbfs(event["peak"]), 1),
             "snr_db": round(_dbfs(snr), 1),
@@ -263,10 +269,17 @@ class ClapDetector:
             "decay_s": round(decay, 3),
             "hf_ratio": round(event["hf"], 3),
         }
+        start = event["start"]
         if event["hf"] < min_hf or confidence < tuning.confidence_threshold:
+            dull = score(relaxed_hf)
+            if not self._claps and event["hf"] >= relaxed_hf and dull >= tuning.confidence_threshold and not self._onset_before(start):
+                # A loud, clap-shaped but dull hit may be the first of the pair:
+                # it counts only if a clap that passes the strict gates follows.
+                self._dull_first = Clap(start, features["peak_dbfs"], round(dull, 3), features)
+                self._last_onset = start
+                return
             self._reject(event, decay, "shape", features)
             return
-        start = event["start"]
         if start - self._last_onset < tuning.min_gap_seconds:
             return  # reverb / double hit of the same clap
         self._last_onset = start
@@ -275,7 +288,12 @@ class ClapDetector:
         clap = Clap(start, features["peak_dbfs"], round(confidence, 3), features)
         self.accepted.append(clap)
         del self.accepted[:-20]
-        if not self._claps and self._onset_before(start):
+        dull_first, self._dull_first = self._dull_first, None
+        if not self._claps and dull_first is not None and start - dull_first.time <= tuning.max_gap_seconds:
+            self._claps.append(dull_first)  # dull then crisp: the pair still counts
+            if self.on_candidate is not None:
+                self.on_candidate(dull_first)
+        elif not self._claps and self._onset_before(start):
             return  # a hit inside music/speech never starts a candidate
         self._claps.append(clap)
         if len(self._claps) == 1 and self.on_candidate is not None:
@@ -293,6 +311,7 @@ class ClapDetector:
 
     def _reject(self, event: dict[str, Any], duration: float, reason: str, features: dict | None = None) -> None:
         start = event["start"]
+        self._dull_first = None
         self.rejected.append({"time": round(start, 3), "reason": reason, "duration": round(duration, 3), **(features or {})})
         del self.rejected[:-20]
         self._clear("interrupted")
