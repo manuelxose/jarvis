@@ -262,6 +262,41 @@ class ActivationStateTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(task, 2)
 
 
+class InterruptAndDeviceTests(ActivationStateTests):
+    async def test_sleep_during_startup_interrupts_the_welcome(self):
+        sentinel = self.sentinel()
+
+        async def slow_speak(self_runtime, text):
+            await asyncio.sleep(5)
+
+        with mock.patch.object(VoiceRuntime, "_speak", slow_speak):
+            task = asyncio.create_task(sentinel.run())
+            await self.wait_for(lambda: sentinel.state == "sentinel")
+            sentinel.request_activation("hotkey")
+            await self.wait_for(lambda: sentinel.state == "starting")
+            await asyncio.sleep(0.1)
+            sentinel.sleep()
+            await self.wait_for(lambda: sentinel.state == "sentinel", timeout=3)
+        self.assertFalse(task.done())  # the daemon keeps running
+        self.assertEqual(sentinel.voice.holders, frozenset())  # voice released
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 2)
+
+    async def test_missing_output_device_does_not_stop_activation(self):
+        sentinel = self.sentinel()
+
+        def no_device():
+            raise OSError("no output device")
+
+        sentinel._mixer_factory = no_device
+        task = asyncio.create_task(sentinel.run())
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        sentinel.request_activation("hotkey")
+        await self.wait_for(lambda: sentinel.state == "active")
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 2)
+
+
 class HotkeyTests(unittest.TestCase):
     def test_parse(self):
         self.assertEqual(daemon.parse_hotkey("ctrl+alt+j"), (0x4003, ord("J")))

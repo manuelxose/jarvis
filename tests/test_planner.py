@@ -177,6 +177,34 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNotNone(match)
                 self.assertEqual((match.name, dict(match.arguments)), (name, args))
 
+    def test_m009_local_commands_need_no_model(self):
+        classifier = FastCommandClassifier()
+        cases = {
+            "minimiza chrome": ("window_manage", {"action": "minimize", "target": "chrome"}),
+            "maximiza la ventana de spotify": ("window_manage", {"action": "maximize", "target": "spotify"}),
+            "trae chrome al frente": ("window_focus", {"target": "chrome"}),
+            "cierra spotify": ("app_close", {"target": "spotify"}),
+            "close chrome": ("app_close", {"target": "chrome"}),
+            "muéstrame la actividad de red": ("network_stats", {}),
+            "network usage": ("network_stats", {}),
+            "uso de la GPU": ("system_stats", {}),
+            "¿cuánta RAM?": ("system_stats", {}),
+            "abre una terminal": ("terminal_open", {}),
+            "abre el proyecto jarvis": ("project_open", {"name": "jarvis"}),
+            "pon el volumen al 40": ("volume_set", {"level": "40"}),
+        }
+        for text, (name, args) in cases.items():
+            with self.subTest(text=text):
+                match = classifier.match(text)
+                self.assertEqual((match.name, dict(match.arguments)), (name, args))
+
+    def test_vague_or_destructive_phrases_never_hit_a_local_tool(self):
+        classifier = FastCommandClassifier()
+        for text in ("cierra todo", "cierra esto", "borra el proyecto jarvis", "elimina todos los archivos", "formatea el disco"):
+            with self.subTest(text=text):
+                match = classifier.match(text)
+                self.assertTrue(match is None or match.name not in {"app_close", "file_delete", "run_command", "process_kill"}, match)
+
     async def test_multi_action_and_references_go_to_desktop_planner(self):
         router = Router()
         for text in (

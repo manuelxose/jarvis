@@ -252,6 +252,22 @@ class NarrationVsExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(gateway.running_operations, 0)
 
 
+class ProjectLookupTests(unittest.TestCase):
+    def test_find_projects_prefers_exact_then_shortest(self):
+        from jarvis.adapters.tools.desktop import find_projects, posix_from_unc
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("jarvis", "jarvis-old", "buscador_de_precios", ".hidden", "node_modules"):
+                (root / name).mkdir()
+            (root / "clients" / "Jarvis Web").mkdir(parents=True)
+            self.assertEqual(find_projects([root], "Jarvis")[0].name, "jarvis")
+            self.assertEqual(find_projects([root], "buscador de precios")[0].name, "buscador_de_precios")
+            self.assertEqual(find_projects([root], "nothing"), [])
+        self.assertEqual(posix_from_unc("\\\\wsl.localhost\\Ubuntu\\home\\m\\p"), "/home/m/p")
+        self.assertIsNone(posix_from_unc("C:\\Users\\x"))
+
+
 class ParsingTests(unittest.TestCase):
     def test_nvidia_compute_apps_parsing_handles_wddm_na(self):
         raw = "1234, C:\\Program Files\\Ollama\\ollama.exe, 4096\n5678, C:\\x\\python.exe, [N/A]\n"

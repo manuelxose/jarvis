@@ -67,7 +67,7 @@ def bench_claps(config: Any, trials: int = 40) -> None:
     rng = np.random.default_rng(11)
     rate = 16000
     tuning_kwargs = {k: v for k, v in config.claps.items() if k != "enabled"}
-    required = int(tuning_kwargs.get("claps_required", 3)) if "claps_required" in ClapTuning.__dataclass_fields__ else 3
+    required = int(tuning_kwargs.get("claps_required", 2)) if "claps_required" in ClapTuning.__dataclass_fields__ else 3
     confirm, first = [], []
     for _ in range(trials):
         gap = float(rng.uniform(0.25, 0.55))
@@ -165,7 +165,33 @@ def bench_command(config: Any) -> None:
     RESULTS["command"] = {
         "time_query_to_first_audio_ms (tool+route, TTS stubbed)": stats(asyncio.run(run("qué hora es", 30))),
         "cached_ack_to_first_audio_ms": stats(asyncio.run(run("repite", 30))),
+        "cached_ack_to_device_ms (real output stream, silent)": stats(asyncio.run(_cached_to_device(config))),
     }
+
+
+async def _cached_to_device(config: Any, runs: int = 10) -> list[float]:
+    """Cache hit -> first slice written to the real audio device (zeros: silent)."""
+    from jarvis.adapters.audio.output import AudioOutputQueue, make_sounddevice_render
+    from jarvis.adapters.tts.ack_cache import bytes_to_stream
+
+    renderer = make_sounddevice_render(config.audio.output_device)
+    real = renderer._blocking
+    first: list[float] = []
+
+    def blocking(turn_id: str, chunk: bytes) -> None:
+        first.append(time.perf_counter())
+        real(turn_id, chunk)
+
+    renderer._blocking = blocking
+    queue = AudioOutputQueue(render=renderer, render_timeout_seconds=30)
+    out = []
+    for _ in range(runs):
+        first.clear()
+        t = time.perf_counter()
+        await queue.play(bytes_to_stream(silent_wav(0.3)), TurnContext.fresh("bench"))
+        out.append((first[0] - t) * 1000)
+    renderer.close()
+    return out
 
 
 # -- device timings (silent) --------------------------------------------------------------
@@ -448,10 +474,43 @@ def bench_resources(config: Any) -> None:
     }
 
 
+def bench_voice(config: Any) -> None:
+    """Shared voice lifecycle: cold session, speculative head start, warm reuse."""
+    from jarvis.adapters.tts.resolve import build_qwen_clone
+    from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+
+    async def run() -> dict[str, Any]:
+        manager = VoiceModelManager(lambda: build_qwen_clone(config), VoicePolicy(max_gpu_mb=0, speculative_min_interval_seconds=0))
+        t = time.perf_counter()
+        await manager.speculate("first clap")
+        await asyncio.sleep(0.4)  # second clap ~0.4 s later
+        await manager.acquire("session")
+        await asyncio.wait_for(manager.tts.wait_ready(), 240)
+        cold = (time.perf_counter() - t) * 1000
+        vram_warm = _gpu_used()
+        await manager.release("session")
+        t = time.perf_counter()
+        await manager.acquire("session")  # new session during cooldown
+        await asyncio.wait_for(manager.tts.wait_ready(), 60)
+        warm = (time.perf_counter() - t) * 1000
+        first = None
+        t = time.perf_counter()
+        async for _ in manager.tts.synthesize(one("Hola, Manuel."), TurnContext.fresh("bench")):
+            first = first or time.perf_counter()
+        ttfa = (first - t) * 1000
+        await manager.release("session")
+        await manager.shutdown()
+        return {"cold_session_voice_ready_ms (speculative from 1st clap)": round(cold), "warm_session_voice_ready_ms": round(warm, 1),
+                "warm_session_first_audio_ms": round(ttfa), "vram_used_mb_warm": vram_warm, "vram_used_mb_after_evict": _gpu_used(),
+                "worker_processes_started": manager.loads}
+
+    RESULTS["voice"] = asyncio.run(run())
+
+
 SECTIONS = {
     "claps": bench_claps, "route": bench_route, "command": bench_command, "startup": bench_startup,
     "interrupt": bench_interrupt, "resources": bench_resources, "stt": bench_stt, "tts": bench_tts,
-    "llm": bench_llm, "e2e": bench_e2e,
+    "llm": bench_llm, "e2e": bench_e2e, "voice": bench_voice,
 }
 
 

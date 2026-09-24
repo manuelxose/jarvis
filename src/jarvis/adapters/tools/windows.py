@@ -321,12 +321,16 @@ class VolumeSetTool(_CommandTool):
         level = str(arguments.get("level", ""))
         if not _IS_WINDOWS:
             return f"El control de volumen no esta disponible fuera de Windows."
-        # Absolute volume requires pycaw (optional); degrade honestly.
         try:
-            import pycaw  # noqa: F401
-        except ImportError:
-            return f"Para ajustar el volumen a {level} se necesita la dependencia pycaw."
-        return f"Volumen ajustado a {level}."
+            value = max(0, min(100, int(float(level))))
+        except ValueError:
+            return "Dime el volumen como un número del 0 al 100."
+        from .desktop import set_master_volume  # noqa: PLC0415 - pycaw, else media keys
+
+        import asyncio  # noqa: PLC0415
+
+        await asyncio.to_thread(set_master_volume, value)
+        return f"Volumen al {value} por ciento."
 
 
 class StopTool(_CommandTool):

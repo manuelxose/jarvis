@@ -62,6 +62,17 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
     (re.compile(r"\bcancela\s+(?:la\s+)?(?:operacion|tarea|ejecucion|orden)\b"), "cancel_operations", "", 0.96),
     (re.compile(r"\b(?:haz|toma)\s+(?:una\s+)?captura(?:\s+de\s+pantalla)?\b"), "screenshot", "", 0.93),
     (re.compile(r"^\s*(?:a\s+dormir|duermete|descansa|modo\s+reposo|vete\s+a\s+dormir)\s*$"), "sleep", "", 0.96),
+    # M009 local desktop commands (no LLM round trip)
+    (re.compile(r"\b(?:actividad|uso|trafico|consumo)\s+de\s+(?:la\s+)?red\b|\bnetwork\s+(?:activity|usage|traffic)\b|\bcuanto\s+(?:estoy\s+)?(?:descargando|subiendo)\b"), "network_stats", "", 0.93),
+    (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:la\s+)?(?:cpu|memoria|ram|gpu|grafica|procesador)\b|\b(?:cpu|ram|gpu|memory)\s+usage\b|\bcomo\s+va\s+la\s+grafica\b|\bcuanta\s+(?:ram|memoria)\b"), "system_stats", "", 0.92),
+    (re.compile(r"\b(?:minimiza|minimize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "minimize"}),
+    (re.compile(r"\b(?:maximiza|maximize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "maximize"}),
+    (re.compile(r"\b(?:restaura|restore)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.9, {"action": "restore"}),
+    (re.compile(r"\b(?:enfoca|focus|cambia\s+a|switch\s+to|trae)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30}?)(?:\s+al\s+frente)?$"), "window_focus", "target", 0.9),
+    # Graceful close (WM_CLOSE; apps still ask to save). Vague objects go to the model.
+    (re.compile(r"\b(?:cierra|close)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(?!todo\b|esto\b|eso\b|la\s+sesion\b|sesion\b|mi\s+entorno\b)(\w[\w\s]{0,30})$"), "app_close", "target", 0.88),
+    (re.compile(r"\b(?:abre|abrir|open)\s+(?:una\s+|la\s+|un\s+|a\s+)?(?:terminal|consola)\b"), "terminal_open", "", 0.93),
+    (re.compile(r"\b(?:abre|abrir|open)\s+(?:el\s+|mi\s+)?(?:proyecto|repositorio|repo|project|repository)\s+(?!en\b|que\b|donde\b|anterior\b|ultimo\b)(\w[\w\s-]{0,40})$"), "project_open", "name", 0.9),
     # clipboard read / copy (read-path only; file write stays Hermes-only, D012)
     (
         re.compile(

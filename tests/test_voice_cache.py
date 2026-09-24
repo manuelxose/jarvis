@@ -47,6 +47,17 @@ class VoiceCacheTests(unittest.TestCase):
         self.assertIsNone(cache.get("hecho."))  # exact text, case matters
         self.assertEqual(VoiceCache(self.dir, ID).get("Hecho."), wav())  # persisted
 
+    def test_entries_written_by_another_process_are_seen(self):
+        import os
+        import time
+
+        daemon_view = VoiceCache(self.dir, ID)  # opened before the recording
+        self.assertIsNone(daemon_view.get("Hola."))
+        VoiceCache(self.dir, ID).put("Hola.", wav())  # e.g. `jarvis welcome record`
+        index = self.dir / "index.json"
+        os.utime(index, (time.time() + 5, time.time() + 5))  # coarse filesystem clocks
+        self.assertEqual(daemon_view.get("Hola."), wav())
+
     def test_new_voice_profile_invalidates_old_audio(self):
         VoiceCache(self.dir, ID).put("Hecho.", wav())
         reenrolled = VoiceCache(self.dir, {**ID, "profile_version": "v2"})

@@ -1,0 +1,197 @@
+{
+ "meta": {
+  "host": "LAPTOP",
+  "python": "3.11.9",
+  "when": "2026-09-24 09:25:57"
+ },
+ "claps": {
+  "claps_required": 2,
+  "first_clap_candidate_ms": {
+   "n": 40,
+   "p50": 30.0,
+   "p95": 30.0,
+   "min": 30.0,
+   "max": 30.0
+  },
+  "confirmation_after_last_clap_ms": {
+   "n": 40,
+   "p50": 47.97,
+   "p95": 54.55,
+   "min": 35.64,
+   "max": 56.56
+  },
+  "detected": "40/40"
+ },
+ "route": {
+  "intent_ms": {
+   "n": 1300,
+   "p50": 0.01,
+   "p95": 0.04,
+   "min": 0.01,
+   "max": 0.1
+  },
+  "routes": {
+   "qué hora es": "fast_command:time",
+   "sube el volumen": "fast_command:volume_up",
+   "pon el volumen al 40": "fast_command:volume_set",
+   "abre spotify": "fast_command:open_application",
+   "minimiza chrome": "fast_command:window_manage",
+   "arranca mi entorno de desarrollo": "fast_command:workspace",
+   "qué está usando la memoria de la GPU": "fast_command:gpu_processes",
+   "cómo va el sistema": "fast_command:system_stats",
+   "abre el proyecto en el que estaba trabajando": "desktop",
+   "explícame qué es un agujero negro": "fast_model",
+   "mira este error y arréglalo": "hermes",
+   "cancela la operación": "fast_command:cancel_operations",
+   "muéstrame la actividad de red": "fast_command:network_stats"
+  }
+ },
+ "command": {
+  "time_query_to_first_audio_ms (tool+route, TTS stubbed)": {
+   "n": 30,
+   "p50": 0.08,
+   "p95": 0.26,
+   "min": 0.08,
+   "max": 0.38
+  },
+  "cached_ack_to_first_audio_ms": {
+   "n": 30,
+   "p50": 0.07,
+   "p95": 0.15,
+   "min": 0.07,
+   "max": 7.07
+  },
+  "cached_ack_to_device_ms (real output stream, silent)": {
+   "n": 10,
+   "p50": 0.18,
+   "p95": 0.7,
+   "min": 0.14,
+   "max": 0.7
+  }
+ },
+ "startup": {
+  "first_sound_ms": {
+   "n": 3,
+   "p50": 76.84,
+   "p95": 121.45,
+   "min": 62.93,
+   "max": 121.45
+  },
+  "music_started_ms": {
+   "n": 3,
+   "p50": 28.34,
+   "p95": 91.07,
+   "min": 26.0,
+   "max": 91.07
+  },
+  "welcome_audio_ms": {
+   "n": 3,
+   "p50": 2037.16,
+   "p95": 2122.15,
+   "min": 2033.72,
+   "max": 2122.15
+  },
+  "welcome_delay_s": 2.0
+ },
+ "interrupt": {
+  "playback_stop_ms": {
+   "n": 8,
+   "p50": 4.25,
+   "p95": 9.29,
+   "min": 0.02,
+   "max": 9.29
+  }
+ },
+ "resources": {
+  "daemon_processes": [
+   "pythonw.exe",
+   "pythonw.exe"
+  ],
+  "daemon_rss_mb": 142.6,
+  "daemon_cpu_percent_one_core": 1.1,
+  "gpu_used_mb": 911.0
+ },
+ "stt": {
+  "load_ms": 8583,
+  "transcribe_ms": {
+   "n": 10,
+   "p50": 264.33,
+   "p95": 693.44,
+   "min": 257.33,
+   "max": 693.44
+  },
+  "audio_s": 2.5,
+  "text": "Jarvis, ¿qué hora es?"
+ },
+ "tts": {
+  "cold_load_ms": {
+   "n": 1,
+   "p50": 25128.64,
+   "p95": 25128.64,
+   "min": 25128.64,
+   "max": 25128.64
+  },
+  "warm_ttfa_ms": {
+   "n": 16,
+   "p50": 207.94,
+   "p95": 220.01,
+   "min": 200.15,
+   "max": 225.32
+  },
+  "warm_total_ms": {
+   "n": 16,
+   "p50": 952.36,
+   "p95": 1480.32,
+   "min": 350.06,
+   "max": 1542.13
+  },
+  "vram_used_mb_before": 2170.0,
+  "vram_used_mb_warm": 6434.0,
+  "worker_load_ms": 16125,
+  "worker_warmup_ms": 6907
+ },
+ "llm": {
+  "providers": [
+   "deepseek",
+   "ollama"
+  ],
+  "ttft_ms": {
+   "n": 8,
+   "p50": 769.14,
+   "p95": 929.6,
+   "min": 646.76,
+   "max": 929.6
+  },
+  "total_ms": {
+   "n": 8,
+   "p50": 971.82,
+   "p95": 1224.34,
+   "min": 796.27,
+   "max": 1224.34
+  }
+ },
+ "e2e": {
+  "end_of_utterance_to_first_audio_ms": {
+   "n": 5,
+   "p50": 1381.76,
+   "p95": 1551.77,
+   "min": 1298.7,
+   "max": 1551.77
+  },
+  "stt_ms": {
+   "n": 5,
+   "p50": 320.52,
+   "p95": 330.7,
+   "min": 295.07,
+   "max": 330.7
+  }
+ },
+ "voice": {
+  "cold_session_voice_ready_ms (speculative from 1st clap)": 23736,
+  "warm_session_voice_ready_ms": 0.1,
+  "warm_session_first_audio_ms": 223,
+  "vram_used_mb_warm": 5540.0,
+  "vram_used_mb_after_evict": 1275.0,
+  "worker_processes_started": 1
+ }
+}
