@@ -114,9 +114,10 @@ class VoiceLoop:
                 if result is not None:
                     self.turns.append(result)
                     logger.info(
-                        "turn completed: route=%s total=%.0f ms trace=%s",
+                        "turn completed: route=%s total=%.0f ms cost_usd=%s trace=%s",
                         result.route,
                         result.elapsed_ms,
+                        (result.cost or {}).get("total_usd"),
                         result.trace,
                     )
                 self._activation.note_turn_complete()

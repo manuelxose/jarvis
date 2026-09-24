@@ -8,10 +8,11 @@ every stage (model stream, Hermes events, tool execution, TTS, playback).
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Callable, Mapping, Optional
 
 from jarvis.core.contracts import (
     AgentRuntime,
@@ -27,9 +28,12 @@ from jarvis.observability.event_hub import hub
 from jarvis.core.errors import ToolError
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnCancelled
+from jarvis.observability.cost import ProviderRate, UsageRecord, build_turn_cost
 from jarvis.observability.tracing import InteractionTrace
 
 from .routing import RouteDecision, Router
+
+logger = logging.getLogger("jarvis.turn_manager")
 
 # Sentence-sized chunks keep speech natural without waiting for the whole
 # answer. The first chunk is released as early as possible (first sentence end,
@@ -162,6 +166,7 @@ class TurnResult:
     elapsed_ms: float
     trace: dict[str, Any]
     cancelled: bool = False
+    cost: Optional[dict] = None
 
 
 class TurnManager:
@@ -181,6 +186,7 @@ class TurnManager:
         ack_cache: Optional[AckAudioCache] = None,
         planner: Any = None,
         agent_tools: Optional[Callable[[str, dict[str, Any], TurnContext], Any]] = None,
+        pricing: Optional[Mapping[str, ProviderRate]] = None,
     ) -> None:
         self._router = router
         self._tools = tools
@@ -191,6 +197,7 @@ class TurnManager:
         self._memory = memory
         self._state_setter = state_setter
         self._ack_cache = ack_cache
+        self._pricing = pricing
         # Desktop planner and the tool entry used for agent-originated
         # requests, which the gateway treats as untrusted.
         self.planner = planner
@@ -219,6 +226,14 @@ class TurnManager:
         response = ""
         route = "fast_model"
         ok = False
+        # A fresh UsageRecord instance is created only when a provider actually
+        # serves this turn (leaf providers reset the attribute to None at the
+        # start of every call), so an identity change from these snapshots is
+        # what separates this turn's usage from a stale record left by a prior
+        # turn that never touched the provider (e.g. a cached-ack fast command).
+        model_before = getattr(self._model, "last_usage_record", None)
+        tts_before = getattr(self._tts, "last_usage_record", None)
+        cost_dict: Optional[dict[str, Any]] = None
         try:
             self._set_state(RuntimeState.THINKING)
             decision = await self._router.route(text, context)
@@ -239,14 +254,17 @@ class TurnManager:
                 response = await self._handle_model(text, context, trace)
             trace.mark("total_request_ms")
             ok = True
+            cost_dict = self._build_turn_cost(context, route, model_before, tts_before)
             return TurnResult(
                 transcript=text,
                 response=response,
                 route=route,
                 elapsed_ms=(time.monotonic() - started) * 1000,
                 trace=trace.as_dict(),
+                cost=cost_dict,
             )
         except (TurnCancelled, asyncio.CancelledError):
+            cost_dict = self._build_turn_cost(context, route, model_before, tts_before)
             return TurnResult(
                 transcript=text,
                 response=response,
@@ -254,12 +272,47 @@ class TurnManager:
                 elapsed_ms=(time.monotonic() - started) * 1000,
                 trace=trace.as_dict(),
                 cancelled=True,
+                cost=cost_dict,
             )
         finally:
+            if cost_dict is None:
+                cost_dict = {"trace_id": context.trace_id, "route": route, "entries": [], "total_usd": 0.0}
+            hub.publish(
+                "turn.cost",
+                trace_id=context.trace_id,
+                route=route,
+                total_usd=cost_dict["total_usd"],
+                entries=cost_dict["entries"],
+            )
             hub.publish("agent.completed", trace_id=context.trace_id, route=route, ok=ok, elapsed_ms=round((time.monotonic() - started) * 1000, 1))
             async with self._lock:
                 if self._current is context:
                     self._current = None
+
+    def _build_turn_cost(
+        self,
+        context: TurnContext,
+        route: str,
+        model_before: Optional[UsageRecord],
+        tts_before: Optional[UsageRecord],
+    ) -> dict[str, Any]:
+        """Usage this turn only, never raising into the turn on failure."""
+        try:
+            usages: list[UsageRecord] = []
+            # Model usage is attributed only to the fast_model route: desktop and
+            # hermes routes may also call the model internally, but this slice's
+            # cost record covers only the route it can attribute unambiguously.
+            if route == "fast_model":
+                model_after = getattr(self._model, "last_usage_record", None)
+                if model_after is not None and model_after is not model_before:
+                    usages.append(model_after)
+            tts_after = getattr(self._tts, "last_usage_record", None)
+            if tts_after is not None and tts_after is not tts_before:
+                usages.append(tts_after)
+            return build_turn_cost(context.trace_id, route, usages, self._pricing).to_dict()
+        except Exception:
+            logger.debug("failed to build turn cost", exc_info=True)
+            return {"trace_id": context.trace_id, "route": route, "entries": [], "total_usd": 0.0}
 
     async def _handle_fast_command(
         self, decision: RouteDecision, text: str, context: TurnContext
