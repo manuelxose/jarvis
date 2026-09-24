@@ -1,8 +1,5 @@
 {
   "runtime": {},
-  "memory": {
-    "db_path": "C:\\Users\\usuario\\AppData\\Local\\jarvis\\jarvis.db"
-  },
   "activation": {
     "mode": "wake_word",
     "wake_word": "jarvis"
@@ -43,9 +40,8 @@
     "claps_required": 2
   },
   "welcome": {
-    "owner_name": "Manuel",
     "music_path": "",
-    "music_url": "https://www.youtube.com/watch?v=BN1WwnEDWAM",
+    "music_url": "",
     "music_volume": 1.0,
     "duck_volume": 0.1,
     "after_welcome": "restore",
@@ -64,9 +60,7 @@
     "session_idle_seconds": 900
   },
   "desktop": {
-    "authorized_scopes": [
-      "/home/user/workspace"
-    ],
+    "authorized_scopes": [],
     "trusted_operations": [],
     "apps": {}
   },
@@ -75,7 +69,7 @@
     "startup_profile": "dev",
     "profiles": {
       "dev": {
-        "description": "Jarvis development: Ollama, VS Code (WSL) and a WSL terminal",
+        "description": "Ollama, VS Code, Windows Terminal and Task Manager",
         "tasks": [
           {
             "name": "ollama",
@@ -93,16 +87,10 @@
           {
             "name": "vscode",
             "command": [
-              "code",
-              "--remote",
-              "wsl+Ubuntu",
-              "/home/user/workspace/jarvis"
+              "code"
             ],
             "detect": {
-              "window_title": "jarvis [WSL: Ubuntu]"
-            },
-            "stop": {
-              "window_title": "jarvis [WSL: Ubuntu]"
+              "process": "Code.exe"
             },
             "timeout_seconds": 60,
             "retries": 0
@@ -113,12 +101,7 @@
               "wt",
               "--title",
               "Jarvis dev",
-              "--suppressApplicationTitle",
-              "wsl",
-              "-d",
-              "Ubuntu",
-              "--cd",
-              "/home/user/workspace/jarvis"
+              "--suppressApplicationTitle"
             ],
             "detect": {
               "window_title": "Jarvis dev"
@@ -143,49 +126,6 @@
               "process": "Taskmgr.exe"
             },
             "timeout_seconds": 20,
-            "retries": 0
-          },
-          {
-            "name": "processes",
-            "command": [
-              "wt",
-              "--title",
-              "Jarvis procesos",
-              "--suppressApplicationTitle",
-              "wsl",
-              "-d",
-              "Ubuntu",
-              "htop"
-            ],
-            "detect": {
-              "window_title": "Jarvis procesos"
-            },
-            "stop": {
-              "window_title": "Jarvis procesos"
-            },
-            "timeout_seconds": 20,
-            "retries": 0
-          }
-        ]
-      },
-      "projects": {
-        "description": "The whole WSL workspace in VS Code",
-        "tasks": [
-          {
-            "name": "workspace",
-            "command": [
-              "code",
-              "--remote",
-              "wsl+Ubuntu",
-              "/home/user/workspace"
-            ],
-            "detect": {
-              "window_title": "workspace [WSL: Ubuntu]"
-            },
-            "stop": {
-              "window_title": "workspace [WSL: Ubuntu]"
-            },
-            "timeout_seconds": 60,
             "retries": 0
           }
         ]

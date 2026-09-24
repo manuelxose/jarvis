@@ -8,9 +8,9 @@ message.
 | File | Versioned | Purpose |
 |---|---|---|
 | `config.json` | yes | Minimal secret-free base: local Ollama only. Used by CI and non-Windows runs. |
-| `config.win.json` | yes | Full Windows setup: Whisper on CUDA, cloned voice, claps, workspaces. |
-| `config.local.example.json` | yes | Template for cloud providers. |
-| `config.local.json` | **no** (gitignored) | Your overrides: cloud providers, music file, voice ids. |
+| `config.win.json` | yes | Full Windows setup: Whisper on CUDA, cloned voice, claps, a generic `dev` workspace. |
+| `config.local.example.json` | yes | Template for `config.local.json`: name, folders, cloud provider. |
+| `config.local.json` | **no** (gitignored) | Your personal overrides: name, folders, workspaces, music, cloud providers. |
 
 **Secrets** are never written in any file. A value of the form `"${NAME}"` is read
 from the environment variable `NAME` at load time, and secrets never appear in
@@ -77,7 +77,7 @@ Also: `window_seconds`, `max_gap_ratio`, `max_decay_seconds`, `min_hf_ratio`,
 
 | Key | Default | Meaning |
 |---|---|---|
-| `owner_name` | `Manuel` | Name used in the welcome. |
+| `owner_name` | `señor` | Name used in the welcome. |
 | `welcome`, `welcome_variants`, `degraded` | Spanish templates | `{greeting}`, `{name}`, `{issues}` placeholders; variants per `morning` / `afternoon` / `evening`. |
 | `music_path` | "" | Your own audio file (mp3/flac/wav). Jarvis never downloads music. |
 | `music_url` | "" | Opened in the browser only when there is no file (cannot be ducked). |

@@ -87,7 +87,7 @@ class WelcomeTests(unittest.TestCase):
         self.assertEqual(issues, [])
         self.assertEqual(
             text,
-            "Buenas noches, Manuel. Todos los sistemas están operativos. "
+            "Buenas noches, señor. Todos los sistemas están operativos. "
             "Preparando tu entorno de trabajo. ¿En qué puedo ayudarte?",
         )
 

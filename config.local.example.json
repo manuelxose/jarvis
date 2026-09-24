@@ -19,5 +19,16 @@
         }
       }
     ]
+  },
+  "welcome": {
+    "owner_name": "señor",
+    "music_path": ""
+  },
+  "desktop": {
+    "authorized_scopes": [
+      "C:\\Users\\tu-usuario\\proyectos"
+    ],
+    "trusted_operations": [],
+    "apps": {}
   }
 }

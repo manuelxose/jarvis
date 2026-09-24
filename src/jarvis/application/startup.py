@@ -70,7 +70,7 @@ _DONE = {StartupPhase.READY, StartupPhase.DEGRADED, StartupPhase.FAILED}
 @dataclass(frozen=True)
 class StartupOptions:
     """Welcome sequence settings (the ``welcome`` config section)."""
-    owner_name: str = "Manuel"
+    owner_name: str = "señor"
     welcome: str = DEFAULT_WELCOME
     degraded: str = DEFAULT_DEGRADED
     # Optional per-period overrides: {"morning": ..., "afternoon": ..., "evening": ...}
