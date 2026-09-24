@@ -239,7 +239,9 @@ class ClapDetector:
         snr = event["peak"] / max(event["floor"], 1e-6)
         rise_score = _clamp01((math.log10(event["rise"]) - math.log10(2.5)) / (math.log10(20) - math.log10(2.5)))
         decay_score = _clamp01(1.0 - decay / tuning.max_decay_seconds)
-        hf_score = _clamp01((event["hf"] - tuning.min_hf_ratio * 0.6) / (1.0 - tuning.min_hf_ratio * 0.6))
+        # min_hf_ratio is already a hard gate: score only the margin above it, so a
+        # dull-sounding mic does not lose the same clap twice.
+        hf_score = _clamp01(0.5 + (event["hf"] - tuning.min_hf_ratio) / max(tuning.min_hf_ratio, 1e-3))
         snr_score = _clamp01(math.log10(snr / tuning.onset_ratio + 1e-9) / 1.0 + 0.5)
         confidence = (rise_score * decay_score * hf_score * snr_score) ** 0.25
         features = {
@@ -359,20 +361,20 @@ def load_calibration(tuning: ClapTuning, path: Path) -> ClapTuning:
 
 
 def min_peak_for(noise_p99_dbfs: float, softest_clap_dbfs: float) -> float:
-    """Loudness gate: 9 dB under the softest clap, never within 12 dB of the room.
+    """Loudness gate: 12 dB under the softest clap, never within 12 dB of the room.
 
     With two claps, loudness is the strongest separator from keyboard clicks and
     other short transients (their shape can be clap-like); the owner's claps are
     far louder than typing at the microphone.
     """
-    return round(min(max(noise_p99_dbfs + 12.0, softest_clap_dbfs - 9.0), -3.0), 1)
+    return round(min(max(noise_p99_dbfs + 12.0, softest_clap_dbfs - 12.0), -3.0), 1)
 
 
 def calibrate(noise: Any, claps: Any, tuning: ClapTuning | None = None) -> dict[str, Any]:
     """Derive owner-specific thresholds from an ambient and a clapping recording.
 
     *noise* and *claps* are float32 mono arrays at ``tuning.sample_rate``.
-    The minimum peak is set 9 dB under the softest detected clap (and at least
+    The minimum peak is set 12 dB under the softest detected clap (and at least
     12 dB over the room's loud tail), so the owner's claps pass and quieter
     transients such as typing do not.
     """

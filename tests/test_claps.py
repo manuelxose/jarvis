@@ -161,7 +161,7 @@ class ClapDetectorTests(unittest.TestCase):
             self.assertEqual((tuning.min_peak_dbfs, tuning.sensitivity), (-40.0, 0.8))
             # An older file (midpoint rule) is re-derived with the stricter rule.
             path.write_text(json.dumps({"min_peak_dbfs": -37.1, "noise_p99_dbfs": -65.7, "softest_clap_dbfs": -8.4}))
-            self.assertEqual(load_calibration(ClapTuning(), path).min_peak_dbfs, -17.4)
+            self.assertEqual(load_calibration(ClapTuning(), path).min_peak_dbfs, -20.4)
             self.assertEqual(load_calibration(ClapTuning(), Path(tmp) / "missing.json"), ClapTuning())
 
 
@@ -212,6 +212,17 @@ class TwoClapTests(unittest.TestCase):
     def test_cooldown_then_new_activation(self):
         signal = claps([1.0, 1.4, 7.0, 7.4], 8.5)
         self.assertEqual(len(run(self.detector(cooldown_seconds=5.0), signal)), 2)
+
+    def test_dull_mic_clap_is_not_penalised_twice(self):
+        """Real clap on the owner's mic: loud, 60 ms room tail, HF share right at the gate."""
+        from jarvis.adapters.audio import claps as module
+
+        detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
+        accepted = []
+        detector._claps_accepted = accepted
+        event = {"start": 1.0, "peak": 0.5, "floor": 0.001, "rise": 104.77, "hf": 0.201}
+        detector._finish_event(event, 0.06)
+        self.assertEqual(len(detector.accepted), 1)  # was rejected at confidence 0.46
 
     def test_claps_required_is_validated(self):
         with self.assertRaises(ValueError):
