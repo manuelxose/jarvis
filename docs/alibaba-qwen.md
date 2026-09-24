@@ -14,6 +14,8 @@ a matter of months, and this document is a snapshot, not a contract.
 
 ## 1. Realtime streaming ASR model id
 
+For an operator-measured comparison against local Whisper before changing the STT primary, follow the [STT bake-off procedure](stt-bakeoff.md); no cloud STT measurements are recorded yet.
+
 The stakeholder guess `qwen-audio-3.0-asr-flash-streaming` is **real** — it
 was not invented. Model Studio's real-time ASR guide lists it and a newer
 sibling as the recommended streaming ASR models:
