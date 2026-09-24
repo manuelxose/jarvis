@@ -165,9 +165,13 @@ def _process_names() -> dict[int, str]:
     return {p.pid: (p.info.get("name") or "") for p in psutil.process_iter(["name"])}
 
 
+_WINDOW_ALIASES = {"vs code": "visual studio code", "vscode": "visual studio code", "visual": "visual studio code"}
+
+
 def find_windows(target: str) -> list[tuple[int, str, int]]:
     """Windows whose title or executable name contains *target*."""
     wanted = _norm(target).removesuffix(".exe")
+    wanted = _WINDOW_ALIASES.get(wanted, wanted)
     if not wanted:
         return []
     names = _process_names()
@@ -815,6 +819,76 @@ def _pid_name(pid: int) -> Optional[str]:
         return None
 
 
+class NetworkStatsTool(DesktopTool):
+    def __init__(self) -> None:
+        super().__init__("network_stats", "Current network download/upload rate.", Risk.READ_ONLY)
+
+    async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
+        rates = await asyncio.to_thread(network_rates)
+        return ToolResult(f"Red: bajando {_rate(rates['down_bps'])} y subiendo {_rate(rates['up_bps'])}.", rates)
+
+
+def network_rates(seconds: float = 1.0) -> dict[str, float]:
+    import psutil  # noqa: PLC0415
+
+    first = psutil.net_io_counters()
+    time.sleep(seconds)
+    second = psutil.net_io_counters()
+    return {"down_bps": (second.bytes_recv - first.bytes_recv) / seconds, "up_bps": (second.bytes_sent - first.bytes_sent) / seconds,
+            "total_received_gb": round(second.bytes_recv / 2**30, 2), "total_sent_gb": round(second.bytes_sent / 2**30, 2)}
+
+
+def _rate(bps: float) -> str:
+    if bps >= 2**20:
+        return f"{bps / 2**20:.1f} megas por segundo"
+    return f"{bps / 2**10:.0f} kilobytes por segundo"
+
+
+def posix_from_unc(path: str) -> Optional[str]:
+    """\\\\wsl.localhost\\Ubuntu\\home\\x -> /home/x (None if not a WSL share)."""
+    match = re.match(r"^\\\\wsl(?:\.localhost|\$)\\[^\\]+(\\.*)$", str(path), flags=re.IGNORECASE)
+    return match.group(1).replace("\\", "/") if match else None
+
+
+class ProjectOpenTool(_FileTool):
+    """Open a project folder by name from the authorized scopes (no LLM needed)."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__("project_open", "Open a project/repository by folder name in VS Code.", Risk.REVERSIBLE,
+                         {"name": {"required": True, "type": "string", "max_length": 80}}, **kwargs)
+
+    async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
+        matches = await asyncio.to_thread(find_projects, list(self.scopes), arguments["name"])
+        if not matches:
+            return ToolResult(f"No encuentro ningún proyecto llamado {arguments['name']}.", ok=False)
+        if len(matches) > 1 and _norm(matches[0].name) != _norm(arguments["name"]):
+            names = ", ".join(m.name for m in matches[:3])
+            return ToolResult(f"Hay varios: {names}. ¿Cuál abro?", {"candidates": [str(m) for m in matches]}, ok=False)
+        target = str(matches[0])
+        path = posix_from_unc(target) or target
+        return await VSCodeTool(scopes=self.scopes, backup_dir=self.backup_dir, memory=self.memory).execute({"path": path}, context)
+
+
+def find_projects(scopes: list[Path], name: str, depth: int = 2) -> list[Path]:
+    wanted = re.sub(r"[\s_-]+", "", _norm(name))
+    exact, partial = [], []
+    for scope in scopes:
+        frontier = [scope]
+        for _ in range(depth):
+            next_level = []
+            for folder in frontier:
+                try:
+                    children = [c for c in folder.iterdir() if c.is_dir() and not c.name.startswith(".") and c.name not in _SKIP_DIRS]
+                except OSError:
+                    continue
+                for child in children:
+                    key = re.sub(r"[\s_-]+", "", _norm(child.name))
+                    (exact if key == wanted else partial if wanted and wanted in key else []).append(child)
+                next_level += children
+            frontier = next_level
+    return exact + sorted(partial, key=lambda p: len(p.name))
+
+
 class ProcessKillTool(DesktopTool):
     def __init__(self) -> None:
         super().__init__("process_kill", "Terminate a process by pid (asks first).", Risk.HIGH_RISK,
@@ -991,8 +1065,8 @@ def build_desktop_tools(
     tools: list[Tool] = [
         FocusWindowTool(), WindowTool(), VirtualDesktopTool(), ListWindowsTool(), CloseAppTool(),
         FileSearchTool(**files), FileReadTool(**files), FileWriteTool(**files), FileMoveTool(**files), FileDeleteTool(**files),
-        VSCodeTool(**files), TerminalTool(**files), RunCommandTool(**files),
-        SystemStatsTool(), ProcessListTool(), GpuProcessesTool(), ProcessKillTool(),
+        VSCodeTool(**files), TerminalTool(**files), RunCommandTool(**files), ProjectOpenTool(**files),
+        SystemStatsTool(), ProcessListTool(), GpuProcessesTool(), NetworkStatsTool(), ProcessKillTool(),
         ScreenshotTool(data_dir / "screenshots"), VolumeLevelTool(), WebSearchTool(), CancelOperationsTool(cancel_operations),
     ]
     if workspace is not None:

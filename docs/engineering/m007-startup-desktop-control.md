@@ -4,6 +4,12 @@ Status: implemented and verified on the target laptop (2026-09-23) except for th
 owner-only checks listed at the end. Test suite: **562 passed, 3 skipped**
 (baseline before M007: 474 passed, 3 skipped).
 
+> **Updated by M009** (`m009-performance-report.md`): activation is now **two claps**
+> (the first only warms the voice), the voice model is shared and kept warm between
+> sessions, the welcome/ack audio cache is versioned, and sessions end after 15 min
+> without a turn. Sections below describe M007 as built; the M009 report lists the
+> new configuration keys.
+
 ## What it does
 
 ```

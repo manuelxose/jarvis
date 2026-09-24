@@ -66,6 +66,7 @@ class VoiceCache:
         self.identity_hash = hashlib.sha256(json.dumps(self.identity, sort_keys=True).encode()).hexdigest()[:16]
         self.max_entries, self.max_bytes = max_entries, max_bytes
         self._lock = threading.Lock()
+        self._index_mtime = 0.0
         self._index: dict[str, dict[str, Any]] = self._load_index()
         self._purge_other_identities()
 
@@ -81,6 +82,10 @@ class VoiceCache:
         key = self.key(text)
         with self._lock:
             entry = self._index.get(key)
+            if entry is None and self._index_changed():
+                # Another process (e.g. `jarvis welcome record`) wrote entries.
+                self._index = self._load_index()
+                entry = self._index.get(key)
             if entry is None:
                 return None
             try:
@@ -102,6 +107,8 @@ class VoiceCache:
             tmp = self.dir / f"{key}.tmp"
             tmp.write_bytes(data)
             os.replace(tmp, self.dir / f"{key}.wav")
+            if self._index_changed():
+                self._index = {**self._load_index(), **self._index}  # keep the other process's entries
             self._index[key] = {"text": text, "bytes": len(data), "identity": self.identity_hash, "last_used": time.time()}
             self._evict()
             self._save_index()
@@ -113,9 +120,17 @@ class VoiceCache:
         return {"entries": len(self._index), "bytes": sum(e["bytes"] for e in self._index.values()), "identity": self.identity}
 
     # -- internals ----------------------------------------------------------
-    def _load_index(self) -> dict[str, dict[str, Any]]:
+    def _index_changed(self) -> bool:
         try:
-            data = json.loads((self.dir / "index.json").read_text(encoding="utf-8"))
+            return (self.dir / "index.json").stat().st_mtime != self._index_mtime
+        except OSError:
+            return False
+
+    def _load_index(self) -> dict[str, dict[str, Any]]:
+        path = self.dir / "index.json"
+        try:
+            self._index_mtime = path.stat().st_mtime
+            data = json.loads(path.read_text(encoding="utf-8"))
             return data if isinstance(data, dict) else {}
         except (OSError, ValueError):
             return {}
@@ -126,6 +141,7 @@ class VoiceCache:
             tmp = self.dir / "index.tmp"
             tmp.write_text(json.dumps(self._index, ensure_ascii=False), encoding="utf-8")
             os.replace(tmp, self.dir / "index.json")
+            self._index_mtime = (self.dir / "index.json").stat().st_mtime
         except OSError:
             logger.warning("voice cache index not saved", exc_info=True)
 

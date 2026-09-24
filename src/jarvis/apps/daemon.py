@@ -416,8 +416,11 @@ class Sentinel:
             if ducker is not None:
                 ducker.cancel()
         except asyncio.CancelledError:
-            await sequence.cancel()
-            raise
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                await sequence.cancel()
+                raise  # the daemon itself is shutting down
+            logger.info("startup interrupted by the owner")  # sleep() cancelled the sequence
         except Exception:  # noqa: BLE001 - a failed session must not kill the sentinel
             logger.exception("voice session failed")
         finally:
@@ -503,11 +506,14 @@ class Sentinel:
             "claps_accepted": [{"time": c.time, **c.features} for c in detector.accepted[-6:]],
             "transients_rejected": detector.rejected[-3:],
         }
-        return {"state": self.state, "voice": self.voice.snapshot(), "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
+        return {"state": self.state, "voice": self.voice.snapshot(), "voice_cache_entries": self.welcome_cache.stats()["entries"], "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
 
     def sleep(self) -> None:
-        if self.runtime is not None:
+        """Stop talking: ends the session, or interrupts a startup in progress."""
+        if self.runtime is not None and self.state == "active":
             self.runtime.voice_loop.request_stop()
+        elif self.state == "starting" and self.sequence is not None:
+            self._spawn(self.sequence.cancel())  # music fades, no welcome, back to sentinel
 
     def shutdown(self) -> None:
         self._stop.set()
