@@ -8,6 +8,7 @@ structured JSON-lines protocol over stdio.
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from contextlib import suppress
 import os
 import sys
@@ -102,6 +103,7 @@ class HermesChildAdapter:
         try:
             self._process = await asyncio.create_subprocess_exec(
                 *self._command,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),  # no console window on Windows
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 # Avoid an unconsumed stderr pipe blocking a noisy child.

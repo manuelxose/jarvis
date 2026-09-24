@@ -1,4 +1,4 @@
-"""Triple-clap detector: synthetic positives and speech/music/noise negatives."""
+"""Clap detector (two- and three-clap modes): synthetic positives and speech/music/noise negatives."""
 
 import sys
 import unittest
@@ -12,6 +12,7 @@ from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibrate, loa
 
 RATE = 16000
 RNG = np.random.default_rng(7)
+THREE = ClapTuning(claps_required=3)
 
 
 def silence(seconds, level=0.001):
@@ -71,8 +72,10 @@ def run(detector, signal, chunk=320):
 
 
 class ClapDetectorTests(unittest.TestCase):
+    """Three-clap mode (claps_required=3)."""
+
     def test_three_claps_are_detected_with_low_latency(self):
-        gestures = run(ClapDetector(), claps([0.8, 1.2, 1.6], 3.0))
+        gestures = run(ClapDetector(THREE), claps([0.8, 1.2, 1.6], 3.0))
         self.assertEqual(len(gestures), 1)
         self.assertGreaterEqual(gestures[0].confidence, 0.55)
         self.assertLess(gestures[0].latency_seconds, 0.6)
@@ -80,38 +83,38 @@ class ClapDetectorTests(unittest.TestCase):
 
     def test_int16_bytes_input_is_supported(self):
         pcm = (claps([0.8, 1.2, 1.6], 3.0) * 32767).astype("<i2").tobytes()
-        detector = ClapDetector()
+        detector = ClapDetector(THREE)
         found = [g for s in range(0, len(pcm), 640) if (g := detector.feed(pcm[s:s + 640]))]
         self.assertEqual(len(found), 1)
 
     def test_one_or_two_claps_do_not_activate(self):
-        self.assertEqual(run(ClapDetector(), claps([0.8], 3.0)), [])
-        self.assertEqual(run(ClapDetector(), claps([0.8, 1.2], 3.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), claps([0.8], 3.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), claps([0.8, 1.2], 3.0)), [])
 
     def test_four_claps_are_a_rhythm_not_the_gesture(self):
-        self.assertEqual(run(ClapDetector(), claps([0.8, 1.2, 1.6, 2.0], 4.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), claps([0.8, 1.2, 1.6, 2.0], 4.0)), [])
 
     def test_claps_too_slow_are_rejected(self):
-        self.assertEqual(run(ClapDetector(), claps([0.5, 1.6, 2.7], 4.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), claps([0.5, 1.6, 2.7], 4.0)), [])
 
     def test_irregular_spacing_is_rejected(self):
-        self.assertEqual(run(ClapDetector(), claps([0.5, 0.65, 1.3], 3.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), claps([0.5, 0.65, 1.3], 3.0)), [])
 
     def test_speech_never_activates(self):
-        self.assertEqual(run(ClapDetector(), speech_like(20.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), speech_like(20.0)), [])
 
     def test_music_with_drums_never_activates(self):
-        self.assertEqual(run(ClapDetector(), music_like(20.0)), [])
-        self.assertEqual(run(ClapDetector(), music_like(20.0, bpm=170)), [])
+        self.assertEqual(run(ClapDetector(THREE), music_like(20.0)), [])
+        self.assertEqual(run(ClapDetector(THREE), music_like(20.0, bpm=170)), [])
 
     def test_steady_tone_and_quiet_room_never_activate(self):
         t = np.arange(RATE * 5) / RATE
         tone = (0.3 * np.sin(2 * np.pi * 1000 * t)).astype(np.float32)
-        self.assertEqual(run(ClapDetector(), tone), [])
-        self.assertEqual(run(ClapDetector(), silence(10, 0.003)), [])
+        self.assertEqual(run(ClapDetector(THREE), tone), [])
+        self.assertEqual(run(ClapDetector(THREE), silence(10, 0.003)), [])
 
     def test_quiet_taps_below_min_peak_are_ignored(self):
-        self.assertEqual(run(ClapDetector(), claps([0.8, 1.2, 1.6], 3.0, amplitude=0.01)), [])
+        self.assertEqual(run(ClapDetector(THREE), claps([0.8, 1.2, 1.6], 3.0, amplitude=0.01)), [])
 
     def test_low_thump_before_claps_does_not_veto(self):
         signal = claps([1.0, 1.4, 1.8], 3.0)
@@ -119,16 +122,16 @@ class ClapDetectorTests(unittest.TestCase):
         thump = (0.3 * np.sin(2 * np.pi * 70 * t) * np.exp(-t / 0.015)).astype(np.float32)
         start = int(0.6 * RATE)
         signal[start:start + thump.size] += thump
-        self.assertEqual(len(run(ClapDetector(), signal)), 1)
+        self.assertEqual(len(run(ClapDetector(THREE), signal)), 1)
 
     def test_cooldown_blocks_immediate_retrigger(self):
         signal = claps([0.8, 1.2, 1.6, 2.6, 3.0, 3.4], 4.5)
-        self.assertEqual(len(run(ClapDetector(), signal)), 1)
-        fast = ClapDetector(ClapTuning(cooldown_seconds=0.3))
+        self.assertEqual(len(run(ClapDetector(THREE), signal)), 1)
+        fast = ClapDetector(ClapTuning(claps_required=3, cooldown_seconds=0.3))
         self.assertEqual(len(run(fast, signal)), 2)
 
     def test_suspend_ignores_claps_until_resume(self):
-        detector = ClapDetector()
+        detector = ClapDetector(THREE)
         detector.suspend()
         self.assertEqual(run(detector, claps([0.8, 1.2, 1.6], 3.0)), [])
         detector.resume(cooldown=False)
@@ -156,7 +159,63 @@ class ClapDetectorTests(unittest.TestCase):
             path.write_text(json.dumps({"min_peak_dbfs": -40.0, "sensitivity": 0.8}))
             tuning = load_calibration(ClapTuning(), path)
             self.assertEqual((tuning.min_peak_dbfs, tuning.sensitivity), (-40.0, 0.8))
+            # An older file (midpoint rule) is re-derived with the stricter rule.
+            path.write_text(json.dumps({"min_peak_dbfs": -37.1, "noise_p99_dbfs": -65.7, "softest_clap_dbfs": -8.4}))
+            self.assertEqual(load_calibration(ClapTuning(), path).min_peak_dbfs, -17.4)
             self.assertEqual(load_calibration(ClapTuning(), Path(tmp) / "missing.json"), ClapTuning())
+
+
+class TwoClapTests(unittest.TestCase):
+    """Default mode: exactly two claps; the first one only starts a candidate."""
+
+    def detector(self, **kwargs):
+        detector = ClapDetector(ClapTuning(**kwargs))
+        self.events = []
+        detector.on_candidate = lambda clap: self.events.append(("candidate", round(clap.time, 1)))
+        detector.on_candidate_expired = lambda reason: self.events.append(("expired", reason))
+        return detector
+
+    def test_two_claps_confirm_right_after_the_second(self):
+        gestures = run(self.detector(), claps([1.0, 1.4], 3.0))
+        self.assertEqual(len(gestures), 1)
+        self.assertEqual(len(gestures[0].claps), 2)
+        self.assertLess(gestures[0].time - 1.4, 0.12)  # confirmed ~one decay after the 2nd clap
+        self.assertEqual(self.events, [("candidate", 1.0)])
+
+    def test_single_clap_never_activates_and_candidate_expires(self):
+        self.assertEqual(run(self.detector(), claps([1.0], 3.0)), [])
+        self.assertEqual(self.events, [("candidate", 1.0), ("expired", "timeout")])
+
+    def test_third_clap_does_not_restart_activation(self):
+        gestures = run(self.detector(), claps([1.0, 1.4, 1.8], 4.0))
+        self.assertEqual(len(gestures), 1)  # 3rd clap lands in the cooldown
+        self.assertEqual([e for e in self.events if e[0] == "candidate"], [("candidate", 1.0)])
+
+    def test_claps_too_far_apart_do_not_activate(self):
+        self.assertEqual(run(self.detector(), claps([1.0, 2.2], 4.0)), [])
+
+    def test_speech_music_and_tones_never_activate(self):
+        self.assertEqual(run(self.detector(), speech_like(20.0)), [])
+        self.assertEqual(run(self.detector(), music_like(20.0)), [])
+        self.assertEqual(run(self.detector(), music_like(20.0, bpm=170)), [])
+        t = np.arange(RATE * 5) / RATE
+        self.assertEqual(run(self.detector(), (0.3 * np.sin(2 * np.pi * 1000 * t)).astype(np.float32)), [])
+
+    def test_music_hits_do_not_even_start_speculation(self):
+        run(self.detector(), music_like(10.0))
+        self.assertLessEqual(len([e for e in self.events if e[0] == "candidate"]), 1)
+
+    def test_rhythm_guard_rejects_three_quick_claps_when_configured(self):
+        self.assertEqual(run(self.detector(confirm_quiet_seconds=0.5), claps([1.0, 1.3, 1.6], 3.0)), [])
+        self.assertEqual(len(run(self.detector(confirm_quiet_seconds=0.5), claps([1.0, 1.4], 3.0))), 1)
+
+    def test_cooldown_then_new_activation(self):
+        signal = claps([1.0, 1.4, 7.0, 7.4], 8.5)
+        self.assertEqual(len(run(self.detector(cooldown_seconds=5.0), signal)), 2)
+
+    def test_claps_required_is_validated(self):
+        with self.assertRaises(ValueError):
+            ClapTuning(claps_required=1)
 
 
 if __name__ == "__main__":

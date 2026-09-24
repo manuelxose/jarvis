@@ -24,7 +24,8 @@ from jarvis.core.contracts import (
     TextToSpeech,
     TurnContext,
 )
-from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream
+from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream, join_wavs
+from jarvis.observability.event_hub import hub
 from jarvis.core.errors import ToolError
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnCancelled
@@ -219,11 +220,13 @@ class TurnManager:
         trace.mark("speech_end")
         response = ""
         route = "fast_model"
+        ok = False
         try:
             self._set_state(RuntimeState.THINKING)
             decision = await self._router.route(text, context)
             route = decision.route
             trace.mark("routing_ms")
+            hub.publish("agent.started", trace_id=context.trace_id, route=route)
 
             if route == "desktop" and self.planner is None:
                 route = "fast_model"
@@ -237,6 +240,7 @@ class TurnManager:
             else:
                 response = await self._handle_model(text, context, trace)
             trace.mark("total_request_ms")
+            ok = True
             return TurnResult(
                 transcript=text,
                 response=response,
@@ -254,6 +258,7 @@ class TurnManager:
                 cancelled=True,
             )
         finally:
+            hub.publish("agent.completed", trace_id=context.trace_id, route=route, ok=ok, elapsed_ms=round((time.monotonic() - started) * 1000, 1))
             async with self._lock:
                 if self._current is context:
                     self._current = None
@@ -268,7 +273,9 @@ class TurnManager:
             )
         except ToolError as error:
             response = str(error)
+            succeeded = False
         else:
+            succeeded = getattr(result, "ok", True) is not False
             if self.planner is not None and _unresolved(decision.command.name, result):
                 # "abre el proyecto X" is not an app name: let the planner resolve it.
                 response = await self.planner.handle(text, context)
@@ -279,12 +286,48 @@ class TurnManager:
         # outcome rather than a silent execution; this is the milestone's spoken
         # response guarantee for the fast-command path. A cached acknowledgement
         # skips the TTS provider round trip entirely.
-        cached = self._ack_cache.get(response) if self._ack_cache is not None else None
+        # Only stable success phrases are cached: a failure or a value (time,
+        # percentages) is always spoken live, so a cached "done" can never lie.
+        cacheable = self._ack_cache is not None and succeeded and _stable_ack(response)
+        cached = self._ack_cache.get(response) if cacheable else None
         if cached is not None:
+            hub.publish("speech.started", trace_id=context.trace_id, source="cache")
             await self._audio.play(bytes_to_stream(cached), context)
+            hub.publish("speech.completed", trace_id=context.trace_id, cancelled=False)
+        elif cacheable and hasattr(self._ack_cache, "put") and self._ready_clone() is not None:
+            await self._speak_and_cache(response, context)
         else:
             await self._speak_text(response, context)
         return response
+
+    def _ready_clone(self) -> Any:
+        """The cloned-voice provider if it is loaded (only its audio may be cached)."""
+        for provider in getattr(self._tts, "providers", (self._tts,)):
+            if getattr(provider, "ready", False):
+                return provider
+        return None
+
+    async def _speak_and_cache(self, text: str, context: TurnContext) -> None:
+        clone = self._ready_clone()
+        chunks: list[bytes] = []
+
+        async def _gen() -> AsyncIterator[str]:
+            yield text
+
+        async def _tee() -> AsyncIterator[bytes]:
+            async for chunk in clone.synthesize(_gen(), context):
+                if not chunks:
+                    hub.publish("speech.started", trace_id=context.trace_id, source="live")
+                chunks.append(chunk)
+                yield chunk
+
+        await self._audio.play(_tee(), context)
+        hub.publish("speech.completed", trace_id=context.trace_id, cancelled=context.cancellation.cancelled)
+        if chunks and not context.cancellation.cancelled:
+            try:
+                self._ack_cache.put(text, join_wavs(chunks))
+            except (OSError, ValueError):
+                pass  # the cache is an optimisation, never a failure
 
     def _command_response(self, name: str, result: Any) -> str:
         if isinstance(result, str):
@@ -328,13 +371,18 @@ class TurnManager:
                 if "tts_first_audio_ms" not in marked:
                     marked.add("tts_first_audio_ms")
                     trace.mark("tts_first_audio_ms")
+                    hub.publish("speech.started", trace_id=context.trace_id, source="live")
                     # The queue is idle between turns, so the first chunk starts
                     # on the device as soon as it is enqueued.
                     trace.mark("playback_start_ms")
                 yield audio
 
         marked: set[str] = set()
-        await self._audio.play(_timed_audio(), context)
+        try:
+            await self._audio.play(_timed_audio(), context)
+        finally:
+            if marked:
+                hub.publish("speech.completed", trace_id=context.trace_id, cancelled=context.cancellation.cancelled)
         return " ".join(collected)
 
     async def _handle_hermes(
@@ -393,6 +441,12 @@ class TurnManager:
                 self._state_setter(state)
             except Exception:
                 pass
+
+
+def _stable_ack(text: str) -> bool:
+    """A fixed success phrase worth caching (no numbers, no failure wording)."""
+    text = (text or "").strip()
+    return 0 < len(text) <= 80 and not any(c.isdigit() for c in text) and not text.lower().startswith(("no ", "tool ", "error"))
 
 
 def _unresolved(name: str, result: Any) -> bool:

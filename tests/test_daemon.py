@@ -157,6 +157,111 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
             await server.wait_closed()
 
 
+class FakeClone:
+    def __init__(self):
+        self.starts = self.stops = 0
+
+    async def start(self):
+        self.starts += 1
+
+    async def stop(self):
+        self.stops += 1
+
+    async def wait_ready(self):
+        return {"profile": "owner", "load_ms": 1}
+
+
+class VoiceRuntime(FakeRuntime):
+    def __init__(self, config, voice_clone=None):
+        super().__init__(config)
+        self.voice_clone = voice_clone
+        EVENTS.append(("voice_clone", voice_clone))
+        self.voice_loop.last_activity = time.monotonic()
+
+
+class ActivationStateTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        EVENTS.clear()
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        (root / "config.json").write_text(json.dumps({
+            "runtime": {}, "memory": {"db_path": str(root / "j.db")},
+            "daemon": {"hotkey": "", "session_idle_seconds": 0.2, "events_log": False},
+            "voice": {"cooldown_seconds": 60, "max_gpu_mb": 0},
+        }))
+        self.config = load_config(root / "config.json")
+        self.env = mock.patch.dict(os.environ, {"LOCALAPPDATA": str(root)})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def sentinel(self):
+        from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+
+        sentinel = daemon.Sentinel(self.config, runtime_factory=VoiceRuntime, mixer_factory=FakeMixer,
+                                   open_mic=lambda cb: SimpleNamespace(stop=lambda: None, close=lambda: None))
+        sentinel.voice = VoiceModelManager(FakeClone, VoicePolicy(max_gpu_mb=0, speculative_min_interval_seconds=0),
+                                           free_vram=lambda: None, running_processes=set)
+        return sentinel
+
+    async def wait_for(self, predicate, timeout=2.0):
+        for _ in range(int(timeout / 0.01)):
+            if predicate():
+                return
+            await asyncio.sleep(0.01)
+        self.fail("condition not reached")
+
+    async def test_first_clap_speculates_and_expiry_undoes_it(self):
+        sentinel = self.sentinel()
+        task = asyncio.create_task(sentinel.run())
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        sentinel.detector.on_candidate(SimpleNamespace(time=1.0))  # from the audio thread
+        await self.wait_for(lambda: sentinel.voice.state.value == "speculative")
+        self.assertEqual(sentinel.state, "candidate")
+        self.assertNotIn("chime", [e[0] for e in EVENTS])  # no music/chime on one clap
+        sentinel.detector.on_candidate_expired("timeout")
+        await self.wait_for(lambda: sentinel.voice.state.value == "cold")
+        self.assertEqual((sentinel.state, sentinel.voice.tts.stops), ("sentinel", 1))
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 2)
+
+    async def test_confirmed_session_shares_one_model_and_auto_sleeps(self):
+        sentinel = self.sentinel()
+        task = asyncio.create_task(sentinel.run())
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        sentinel.detector.on_candidate(SimpleNamespace(time=1.0))
+        sentinel.request_activation("claps")  # second clap
+        await self.wait_for(lambda: sentinel.state == "active")
+        clone = sentinel.voice.tts
+        self.assertEqual((clone.starts, sentinel.voice.state.value), (1, "warm"))
+        self.assertTrue(all(e[1] is clone for e in EVENTS if e[0] == "voice_clone"))
+        sentinel.runtime.voice_loop.last_activity -= 10  # nobody talked: idle watchdog ends it
+        await self.wait_for(lambda: sentinel.state == "sentinel", timeout=3)
+        self.assertEqual((sentinel.voice.state.value, clone.stops), ("cooldown", 0))  # kept warm for reuse
+        sentinel.request_activation("hotkey")
+        await self.wait_for(lambda: sentinel.state == "active")
+        self.assertEqual(clone.starts, 1)  # reused, not reloaded
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 3)
+
+    async def test_duplicate_activations_during_startup_are_ignored(self):
+        sentinel = self.sentinel()
+        task = asyncio.create_task(sentinel.run())
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        for source in ("claps", "wake_word", "hotkey"):
+            sentinel.request_activation(source)
+        await self.wait_for(lambda: sentinel.state == "active")
+        self.assertEqual([e[0] for e in EVENTS].count("chime"), 1)
+        sentinel.sleep()
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        await asyncio.sleep(0.1)
+        self.assertEqual(sentinel.state, "sentinel")  # queued duplicates were dropped
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 2)
+
+
 class HotkeyTests(unittest.TestCase):
     def test_parse(self):
         self.assertEqual(daemon.parse_hotkey("ctrl+alt+j"), (0x4003, ord("J")))

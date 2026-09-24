@@ -1,11 +1,16 @@
 """Background sentinel: sleep cheaply, wake Jarvis on a gesture, go back to sleep.
 
-States::
+Activation state machine (``Sentinel.state``)::
 
-    sentinel (mic -> clap detector [+ optional "hey Jarvis"], global hotkey,
-              localhost control socket)
-      -> activation: mic closed, runtime built, cinematic startup, voice loop
-      -> "Jarvis, a dormir" / control "sleep": runtime stopped, sentinel again
+    sentinel ──1st clap──► candidate ──2nd clap / hotkey / wake word──► starting ──► active
+       ▲                      │ no 2nd clap in time (speculative voice load undone)   │
+       └──────────────────────┘                     "a dormir" / idle timeout / sleep ◄┘
+
+The first clap only starts a speculative load of the shared voice model; the
+second confirms and triggers the chime, music, workspace and welcome. Claps
+during an activation are ignored (the mic is closed and the detector is in
+cooldown); activations queued meanwhile are dropped. The voice model outlives
+sessions (see :mod:`jarvis.application.voice_manager`).
 
 Only one daemon runs per user: the control socket bind on 127.0.0.1 doubles as
 the single-instance lock, and ``jarvis activate`` / ``jarvis sleep`` talk to
@@ -28,6 +33,8 @@ from typing import Any, Callable, Mapping, Optional
 
 from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_path, load_calibration
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
+from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+from jarvis.observability.event_hub import JsonlSink, hub
 from jarvis.adapters.tts.ack_cache import AckAudioCache, bytes_to_stream, join_wavs
 from jarvis.application.startup import StartupOptions, StartupSequence, welcome_texts
 from jarvis.core.turn import TurnContext
@@ -118,6 +125,13 @@ class Sentinel:
         self._mixer_factory = mixer_factory or self._default_mixer
         self._open_mic = open_mic or self._default_mic
         self.detector = ClapDetector(clap_tuning(config))
+        self.detector.on_candidate = lambda clap: self._threadsafe(self._on_candidate, clap)
+        self.detector.on_candidate_expired = lambda reason: self._threadsafe(self._on_candidate_expired, reason)
+        policy = dict(config.voice)
+        if config.daemon.get("preload_voice") and "preload" not in policy:
+            policy["preload"] = "always"  # pre-M009 setting
+        self.voice = VoiceModelManager(self._clone_factory, VoicePolicy.from_config(policy))
+        self._tasks: set[asyncio.Task[Any]] = set()
         self._claps_enabled = bool(config.claps.get("enabled", True))
         self._wake = self._make_wake_detector()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -130,18 +144,50 @@ class Sentinel:
         self._last_gesture: dict[str, Any] = {}
         self._mixer: Any = None
         self._prepared: Optional[asyncio.Task[JarvisRuntime]] = None
-        self.welcome_cache = self.welcome_cache_for()
+        self.welcome_cache = self.welcome_cache_for(config)
 
     @staticmethod
-    def welcome_cache_for() -> AckAudioCache:
-        # ponytail: keyed by text only; run `jarvis welcome record` after re-enrolling the voice.
-        return AckAudioCache(_data_dir() / "cache" / "welcome")
+    def welcome_cache_for(config: RuntimeConfig) -> Any:
+        """Versioned cache shared with the fast-command acks (re-enrolling invalidates it)."""
+        from jarvis.adapters.tts.voice_cache import VoiceCache, voice_identity  # noqa: PLC0415
+
+        return VoiceCache(_data_dir() / "cache" / "voice", voice_identity(config))
+
+    def _clone_factory(self) -> Any:
+        from jarvis.adapters.tts.resolve import build_qwen_clone, tts_provider  # noqa: PLC0415
+
+        return build_qwen_clone(self.config) if tts_provider(self.config) == "qwen_clone" else None
 
     # -- activation sources (thread-safe) --------------------------------------
+    def _threadsafe(self, callback: Callable[..., Any], *args: Any) -> None:
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(callback, *args)
+
+    def _spawn(self, coro: Any) -> None:
+        task = asyncio.ensure_future(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
     def request_activation(self, source: str) -> None:
         if self._loop is None or self._activation is None:
             return
         self._loop.call_soon_threadsafe(self._activation.put_nowait, (source, time.perf_counter()))
+
+    def _on_candidate(self, clap: Any) -> None:
+        """First clap: speculative warm-up only (no chime, no music, no startup)."""
+        if self.state != "sentinel":
+            return
+        self.state = "candidate"
+        hub.publish("activation.started", source="first_clap")
+        self._spawn(self.voice.speculate("first clap"))
+
+    def _on_candidate_expired(self, reason: str) -> None:
+        if self.state != "candidate":
+            return
+        self.state = "sentinel"
+        logger.info("activation candidate cancelled: %s", reason)
+        hub.publish("activation.cancelled", reason=reason)
+        self._spawn(self.voice.cancel_speculation(reason))
 
     def _on_audio(self, block: Any) -> None:
         """PortAudio callback thread: cheap feature extraction only."""
@@ -150,7 +196,7 @@ class Sentinel:
             gesture = self.detector.feed(mono)
             if gesture is not None:
                 self._last_gesture = {"confidence": gesture.confidence, "latency_s": round(gesture.latency_seconds, 3), "at": time.time()}
-                logger.info("triple clap: confidence %.2f, detected %.0f ms after the last clap", gesture.confidence, gesture.latency_seconds * 1000)
+                logger.info("%d claps: confidence %.2f, confirmed %.0f ms after the last clap", len(gesture.claps), gesture.confidence, gesture.latency_seconds * 1000)
                 self.request_activation("claps")
         if self._wake is not None:
             self._wake_buffer.append(mono.copy())
@@ -162,6 +208,8 @@ class Sentinel:
                 pcm = (np.clip(frame, -1, 1) * 32767).astype(np.int16).tobytes()
                 try:
                     if self._wake.detected(pcm):
+                        if self.voice.policy.predictive_on_wake_word:
+                            self._threadsafe(lambda: self._spawn(self.voice.speculate("wake word")))
                         self.request_activation("wake_word")
                 except Exception as error:  # noqa: BLE001 - disable a broken detector, keep claps
                     logger.warning("wake word disabled: %s", error)
@@ -205,6 +253,12 @@ class Sentinel:
         start_hotkey_thread(str(self.config.daemon.get("hotkey", "ctrl+alt+j")), lambda: self.request_activation("hotkey"))
         preload = asyncio.create_task(self._preload_music())
         self._prepared = asyncio.create_task(self._prepare_runtime())
+        if self.config.daemon.get("events_log", True):
+            unsubscribe = hub.subscribe(JsonlSink(_data_dir() / "logs" / "events.jsonl"))
+        else:
+            unsubscribe = lambda: None  # noqa: E731
+        self._spawn(self.voice.start_always())
+        self._spawn(self._maintenance())
         try:
             while not self._stop.is_set():
                 activation = await self._listen()
@@ -214,19 +268,37 @@ class Sentinel:
                 self._prepared = asyncio.create_task(self._prepare_runtime())
         finally:
             preload.cancel()
+            for task in list(self._tasks):
+                task.cancel()
             if self._prepared is not None:
                 self._prepared.cancel()
                 runtime = await asyncio.gather(self._prepared, return_exceptions=True)
                 if isinstance(runtime[0], JarvisRuntime):
                     await runtime[0].stop()
+            await self.voice.shutdown()
+            unsubscribe()
+
+    def _build_runtime(self) -> JarvisRuntime:
+        shared = self.voice.tts
+        return self._runtime_factory(self.config, voice_clone=shared) if shared is not None else self._runtime_factory(self.config)
 
     async def _prepare_runtime(self) -> JarvisRuntime:
         """Build the next session's runtime while idle (the build takes seconds)."""
-        runtime = await asyncio.to_thread(self._runtime_factory, self.config)
-        if self.config.daemon.get("preload_voice", False):
-            # Keeps the cloned voice loaded between sessions (~4 GB VRAM).
-            await runtime.start()
-        return runtime
+        return await asyncio.to_thread(self._build_runtime)
+
+    async def _maintenance(self) -> None:
+        """Every 30 s: GPU-pressure eviction and optional host metrics."""
+        metrics_every = float(self.config.daemon.get("metrics_interval_seconds", 0))
+        last_metrics = 0.0
+        while True:
+            await asyncio.sleep(min(30.0, metrics_every) if metrics_every > 0 else 30.0)
+            try:
+                await self.voice.check_pressure()
+                if metrics_every > 0 and time.monotonic() - last_metrics >= metrics_every:
+                    last_metrics = time.monotonic()
+                    hub.publish("system.metrics", **await asyncio.to_thread(_metrics))
+            except Exception:  # noqa: BLE001 - maintenance never kills the sentinel
+                logger.debug("maintenance failed", exc_info=True)
 
     def _get_mixer(self) -> Any:
         if self._mixer is None:
@@ -274,6 +346,10 @@ class Sentinel:
 
     async def _session(self, source: str, gesture_at: float) -> None:
         self.state = "starting"
+        hub.publish("activation.confirmed", source=source, confidence=self._last_gesture.get("confidence") if source == "claps" else None)
+        # Pin the shared voice for the whole session (loads it if still cold);
+        # in the background so it never delays the chime.
+        acquire = asyncio.create_task(self.voice.acquire("session"))
         mixer = None
         try:
             mixer = self._get_mixer()
@@ -285,7 +361,7 @@ class Sentinel:
             # Built off the loop (~3 s of imports/model setup) so the chime and the
             # music are not held back; the runtime owns no thread-bound resources.
             prepared, self._prepared = self._prepared, None
-            runtime = await prepared if prepared is not None else await asyncio.to_thread(self._runtime_factory, self.config)
+            runtime = await prepared if prepared is not None else await asyncio.to_thread(self._build_runtime)
             holder["runtime"] = self.runtime = runtime
             await runtime.start()
             return list(runtime.supervisor.health_snapshot())
@@ -296,6 +372,17 @@ class Sentinel:
         async def wait_voice() -> bool:
             return await _wait_voice(holder["runtime"])
 
+        async def speak_fallback(text: str) -> None:
+            # Truthful warning without waiting for the clone: the chain's last provider (SAPI).
+            runtime = holder["runtime"]
+            tts = runtime.components.turn_manager._tts
+            fallback = getattr(tts, "providers", (tts,))[-1]
+
+            async def _one() -> Any:
+                yield text
+
+            await runtime.components.audio_output.play(fallback.synthesize(_one(), TurnContext.fresh("warning")), TurnContext.fresh("warning"))
+
         sequence = self.sequence = StartupSequence(
             startup_options(self.config),
             mixer=mixer,
@@ -303,7 +390,8 @@ class Sentinel:
             start_services=start_services,
             wait_voice=wait_voice,
             start_workspace=self._workspace_starter(),
-            on_phase=lambda phase, detail: logger.info("startup %s %s", phase.value, detail),
+            on_phase=self._on_startup_phase,
+            speak_fallback=speak_fallback,
             cached_welcome=self.welcome_cache.get,
             play_audio=lambda audio: holder["runtime"].components.audio_output.play(bytes_to_stream(audio), TurnContext.fresh("welcome")),
         )
@@ -314,12 +402,16 @@ class Sentinel:
             timings = {k: round(v + offset_ms, 1) for k, v in report.timings_ms.items()}
             self.last_report = {**report.as_dict(), "timings_ms_since_gesture": timings, "gesture": self._last_gesture if source == "claps" else None}
             self._write_report()
+            if not report.issues and report.phase.value == "ready":
+                hub.publish("startup.completed", welcome_source=report.welcome_source, timings_ms=timings)
             if runtime is None:
                 return
             self.state = "active"
             recorder = asyncio.create_task(self._record_welcomes(runtime, sequence.options))
+            watchdog = asyncio.create_task(self._idle_watchdog(runtime))
             ducker = asyncio.create_task(_duck_during_speech(mixer, runtime, sequence.options)) if mixer and sequence.options.after_welcome == "restore" else None
             await runtime.run_until_stopped()
+            watchdog.cancel()
             recorder.cancel()
             if ducker is not None:
                 ducker.cancel()
@@ -339,8 +431,31 @@ class Sentinel:
                 await runtime.stop()
             if mixer is not None:
                 mixer.stop()
+            await asyncio.gather(acquire, return_exceptions=True)
+            await self.voice.release("session")  # warm -> cooldown (reused by the next session)
             self.runtime = None
             logger.info("voice session ended; back to sentinel")
+
+    def _on_startup_phase(self, phase: Any, detail: dict[str, Any]) -> None:
+        hub.publish("startup.progress", phase=phase.value)
+        issues = detail.get("issues")
+        if issues and phase.value in ("announcing", "failed"):
+            # Visible even if no voice ever speaks: published and logged before the warning.
+            logger.warning("startup degraded: %s", ", ".join(issues))
+            hub.publish("startup.degraded", issues=list(issues), phase=phase.value)
+
+    async def _idle_watchdog(self, runtime: JarvisRuntime) -> None:
+        """End a session nobody is talking to (it otherwise transcribes noise all night)."""
+        limit = float(self.config.daemon.get("session_idle_seconds", 900))
+        if limit <= 0:
+            return
+        while True:
+            await asyncio.sleep(min(30.0, limit / 4))
+            last = getattr(runtime.voice_loop, "last_activity", None)
+            if last is not None and time.monotonic() - last > limit:
+                logger.info("no interaction for %.0f s: going back to sleep", limit)
+                runtime.voice_loop.request_stop()
+                return
 
     async def _record_welcomes(self, runtime: JarvisRuntime, options: StartupOptions) -> None:
         """Once the clone is ready, record the 'all operational' welcomes in its voice."""
@@ -388,7 +503,7 @@ class Sentinel:
             "claps_accepted": [{"time": c.time, **c.features} for c in detector.accepted[-6:]],
             "transients_rejected": detector.rejected[-3:],
         }
-        return {"state": self.state, "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
+        return {"state": self.state, "voice": self.voice.snapshot(), "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
 
     def sleep(self) -> None:
         if self.runtime is not None:
@@ -397,6 +512,14 @@ class Sentinel:
     def shutdown(self) -> None:
         self._stop.set()
         self.sleep()
+
+
+def _metrics() -> dict[str, Any]:
+    import psutil  # noqa: PLC0415
+
+    from jarvis.adapters.tools.desktop import gpu_status  # noqa: PLC0415
+
+    return {"cpu_percent": psutil.cpu_percent(0.2), "ram_percent": psutil.virtual_memory().percent, "gpu": gpu_status()}
 
 
 def _clone(runtime: JarvisRuntime) -> Any:

@@ -74,10 +74,12 @@ class VoiceLoop:
         self._phase = "idle"
         self._last_error: str | None = None
         self.turns: list[TurnResult] = []
+        self.last_activity = time.monotonic()  # session start / last completed turn
 
     async def run(self, max_turns: int | None = None) -> None:
         """Run the loop until stopped, the audio source is exhausted, or *max_turns* turns complete."""
         context = TurnContext.fresh("voice_loop")
+        self.last_activity = time.monotonic()
         self._frames = self._audio.capture(context)
         attempts = 0
         logger.info("voice loop running — listening")
@@ -117,6 +119,7 @@ class VoiceLoop:
                         result.trace,
                     )
                 self._activation.note_turn_complete()
+                self.last_activity = time.monotonic()
                 for _ in range(self.echo_tail_frames):
                     if await self._next_frame(context) is None:
                         break

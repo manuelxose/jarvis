@@ -233,6 +233,48 @@ class SequenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report.welcome_source, "live")
         self.assertIn("el modelo de lenguaje", spoken[0])
 
+    async def test_ducking_starts_early_so_the_welcome_lands_on_the_delay(self):
+        played_at = []
+
+        async def play(audio):
+            played_at.append(asyncio.get_running_loop().time())
+
+        mixer = FakeMixer()
+        options = StartupOptions(music_path="x", welcome_delay_seconds=0.3, duck_seconds=0.2)
+        seq, _ = make(options, mixer=mixer)
+        seq._play_audio, seq._cached_welcome = play, (lambda text: b"WAV")
+        t0 = asyncio.get_running_loop().time()
+        await seq.trigger()
+        self.assertLess(played_at[0] - t0, 0.3 + 0.12)  # not delay + duck (0.5 s)
+        self.assertEqual(mixer.calls[3], ("ramp", options.duck_volume))
+
+    async def test_degraded_warning_uses_fallback_voice_after_short_deadline(self):
+        fallback = []
+
+        async def never():
+            await asyncio.sleep(10)
+
+        async def speak_fallback(text):
+            fallback.append(text)
+
+        broken = HEALTHY[:-1] + [HealthReport("fast model", HealthStatus.DEGRADED, required=False)]
+        seq, spoken = make(StartupOptions(voice_ready_timeout_seconds=0.05), reports=broken)
+        seq._wait_voice, seq._speak_fallback = never, speak_fallback
+        report = await asyncio.wait_for(seq.trigger(), 2)
+        self.assertEqual((spoken, report.welcome_source), ([], "fallback"))
+        self.assertIn("el modelo de lenguaje", fallback[0])
+        self.assertIn("mi voz clonada", fallback[0])
+
+    async def test_hung_speech_cannot_block_the_session(self):
+        async def hang(text):
+            await asyncio.sleep(10)
+
+        seq, _ = make(StartupOptions(announce_timeout_seconds=0.05))
+        seq._speak = hang
+        report = await asyncio.wait_for(seq.trigger(), 2)
+        self.assertIn("speech timed out", report.issues)
+        self.assertEqual(report.phase, StartupPhase.DEGRADED)  # truthful, and the session still proceeds
+
     def test_welcome_texts_cover_the_three_periods(self):
         texts = welcome_texts(StartupOptions())
         self.assertEqual([t.split(",")[0] for t in texts], ["Buenos días", "Buenas tardes", "Buenas noches"])
