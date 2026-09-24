@@ -153,6 +153,24 @@ class MusicAwareListeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(vad.threshold, 300.0)
 
 
+class PrimeOnFirstClapTests(td.ActivationStateTests):
+    async def test_first_clap_opens_the_speaker_stream(self):
+        primed = []
+
+        class PrimeMixer(td.FakeMixer):
+            def prime(self):
+                primed.append(True)
+
+        sentinel = self.sentinel()
+        sentinel._mixer_factory = PrimeMixer
+        task = asyncio.create_task(sentinel.run())
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        sentinel.detector.on_candidate(SimpleNamespace(time=1.0))
+        await self.wait_for(lambda: bool(primed))
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 2)
+
+
 class DaemonRestartTests(td.ActivationStateTests):
     async def test_voice_restart_ends_session_and_requests_relaunch(self):
         sentinel = self.sentinel()

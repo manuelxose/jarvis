@@ -77,6 +77,8 @@ class StartupOptions:
     music_path: str = ""
     music_url: str = ""  # opened in the browser only when no local file is usable
     music_volume: float = 0.55
+    # Seconds into the track to start from; "auto" skips a quiet intro.
+    music_start_seconds: float | str = 0.0
     duck_volume: float = 0.12
     # after_welcome="restore": the music continues at this background level. Louder
     # music masks the owner's voice for the microphone (measured on the laptop).
@@ -333,7 +335,7 @@ class StartupSequence:
         if options.music_path and self._mixer is not None:
             try:
                 await asyncio.to_thread(self._mixer.load, options.music_path)
-                self._mixer.play_music(options.music_volume, options.fade_in_seconds)
+                self._mixer.play_music(options.music_volume, options.fade_in_seconds, options.music_start_seconds)
                 self.report.music = "file"
                 return
             except FileNotFoundError:

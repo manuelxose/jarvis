@@ -49,11 +49,12 @@
     "music_volume": 1.0,
     "duck_volume": 0.1,
     "after_welcome": "restore",
-    "welcome_delay_seconds": 2.0,
+    "welcome_delay_seconds": 3.0,
     "voice_ready_timeout_seconds": 8,
     "background_volume": 0.1,
     "fade_in_seconds": 0.4,
-    "duck_seconds": 0.8
+    "duck_seconds": 0.8,
+    "music_start_seconds": "auto"
   },
   "daemon": {
     "hotkey": "ctrl+alt+j",
