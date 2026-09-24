@@ -7,11 +7,14 @@ present in ``repr`` or ``public_dict`` output.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Optional, Union
+
+from jarvis.core.errors import ProviderConfigError
 
 
 _ENV_VALUE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
@@ -74,6 +77,25 @@ class STTSettings:
 
 
 @dataclass(frozen=True)
+class TTSRoutingEvidence:
+    """One operator measurement; provenance is deliberately absent from repr."""
+    provider: str
+    run_id: str = field(repr=False)
+    source: str = field(repr=False)
+    first_audio_ms: Optional[float] = field(default=None, repr=False)
+    usd_per_character: Optional[float] = field(default=None, repr=False)
+    quality: Optional[float] = field(default=None, repr=False)
+    reliability: Optional[float] = field(default=None, repr=False)
+    integration: Optional[float] = field(default=None, repr=False)
+
+    @property
+    def complete(self) -> bool:
+        return all(getattr(self, key) is not None for key in (
+            "first_audio_ms", "usd_per_character", "quality", "reliability", "integration"
+        ))
+
+
+@dataclass(frozen=True)
 class TTSSettings:
     """``tts`` section: text-to-speech provider, voice and clone worker."""
     provider: str = "local"  # local | sapi | alibaba_qwen | qwen_clone
@@ -87,6 +109,8 @@ class TTSSettings:
     chunk_size: int = 4
     # qwen_clone: seconds a turn waits for a still-loading clone before SAPI (0 = never)
     warmup_wait_seconds: float = 0.0
+    profile: str = "auto"  # auto | fast | cheap | quality
+    routing_evidence: tuple[TTSRoutingEvidence, ...] = field(default=(), repr=False)
 
 
 @dataclass(frozen=True)
@@ -205,6 +229,7 @@ class RuntimeConfig:
                 "model": self.tts.model,
                 "chunk_size": self.tts.chunk_size,
                 "warmup_wait_seconds": self.tts.warmup_wait_seconds,
+                "profile": self.tts.profile,
             },
             "alibaba": {
                 "region": self.alibaba.region,
@@ -312,6 +337,8 @@ def load_config(
             model=_string(tts_data, "model", ""),
             chunk_size=_positive_int(tts_data, "chunk_size", 4, "tts.chunk_size"),
             warmup_wait_seconds=_number(tts_data, "warmup_wait_seconds", 0.0),
+            profile=_tts_profile(tts_data),
+            routing_evidence=_parse_tts_evidence(tts_data),
         ),
         alibaba=AlibabaSettings(
             region=_choice(alibaba_data, "region", "singapore", {"singapore", "beijing"}, "alibaba"),
@@ -475,6 +502,46 @@ def _positive_number(data: Mapping[str, Any], key: str, default: float, label: s
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         raise ValueError("{} must be a positive number".format(label))
     return float(value)
+
+
+def _tts_profile(data: Mapping[str, Any]) -> str:
+    value = data.get("profile", "auto")
+    if not isinstance(value, str) or value.strip().lower() not in {"auto", "fast", "cheap", "quality"}:
+        raise ProviderConfigError("tts.profile must be auto, fast, cheap or quality", provider="tts")
+    return value.strip().lower()
+
+
+def _parse_tts_evidence(data: Mapping[str, Any]) -> tuple[TTSRoutingEvidence, ...]:
+    raw = data.get("routing_evidence", [])
+    if not isinstance(raw, list):
+        raise ProviderConfigError("tts.routing_evidence must be a list", provider="tts")
+    rows: list[TTSRoutingEvidence] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ProviderConfigError("tts.routing_evidence entries must be objects", provider="tts")
+        name = item.get("provider")
+        if not isinstance(name, str) or name not in {"local", "sapi", "alibaba_qwen", "qwen_clone"}:
+            raise ProviderConfigError("tts.routing_evidence provider must name a known TTS adapter", provider="tts")
+        if name in seen:
+            raise ProviderConfigError("duplicate tts.routing_evidence provider", provider="tts")
+        seen.add(name)
+        if set(item) - {"provider", "run_id", "source", "first_audio_ms", "usd_per_character", "quality", "reliability", "integration"}:
+            raise ProviderConfigError("unknown tts.routing_evidence field", provider="tts")
+        for key in ("run_id", "source"):
+            if not isinstance(item.get(key), str) or not item[key].strip():
+                raise ProviderConfigError(f"tts.routing_evidence.{key} must be a nonempty string", provider="tts")
+        numbers = {}
+        for key in ("first_audio_ms", "usd_per_character", "quality", "reliability", "integration"):
+            value = item.get(key)
+            if value is not None:
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                    raise ProviderConfigError(f"tts.routing_evidence.{key} must be finite numeric", provider="tts")
+                if value < 0 or (key in {"quality", "reliability", "integration"} and value > 1):
+                    raise ProviderConfigError(f"tts.routing_evidence.{key} out of range", provider="tts")
+                numbers[key] = float(value)
+        rows.append(TTSRoutingEvidence(provider=name, run_id=item["run_id"], source=item["source"], **numbers))
+    return tuple(rows)
 
 
 def _parse_providers(data: Mapping[str, Any], environ: Mapping[str, str]) -> list[ModelProviderConfig]:
