@@ -120,6 +120,19 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(r.status == "launched" for r in results))
         self.assertLess(time.monotonic() - started, 0.6)  # 5 x 0.2 s sequentially would be 1 s
 
+    async def test_open_window_is_brought_to_front_not_relaunched(self):
+        world = World()
+        world.running = {"jarvis [WSL: Ubuntu]"}
+        focused = []
+        profiles = {"p": {"tasks": [{"name": "vscode", "command": ["code"], "detect": {"window_title": "jarvis [WSL: Ubuntu]"}}]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = world.manager(profiles, tmp)
+            manager._focus_window = lambda title: focused.append(title) or True
+            results = await manager.start("p")
+        self.assertEqual(results[0].status, "already_running")
+        self.assertEqual(world.spawned, [])
+        self.assertEqual(focused, ["jarvis [WSL: Ubuntu]"])
+
     async def test_already_running_is_not_duplicated_or_managed(self):
         world = World()
         world.running = {"vscode.exe", "ollama.exe"}

@@ -197,6 +197,20 @@ def _probe_window(fragment: str) -> bool:
     return any(fragment in title.lower() for _, title, _ in window_titles())
 
 
+def _focus_window(fragment: str) -> bool:
+    """Bring the first visible window whose title contains *fragment* to the front."""
+    if not _IS_WINDOWS:
+        return False
+    from jarvis.adapters.tools.desktop import _focus  # noqa: PLC0415 - desktop imports this module
+
+    fragment = fragment.lower()
+    for hwnd, title, _ in window_titles():
+        if fragment in title.lower():
+            _focus(hwnd)
+            return True
+    return False
+
+
 def _probe_command(argv: Any) -> bool:
     try:
         return subprocess.run(list(argv), capture_output=True, timeout=10, **_no_window()).returncode == 0
@@ -331,6 +345,7 @@ class WorkspaceManager:
         terminate: Callable[[int, Optional[float]], bool] = _terminate_tree,
         close_windows: Callable[[str], int] = _close_windows,
         identity: Callable[[int], Optional[float]] = _process_identity,
+        focus_window: Callable[[str], bool] = _focus_window,
         poll_seconds: float = 0.25,
     ) -> None:
         self.profiles = dict(profiles)
@@ -342,6 +357,7 @@ class WorkspaceManager:
         self._terminate = terminate
         self._close_windows = close_windows
         self._identity = identity
+        self._focus_window = focus_window
         self._poll = poll_seconds
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -398,6 +414,14 @@ class WorkspaceManager:
             await asyncio.to_thread(self._open_url, task.url)
             return TaskResult(task.name, "opened")
         if await self._check(task.detect):
+            # Starting a profile means "put it in front of me": a window that is
+            # already open (minimized or behind others) is brought forward.
+            title = task.detect.get("window_title")
+            if title:
+                try:
+                    await asyncio.to_thread(self._focus_window, str(title))
+                except Exception:  # noqa: BLE001 - focus is a courtesy, never a failure
+                    logger.debug("could not focus %r", title, exc_info=True)
             return TaskResult(task.name, "already_running")
         last = TaskResult(task.name, "failed", detail="not attempted")
         for attempt in range(task.retries + 1):
