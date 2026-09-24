@@ -205,6 +205,8 @@ class CommandRiskTests(unittest.TestCase):
         self.assertIs(command_risk(["npm", "run", "dev"]), Risk.MEDIUM)
         self.assertIs(command_risk(["git", "add", "."]), Risk.MEDIUM)
         self.assertIs(command_risk(["pytest", "-q"]), Risk.MEDIUM)
+        self.assertIs(command_risk(["/project/.venv/bin/python3.11", "-c", "print(1)"]), Risk.MEDIUM)
+        self.assertIs(command_risk(["python3", "-c", "print(1)"]), Risk.MEDIUM)
         for argv in (
             ["git", "push", "--force"], ["git", "reset", "--hard"], ["git", "clean", "-fdx"],
             ["rm", "-rf", "/"], ["powershell", "-c", "Get-Date"], ["format", "C:"],
