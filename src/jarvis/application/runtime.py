@@ -9,6 +9,9 @@ acceptance and benchmarking.
 
 from __future__ import annotations
 
+import asyncio
+import functools
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -32,7 +35,7 @@ from jarvis.adapters.hermes.child import HermesChildAdapter
 from jarvis.adapters.memory.service import MemoryService
 from jarvis.adapters.memory.store import MemoryStore
 from jarvis.adapters.models.fallback import ProviderChain
-from jarvis.adapters.models.ollama import OllamaProvider
+from jarvis.adapters.models.ollama import FALLBACK_KEEP_ALIVE, KEEP_ALIVE, OllamaProvider
 from jarvis.adapters.models.openai_compat import OpenAICompatProvider
 from jarvis.adapters.stt import resolve_stt, stt_available, stt_provider
 from jarvis.adapters.stt.fallback import STTChain
@@ -40,8 +43,20 @@ from jarvis.adapters.stt.whisper import WhisperSTT
 from jarvis.adapters.tts import AckAudioCache, resolve_tts, tts_available, tts_provider
 from jarvis.adapters.tts.fallback import TTSChain
 from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
-from jarvis.adapters.tools.gateway import Risk, Tool, ToolGateway
-from jarvis.adapters.tools.windows import build_windows_tools
+from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
+from jarvis.adapters.tts.voice_cache import VoiceCache, voice_identity
+from jarvis.core.circuit_breaker import CircuitBreaker
+from jarvis.adapters.tools.desktop import (
+    AssistantControlTool,
+    DesktopContext,
+    MusicTool,
+    SleepTool,
+    build_desktop_tools,
+    gpu_free_mb,
+    windows_path_for,
+)
+from jarvis.adapters.tools.gateway import AuditLog, Risk, Tool, ToolGateway
+from jarvis.adapters.tools.windows import build_windows_tools, register_apps
 from jarvis.config import RuntimeConfig
 from jarvis.core.contracts import (
     HealthReport,
@@ -55,9 +70,13 @@ from jarvis.core.lifecycle import Supervisor
 from jarvis.core.state import RuntimeState
 from jarvis.observability.metrics import LatencyMetrics
 
+from .planner import DesktopPlanner, VoiceConfirmer
 from .routing import Router
 from .turn_manager import TurnManager, TurnResult
 from .voice_loop import VoiceLoop
+from .workspace import WorkspaceManager, parse_profiles
+
+logger = logging.getLogger("jarvis.runtime")
 
 
 @dataclass
@@ -69,6 +88,8 @@ class RuntimeComponents:
     audio_output: AudioOutputQueue
     turn_manager: TurnManager
     voice_loop: VoiceLoop
+    workspace: Optional[WorkspaceManager] = None
+    desktop: Optional[DesktopContext] = None
 
 
 class JarvisRuntime:
@@ -104,9 +125,19 @@ class JarvisRuntime:
 
     async def run_until_stopped(self, max_turns: int | None = None) -> None:
         await self.supervisor.start()
+        # Fire-and-forget: listening starts immediately while models load.
+        warm_up = asyncio.create_task(
+            asyncio.to_thread(
+                _warm_up,
+                self.components.model,
+                getattr(self.voice_loop, "_stt", None),
+                _min_free_vram_for_ollama(self.config),
+            )
+        )
         try:
             await self.voice_loop.run(max_turns=max_turns)
         finally:
+            warm_up.cancel()
             await self.supervisor.stop()
 
     async def handle(self, text: str, conversation_id: str = "demo") -> TurnResult:
@@ -135,7 +166,18 @@ class JarvisRuntime:
             "metrics": self.metrics.summary(),
             "audio_queue": self.components.audio_output.state(),
             "voice_loop": self.voice_loop.state(),
+            "tts": _tts_diagnostics(self.components.turn_manager),
         }
+
+
+def _tts_diagnostics(turn_manager: Any) -> dict[str, Any]:
+    tts = getattr(turn_manager, "_tts", None)
+    providers = getattr(tts, "providers", (tts,))
+    result: dict[str, Any] = {"providers": [getattr(p, "name", type(p).__name__) for p in providers]}
+    for provider in providers:
+        if isinstance(provider, QwenCloneTTS):
+            result["voice_clone"] = provider.state()
+    return result
 
 
 def build_runtime(
@@ -143,6 +185,7 @@ def build_runtime(
     *,
     use_fakes: bool = False,
     fake_stt: Any = None,
+    voice_clone: Any = None,
 ) -> JarvisRuntime:
     """Compose the runtime. ``use_fakes=True`` yields a fully-healthy offline runtime.
 
@@ -152,10 +195,11 @@ def build_runtime(
     """
     if use_fakes:
         return _build_fake_runtime(config, stt=fake_stt)
-    return _build_real_runtime(config)
+    return _build_real_runtime(config, voice_clone=voice_clone)
 
 
-def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
+def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> JarvisRuntime:
+    """``voice_clone``: a shared, externally managed QwenCloneTTS (daemon) or None."""
     memory = _build_memory(config)
     model = _build_model_chain(config)
     hermes = HermesChildAdapter(
@@ -163,9 +207,17 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         timeout_seconds=config.hermes.timeout_seconds,
         restart_max=config.hermes.restart_max,
     )
-    tools = _build_tools(config, confirmer=None)
-    audio_output = AudioOutputQueue(render=make_sounddevice_render(device=config.audio.output_device))
-    tts = _build_tts_chain(config)
+    desktop = DesktopContext(_data_dir() / "desktop_context.json")
+    workspace = build_workspace(config)
+    confirmer = VoiceConfirmer(lambda name, args: tools.describe(name, args), timeout_seconds=config.tools.confirmation_timeout_seconds)
+    tools = _build_tools(config, confirmer=confirmer)
+    _register_desktop_tools(config, tools, desktop, workspace, hermes)
+    # Chunks are written in short slices, so a long SAPI sentence needs a
+    # timeout above its duration rather than the 5 s per-chunk default.
+    audio_output = AudioOutputQueue(
+        render=make_sounddevice_render(device=config.audio.output_device), render_timeout_seconds=60.0
+    )
+    tts = _build_tts_chain(config, shared_clone=voice_clone)
     stt = _build_stt_chain(config)
     audio_input = MicCapture(
         sample_rate=config.audio.sample_rate,
@@ -182,10 +234,27 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         audio=audio_output,
         hermes=hermes,
         memory=memory,
-        ack_cache=AckAudioCache(Path("cache/tts_acks")),
+        ack_cache=VoiceCache(_data_dir() / "cache" / "voice", voice_identity(config)),
+        agent_tools=functools.partial(tools.execute, origin="agent"),
     )
+    turn_manager.planner = DesktopPlanner(
+        model=model,
+        gateway=tools,
+        context=lambda: {**desktop.summary(), "profiles": sorted(workspace.profiles) if workspace else []},
+        speak=turn_manager._speak_text,
+    )
+    confirmer.speak = turn_manager._speak_text
 
     health_components = _real_health_components(config, memory, model, hermes, audio_input, audio_output)
+    if voice_clone is not None:
+        # The daemon's VoiceModelManager owns the model: report health only.
+        health_components.append(_SharedComponent(voice_clone))
+    else:
+        own_clone = next((p for p in getattr(tts, "providers", (tts,)) if isinstance(p, QwenCloneTTS)), None)
+        if own_clone is not None:
+            # Supervised worker: started with the runtime (non-blocking; SAPI speaks
+            # until the model is warm) and stopped with it.
+            health_components.append(own_clone)
     supervisor = Supervisor(health_components)
     activation = ActivationManager(
         mode=config.activation.mode,
@@ -200,8 +269,18 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         stt=stt,
         turn_manager=turn_manager,
         activation=activation,
+        # ponytail: barge-in is opt-in (audio.barge_in) — without acoustic echo
+        # cancellation Jarvis's own voice from the speakers cancels its reply.
+        # Upgrade path: AEC (e.g. WebRTC APM), then default it on.
+        barge_in_frames=5 if config.audio.barge_in else 0,
+        echo_tail_frames=3,
+        confirmer=confirmer,
     )
-    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop)
+    tools.register(SleepTool(voice_loop.request_stop_after_turn))
+    tools.register(MusicTool(media_key=lambda: tools.execute("media_play_pause", {}, TurnContext.fresh("music"))))
+    tools.register(AssistantControlTool("restart"))  # only the daemon can restart itself
+    tools.register(AssistantControlTool("shutdown", voice_loop.request_stop_after_turn))
+    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop, workspace, desktop)
     return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 
 
@@ -254,12 +333,14 @@ def _build_memory(config: RuntimeConfig) -> MemoryService:
     return MemoryService(store, max_recall=config.memory.max_recall)
 
 
-def _build_tts_chain(config: RuntimeConfig):
+def _build_tts_chain(config: RuntimeConfig, shared_clone: Any = None):
     """Resolve the configured TTS provider, with a local fallback when cloud is primary."""
-    primary = resolve_tts(config)
-    if tts_provider(config) != "alibaba_qwen":
+    primary = shared_clone if shared_clone is not None and tts_provider(config) == "qwen_clone" else resolve_tts(config)
+    if tts_provider(config) not in ("alibaba_qwen", "qwen_clone"):
         return primary
-    return TTSChain([primary, Pyttsx3TTS()])
+    # The breaker probes the clone again every few seconds, so the owner's voice
+    # takes over as soon as the worker finishes warming up.
+    return TTSChain([primary, Pyttsx3TTS()], breaker=CircuitBreaker(cooldown_seconds=5.0))
 
 
 def _build_stt_chain(config: RuntimeConfig):
@@ -272,21 +353,26 @@ def _build_stt_chain(config: RuntimeConfig):
         language=config.stt.language,
         device=config.stt.device,
         sample_rate=config.audio.sample_rate,
+        hotwords=config.activation.wake_word,
     )
     return STTChain([primary, fallback])
 
 
 def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
+    from jarvis.observability.cost import ProviderRate, SpendLedger  # noqa: PLC0415
+
+    ledger = SpendLedger(_data_dir() / "spend.json", config.models.max_daily_usd)
     providers: list[ModelProvider] = []
     for spec in config.models.providers:
         if spec.kind == "ollama":
             providers.append(
                 OllamaProvider(
-                    base_url=spec.base_url or "http://localhost:11434",
+                    base_url=spec.base_url or "http://127.0.0.1:11434",
                     model=spec.model,
                     timeout_seconds=spec.timeout_seconds,
                     temperature=spec.temperature,
                     name=spec.name or "ollama",
+                    keep_alive=KEEP_ALIVE if not providers else FALLBACK_KEEP_ALIVE,
                 )
             )
         else:
@@ -298,9 +384,17 @@ def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
                     timeout_seconds=spec.timeout_seconds,
                     temperature=spec.temperature,
                     name=spec.name or "openai_compat",
+                    rate=ProviderRate(spec.input_usd_per_million, spec.output_usd_per_million),
+                    ledger=ledger,
+                    extra_body=dict(spec.extra_body),
                 )
             )
     return ProviderChain(providers)
+
+
+def _data_dir() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
+    return Path(base) / "jarvis"
 
 
 def _model_diagnostics(
@@ -340,6 +434,12 @@ def _model_diagnostics(
                 "has_api_key": bool(getattr(provider, "api_key", None)),
             }
         )
+        ledger = getattr(provider, "ledger", None)
+        if ledger is not None:
+            rate = getattr(provider, "rate", None)
+            providers[-1]["priced"] = bool(rate and (rate.input_token_per_million or rate.output_token_per_million))
+            providers[-1]["spent_today_usd"] = ledger.spent_today()
+            providers[-1]["max_daily_usd"] = ledger.max_daily_usd
     ollama_providers = [
         provider
         for provider in model.providers
@@ -358,12 +458,50 @@ def _model_diagnostics(
 
 
 def _build_tools(config: RuntimeConfig, confirmer: Any) -> ToolGateway:
+    register_apps(config.desktop.get("apps", {}))
     return ToolGateway(
         build_windows_tools(),
         allowlist=config.tools.allowlist if config.tools.allowlist else None,
         confirmer=confirmer,
         confirmation_timeout_seconds=config.tools.confirmation_timeout_seconds,
+        authorized_scopes=[windows_path_for(p) for p in config.desktop.get("authorized_scopes", [])],
+        trusted=config.desktop.get("trusted_operations", []),
+        audit=AuditLog(_data_dir() / "audit.jsonl"),
     )
+
+
+def build_workspace(config: RuntimeConfig) -> Optional[WorkspaceManager]:
+    profiles = parse_profiles(config.workspace.get("profiles", {}))
+    if not profiles:
+        return None
+    return WorkspaceManager(profiles, state_path=_data_dir() / "workspace-state.json", log_dir=_data_dir() / "logs")
+
+
+def _register_desktop_tools(
+    config: RuntimeConfig, tools: ToolGateway, desktop: DesktopContext, workspace: Optional[WorkspaceManager], hermes: Any
+) -> None:
+    async def restart_hermes() -> None:
+        await hermes.stop()
+        await hermes.start()
+
+    default_profile = config.workspace.get("default_profile") or (next(iter(workspace.profiles)) if workspace else "dev")
+    for tool in build_desktop_tools(
+        scopes=tools.scopes,
+        data_dir=_data_dir(),
+        memory=desktop,
+        cancel_operations=tools.cancel_operations,
+        workspace=workspace,
+        default_profile=default_profile,
+        restarters={"hermes": restart_hermes},
+    ):
+        tools.register(tool)
+
+
+def _min_free_vram_for_ollama(config: RuntimeConfig) -> Optional[float]:
+    """VRAM an Ollama preload needs when the local voice clone shares the GPU."""
+    if config.tts.provider != "qwen_clone":
+        return None
+    return float(config.daemon.get("min_free_vram_mb_for_ollama", 5000))
 
 
 async def _auto_approve(name: str, arguments: Any, context: TurnContext) -> bool:
@@ -414,12 +552,35 @@ def _tts_report(config: RuntimeConfig) -> HealthReport:
     elif provider == "alibaba_qwen":
         healthy_detail = "alibaba_qwen (cloud, cloned voice, sapi fallback)"
         degraded_detail = "alibaba_qwen api_key, voice, or workspace_id not configured"
+    elif provider == "qwen_clone":
+        healthy_detail = "qwen_clone (local Faster Qwen3-TTS worker, sapi fallback)"
+        degraded_detail = "TTS worker venv missing (run scripts\\setup_tts_worker.bat); sapi fallback"
     else:
         healthy_detail = "coqui (XTTS-v2)"
         degraded_detail = "adapter dependency unavailable"
     if available:
         return HealthReport("TTS", HealthStatus.HEALTHY, healthy_detail)
     return HealthReport("TTS", HealthStatus.DEGRADED, degraded_detail, required=False)
+
+
+def _warm_up(model: Any, stt: Any, min_free_vram_mb: Optional[float] = None, free_vram: Callable[[], Optional[float]] = gpu_free_mb) -> None:
+    """Best-effort preload of local models so the first turn skips cold loads."""
+    # Only a primary local model is preloaded; a fallback loads on demand.
+    primary = next(iter(getattr(model, "providers", ())), None)
+    if isinstance(primary, OllamaProvider):
+        free = free_vram() if min_free_vram_mb is not None else None
+        if free is not None and free < min_free_vram_mb:
+            # The resident voice clone owns the GPU; loading a 7B model beside it
+            # would evict one of them. Ollama still loads on demand if needed.
+            logger.warning("skipping Ollama preload: %.0f MiB VRAM free < %.0f MiB", free, min_free_vram_mb)
+        else:
+            primary.warm_up()
+    for provider in getattr(stt, "providers", (stt,)):
+        if isinstance(provider, WhisperSTT):
+            try:
+                provider._load_model()
+            except Exception:  # noqa: BLE001 - surfaced again on the first real turn
+                pass
 
 
 def _ollama_reachable(base_url: str, timeout_seconds: float = 1.5) -> bool:
@@ -544,6 +705,25 @@ def _audio_output_available() -> bool:
     except Exception:  # noqa: BLE001 - a probe that raises cannot confirm output either
         return False
     return True
+
+
+class _SharedComponent:
+    """Health of a component owned elsewhere; its lifecycle is not ours."""
+
+    required = False
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.name = getattr(inner, "name", type(inner).__name__)
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def health(self) -> HealthReport:
+        return await self._inner.health()
 
 
 class _StaticComponent:

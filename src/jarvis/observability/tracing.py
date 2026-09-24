@@ -17,6 +17,8 @@ _STAGES = frozenset(
         "memory_lookup_ms",
         "provider_selection_ms",
         "agent_first_token_ms",
+        "llm_first_token_ms",
+        "first_segment_ms",
         "agent_total_ms",
         "tts_first_audio_ms",
         "tts_total_ms",

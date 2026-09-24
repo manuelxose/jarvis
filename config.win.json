@@ -15,22 +15,191 @@
   },
   "stt": {
     "provider": "whisper",
-    "model": "small",
+    "model": "deepdml/faster-whisper-large-v3-turbo-ct2",
     "language": "es",
-    "device": "cpu"
+    "device": "cuda"
   },
   "tts": {
-    "provider": "sapi",
-    "language": "es"
+    "provider": "qwen_clone",
+    "language": "es",
+    "chunk_size": 4,
+    "warmup_wait_seconds": 25
   },
   "models": {
     "providers": [
       {
         "name": "ollama",
         "kind": "ollama",
-        "base_url": "http://localhost:11434",
+        "base_url": "http://127.0.0.1:11434",
         "model": "mistral:7b-instruct"
       }
     ]
+  },
+  "claps": {
+    "enabled": true,
+    "sensitivity": 0.5,
+    "window_seconds": 2.0,
+    "cooldown_seconds": 5.0,
+    "claps_required": 2
+  },
+  "welcome": {
+    "owner_name": "Manuel",
+    "music_path": "",
+    "music_url": "https://www.youtube.com/watch?v=BN1WwnEDWAM",
+    "music_volume": 1.0,
+    "duck_volume": 0.1,
+    "after_welcome": "restore",
+    "welcome_delay_seconds": 3.0,
+    "voice_ready_timeout_seconds": 8,
+    "background_volume": 0.1,
+    "fade_in_seconds": 0.4,
+    "duck_seconds": 0.8,
+    "music_start_seconds": "auto"
+  },
+  "daemon": {
+    "hotkey": "ctrl+alt+j",
+    "wake_word": false,
+    "control_port": 47811,
+    "min_free_vram_mb_for_ollama": 5000,
+    "session_idle_seconds": 900
+  },
+  "desktop": {
+    "authorized_scopes": [
+      "/home/user/workspace"
+    ],
+    "trusted_operations": [],
+    "apps": {}
+  },
+  "workspace": {
+    "default_profile": "dev",
+    "startup_profile": "dev",
+    "profiles": {
+      "dev": {
+        "description": "Jarvis development: Ollama, VS Code (WSL) and a WSL terminal",
+        "tasks": [
+          {
+            "name": "ollama",
+            "command": [
+              "ollama",
+              "serve"
+            ],
+            "window": "hidden",
+            "detect": {
+              "http": "http://127.0.0.1:11434/api/version"
+            },
+            "timeout_seconds": 30,
+            "retries": 1
+          },
+          {
+            "name": "vscode",
+            "command": [
+              "code",
+              "--remote",
+              "wsl+Ubuntu",
+              "/home/user/workspace/jarvis"
+            ],
+            "detect": {
+              "window_title": "jarvis [WSL: Ubuntu]"
+            },
+            "stop": {
+              "window_title": "jarvis [WSL: Ubuntu]"
+            },
+            "timeout_seconds": 60,
+            "retries": 0
+          },
+          {
+            "name": "terminal",
+            "command": [
+              "wt",
+              "--title",
+              "Jarvis dev",
+              "--suppressApplicationTitle",
+              "wsl",
+              "-d",
+              "Ubuntu",
+              "--cd",
+              "/home/user/workspace/jarvis"
+            ],
+            "detect": {
+              "window_title": "Jarvis dev"
+            },
+            "stop": {
+              "window_title": "Jarvis dev"
+            },
+            "timeout_seconds": 20,
+            "retries": 0
+          },
+          {
+            "name": "task_manager",
+            "command": [
+              "cmd",
+              "/c",
+              "start",
+              "",
+              "taskmgr"
+            ],
+            "window": "hidden",
+            "detect": {
+              "process": "Taskmgr.exe"
+            },
+            "timeout_seconds": 20,
+            "retries": 0
+          },
+          {
+            "name": "processes",
+            "command": [
+              "wt",
+              "--title",
+              "Jarvis procesos",
+              "--suppressApplicationTitle",
+              "wsl",
+              "-d",
+              "Ubuntu",
+              "htop"
+            ],
+            "detect": {
+              "window_title": "Jarvis procesos"
+            },
+            "stop": {
+              "window_title": "Jarvis procesos"
+            },
+            "timeout_seconds": 20,
+            "retries": 0
+          }
+        ]
+      },
+      "projects": {
+        "description": "The whole WSL workspace in VS Code",
+        "tasks": [
+          {
+            "name": "workspace",
+            "command": [
+              "code",
+              "--remote",
+              "wsl+Ubuntu",
+              "/home/user/workspace"
+            ],
+            "detect": {
+              "window_title": "workspace [WSL: Ubuntu]"
+            },
+            "stop": {
+              "window_title": "workspace [WSL: Ubuntu]"
+            },
+            "timeout_seconds": 60,
+            "retries": 0
+          }
+        ]
+      }
+    }
+  },
+  "voice": {
+    "preload": "adaptive",
+    "speculative": true,
+    "predictive_on_wake_word": true,
+    "cooldown_seconds": 600,
+    "max_gpu_mb": 4500,
+    "evict_on_pressure": true,
+    "min_free_vram_mb": 700,
+    "gpu_busy_processes": []
   }
 }

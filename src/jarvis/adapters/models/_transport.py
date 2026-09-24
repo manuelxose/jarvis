@@ -16,6 +16,23 @@ from typing import AsyncIterator, Mapping, Optional
 from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
 from jarvis.core.turn import TurnCancelled, TurnContext
 
+# Persona + spoken-reply constraints: short answers cut generation and TTS time alike.
+VOICE_SYSTEM_PROMPT = (
+    "Eres J.A.R.V.I.S., la inteligencia artificial de Tony Stark en Iron Man, ahora al "
+    "servicio del usuario. Hablas como un mayordomo británico: educado, sereno, eficiente, "
+    "con ironía sutil y humor seco. Llamas al usuario «señor». Responde en el idioma del "
+    "usuario, de forma directa y breve: una o dos frases, sin listas, sin markdown ni "
+    "emojis, porque tu respuesta se lee en voz alta."
+)
+MAX_RESPONSE_TOKENS = 150
+
+
+def voice_messages(prompt: str) -> list[dict]:
+    return [
+        {"role": "system", "content": VOICE_SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
 
 def _build_request(url: str, payload: dict, headers: Mapping[str, str], timeout: float) -> urllib.request.Request:
     data = json.dumps(payload).encode("utf-8")

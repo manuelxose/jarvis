@@ -19,6 +19,11 @@ pydub>=0.25.1
 requests==2.31.0
 httpx==0.27.0
 
+# Whisper on NVIDIA GPUs (stt.device: cuda): cuBLAS 12 + cuDNN 9 DLLs for CTranslate2.
+# Without an NVIDIA GPU, WhisperSTT falls back to CPU automatically.
+nvidia-cublas-cu12==12.4.5.8; sys_platform == "win32"
+nvidia-cudnn-cu12==9.1.0.70; sys_platform == "win32"
+
 # Voice (cloud)
 dashscope==1.27.6
 

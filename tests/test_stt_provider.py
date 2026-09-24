@@ -45,6 +45,7 @@ def config(provider="whisper", *, voice="", api_key=None, workspace_id="ws-1"):
     return SimpleNamespace(
         stt=SimpleNamespace(provider=provider, model="base", language="en", device="cuda", api_key=api_key),
         audio=SimpleNamespace(sample_rate=22050),
+        activation=SimpleNamespace(wake_word="jarvis"),
         alibaba=SimpleNamespace(
             region="singapore",
             workspace_id=workspace_id,
@@ -68,6 +69,9 @@ class WhisperModelConstructionTests(unittest.TestCase):
 
         class FakeSegment(SimpleNamespace):
             text = "hola"
+            no_speech_prob = 0.0
+            avg_logprob = -0.2
+            compression_ratio = 1.0
 
         class FakeWhisperModel:
             def __init__(self, model_size, **kwargs):
@@ -98,6 +102,9 @@ class WhisperModelConstructionTests(unittest.TestCase):
 
         class FakeSegment(SimpleNamespace):
             text = "hola"
+            no_speech_prob = 0.0
+            avg_logprob = -0.2
+            compression_ratio = 1.0
 
         class FakeWhisperModel:
             def __init__(self, model_size, **kwargs):
@@ -124,6 +131,44 @@ class WhisperModelConstructionTests(unittest.TestCase):
             asyncio.run(collect_transcripts(adapter))
 
         self.assertEqual(1, construction_count)
+
+    def test_cuda_failure_falls_back_to_cpu_int8(self):
+        built = []
+
+        class FakeSegment(SimpleNamespace):
+            text = "hola"
+            no_speech_prob = 0.0
+            avg_logprob = -0.2
+            compression_ratio = 1.0
+
+        class FakeWhisperModel:
+            def __init__(self, model_size, **kwargs):
+                self.device = kwargs["device"]
+                built.append((kwargs["device"], kwargs["compute_type"]))
+
+            def transcribe(self, audio_array, **kwargs):
+                if self.device == "cuda":
+                    raise RuntimeError("Library cublas64_12.dll is not found")
+                return [FakeSegment()], None
+
+        fake_whisper_module = types.ModuleType("faster_whisper")
+        fake_whisper_module.WhisperModel = FakeWhisperModel
+        fake_numpy_module = types.ModuleType("numpy")
+        fake_numpy_module.int16 = "int16"
+        fake_numpy_module.float32 = "float32"
+        fake_numpy_module.zeros = lambda *_args, **_kwargs: _FakeArray()
+        fake_numpy_module.frombuffer = lambda *_args, **_kwargs: _FakeArray()
+
+        with mock.patch.dict(
+            sys.modules,
+            {"faster_whisper": fake_whisper_module, "numpy": fake_numpy_module},
+        ):
+            adapter = WhisperSTT(device="cuda")
+            transcripts = asyncio.run(collect_transcripts(adapter))
+
+        self.assertEqual([("cuda", "int8_float16"), ("cpu", "int8")], built)
+        self.assertEqual("cpu", adapter.device)
+        self.assertEqual("hola", transcripts[0].text)
 
 
 class STTProviderDependencyTests(unittest.TestCase):
@@ -157,6 +202,21 @@ class STTProviderDependencyTests(unittest.TestCase):
             self.assertTrue(sapi_stt_available())
 
 
+class WhisperHallucinationFilterTests(unittest.TestCase):
+    def segment(self, text, *, no_speech=0.0, logprob=-0.2, compression=1.0):
+        return SimpleNamespace(
+            text=text, no_speech_prob=no_speech, avg_logprob=logprob, compression_ratio=compression
+        )
+
+    def test_keeps_real_speech_and_drops_known_hallucinations(self):
+        from jarvis.adapters.stt.whisper import _is_hallucination
+
+        self.assertFalse(_is_hallucination(self.segment("¿Qué hora es?")))
+        self.assertTrue(_is_hallucination(self.segment("Subtítulos realizados por la comunidad de Amara.org")))
+        self.assertTrue(_is_hallucination(self.segment("hola", no_speech=0.9, logprob=-1.5)))
+        self.assertTrue(_is_hallucination(self.segment("Jajajajajajajajaja", compression=3.1)))
+
+
 class STTProviderResolutionTests(unittest.TestCase):
     def test_resolve_whisper_uses_configured_settings(self):
         adapter = resolve_stt(config())
@@ -165,6 +225,7 @@ class STTProviderResolutionTests(unittest.TestCase):
         self.assertEqual("en", adapter.language)
         self.assertEqual("cuda", adapter.device)
         self.assertEqual(22050, adapter.sample_rate)
+        self.assertEqual("jarvis", adapter.hotwords)
         self.assertEqual("whisper", stt_provider(config(" WhIsPeR ")))
 
     def test_resolve_sapi_when_configured(self):
