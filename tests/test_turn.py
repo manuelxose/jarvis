@@ -15,10 +15,8 @@ from jarvis.core.state import RuntimeState
 from jarvis.core.turn import CancellationToken, TurnCancelled, TurnContext
 from jarvis.config import (
     MemorySettings,
-    ProviderSettings,
     RuntimeConfig,
     RuntimeSettings,
-    SecuritySettings,
 )
 
 
@@ -45,9 +43,7 @@ class TurnContextTests(unittest.TestCase):
     def test_from_config_creates_deadline_trace_and_fresh_cancellation(self):
         config = RuntimeConfig(
             runtime=RuntimeSettings(command_deadline_ms=250),
-            providers=ProviderSettings(),
             memory=MemorySettings(),
-            security=SecuritySettings(),
         )
 
         with patch("jarvis.core.turn.time.monotonic", return_value=10.0):

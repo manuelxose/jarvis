@@ -19,7 +19,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Awaitable, Callable, Mapping, Optional
+from typing import Any, Awaitable, Callable, Mapping, Optional
 
 from jarvis.core.contracts import ModelProvider, TurnContext
 from jarvis.core.errors import ToolError
@@ -42,6 +42,7 @@ Petición: {text}"""
 
 @dataclass
 class Plan:
+    """Tool steps to run, a sentence to say, or one clarifying question to ask."""
     steps: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     say: str = ""
     ask: Optional[str] = None
@@ -78,6 +79,8 @@ def parse_plan(raw: str, known: set[str]) -> Plan:
 
 
 class DesktopPlanner:
+    """Turn a free-form desktop request into a JSON plan over the tool registry and run it through the gateway."""
+
     def __init__(
         self,
         *,

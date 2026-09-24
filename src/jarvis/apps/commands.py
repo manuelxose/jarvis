@@ -1,10 +1,9 @@
-"""CLI commands for M007: daemon, activation control, claps, workspace, autostart, tools."""
+"""Operator CLI commands: daemon, activation control, claps, workspace, autostart, tools."""
 
 from __future__ import annotations
 
 import asyncio
 import json
-import sys
 import time
 from pathlib import Path
 from typing import Any, TextIO
@@ -13,6 +12,7 @@ COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "restart", "claps",
 
 
 def run(command: str, args: Any, config: Any, out: TextIO, err: TextIO) -> int:
+    """Dispatch *command* to its ``_<command>`` handler and return the exit code."""
     handler = globals()[f"_{command}"]
     return handler(args, config, out, err)
 

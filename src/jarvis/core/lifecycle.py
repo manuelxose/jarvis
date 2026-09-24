@@ -13,11 +13,18 @@ from .state import RuntimeState, transition
 
 @dataclass(frozen=True)
 class SupervisorPolicy:
+    """Retry policy for starting managed components."""
     retries: int = 2
     backoff_seconds: float = 0.25
 
 
 class Supervisor:
+    """Start, health-check and stop the runtime's managed components.
+
+    Components start concurrently with bounded retries; optional ones may fail
+    without blocking the runtime. Start and stop are idempotent.
+    """
+
     def __init__(
         self,
         components: Iterable[ManagedComponent],

@@ -36,6 +36,7 @@ _LANGUAGES = {"es": "Spanish", "en": "English", "fr": "French", "de": "German", 
 
 
 def default_worker_python() -> str:
+    """Interpreter of the isolated TTS venv (``%LOCALAPPDATA%\\jarvis\\venv-tts``)."""
     base = os.environ.get("LOCALAPPDATA") or os.path.join(Path.home(), ".local", "share")
     scripts = "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
     return str(Path(base) / "jarvis" / "venv-tts" / scripts)
@@ -44,6 +45,7 @@ def default_worker_python() -> str:
 def worker_command(
     python: str, *, profile_dir: str, language: str = "es", chunk_size: int = 4, model: str = ""
 ) -> list[str]:
+    """Command line that starts ``qwen_worker.py serve`` for a voice profile."""
     command = [
         python, str(WORKER_SCRIPT), "serve",
         "--profile-dir", profile_dir,
@@ -54,6 +56,7 @@ def worker_command(
 
 
 def pcm_to_wav(pcm: bytes, rate: int) -> bytes:
+    """Wrap mono 16-bit PCM in a WAV container."""
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wav:
         wav.setnchannels(1)
@@ -191,6 +194,9 @@ class QwenCloneTTS:
     async def _spawn(self) -> None:
         if self._ready is None or self._ready.done():
             self._ready = asyncio.get_running_loop().create_future()
+        if self._stderr_path:
+            # logs/ is not versioned, so a fresh clone does not have it yet.
+            Path(self._stderr_path).parent.mkdir(parents=True, exist_ok=True)
         stderr = open(self._stderr_path, "ab") if self._stderr_path else subprocess.DEVNULL
         try:
             self._process = await asyncio.create_subprocess_exec(

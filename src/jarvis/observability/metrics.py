@@ -34,6 +34,7 @@ class LatencyMetrics:
 
 
 def percentile(values: Iterable[float], p: float) -> float | None:
+    """Nearest-rank percentile of *values* (``p`` in 0-100), or None when empty."""
     ordered = sorted(values)
     if not ordered:
         return None

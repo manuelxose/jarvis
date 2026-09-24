@@ -37,6 +37,7 @@ _REGION_CODES = {"singapore": "ap-southeast-1", "beijing": "cn-beijing"}
 
 
 def dashscope_available() -> bool:
+    """Return True when the optional ``dashscope`` SDK is importable."""
     try:
         import dashscope  # noqa: F401
 

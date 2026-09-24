@@ -14,9 +14,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Optional
 
 from jarvis.core.contracts import (
-    AgentEvent,
     AgentRuntime,
-    AgentStatus,
     AgentToken,
     AgentToolRequest,
     AudioPlayer,
@@ -193,7 +191,7 @@ class TurnManager:
         self._memory = memory
         self._state_setter = state_setter
         self._ack_cache = ack_cache
-        # Desktop planner (M007) and the tool entry used for agent-originated
+        # Desktop planner and the tool entry used for agent-originated
         # requests, which the gateway treats as untrusted.
         self.planner = planner
         self._agent_tools = agent_tools or tools

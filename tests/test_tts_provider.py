@@ -223,14 +223,12 @@ class TTSProviderResolutionTests(unittest.TestCase):
         import tempfile
         from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
         from jarvis.application.runtime import build_runtime
-        from jarvis.config import MemorySettings, ProviderSettings, RuntimeConfig, RuntimeSettings, SecuritySettings, TTSSettings
+        from jarvis.config import MemorySettings, RuntimeConfig, RuntimeSettings, TTSSettings
 
         with tempfile.TemporaryDirectory() as tmp:
             runtime = build_runtime(
                 RuntimeConfig(
                     runtime=RuntimeSettings(),
-                    providers=ProviderSettings(),
-                    security=SecuritySettings(),
                     memory=MemorySettings(db_path=str(Path(tmp) / "m.db")),
                     tts=TTSSettings(provider="qwen_clone", worker_python=str(Path(tmp) / "none.exe")),
                 ),

@@ -8,7 +8,7 @@ Commands::
     jarvis accept    -- scripted real-hardware acceptance run (fake adapters)
     jarvis benchmark -- offline latency benchmark (fake adapters)
 
-M007 (see jarvis.apps.m007_cli)::
+Operator commands (see jarvis.apps.commands)::
 
     jarvis daemon               -- background sentinel (claps, Ctrl+Alt+J, control socket)
     jarvis activate|sleep|status|quit|restart -- talk to the running daemon
@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Sequence, TextIO
 
 from jarvis.application.runtime import JarvisRuntime, build_runtime
-from jarvis.apps import m007_cli
+from jarvis.apps import commands
 from jarvis.config import load_config
 from jarvis.core.contracts import HealthStatus
 from jarvis.core.state import RuntimeState
@@ -74,7 +74,7 @@ def _parser(stdout: TextIO, stderr: TextIO) -> _Parser:
     )
     parser.add_argument(
         "command",
-        choices=("run", "doctor", "demo", "accept", "benchmark", *m007_cli.COMMANDS),
+        choices=("run", "doctor", "demo", "accept", "benchmark", *commands.COMMANDS),
         help="command to execute",
     )
     parser.add_argument("args", nargs="*", help="subcommand arguments (claps/workspace/autostart)")
@@ -316,8 +316,8 @@ def main(
         return _run_accept_command(config, output, args.json)
     if args.command == "benchmark":
         return _run_benchmark_command(config, output, args.json)
-    if args.command in m007_cli.COMMANDS:
-        return m007_cli.run(args.command, args, config, output, errors)
+    if args.command in commands.COMMANDS:
+        return commands.run(args.command, args, config, output, errors)
 
     configure_logging(logging.getLogger("jarvis.cli"), stream=errors)
     configure_logging(logging.getLogger("jarvis.voice_loop"), stream=errors)

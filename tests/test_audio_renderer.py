@@ -33,10 +33,8 @@ from jarvis.application.runtime import (
 )
 from jarvis.config import (
     MemorySettings,
-    ProviderSettings,
     RuntimeConfig,
     RuntimeSettings,
-    SecuritySettings,
 )
 from jarvis.core.contracts import HealthStatus
 from jarvis.core.errors import ProviderUnavailable
@@ -193,9 +191,7 @@ class WiringTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config = RuntimeConfig(
                 runtime=RuntimeSettings(),
-                providers=ProviderSettings(),
                 memory=MemorySettings(db_path=str(Path(tmp) / "memory.db")),
-                security=SecuritySettings(),
             )
             with mock.patch.dict(sys.modules, {"sounddevice": fake_sd, "numpy": fake_np}):
                 runtime = build_runtime(config, use_fakes=False)

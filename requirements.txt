@@ -1,40 +1,29 @@
-# Requires Python 3.10 or 3.11
+# Requires Python 3.11. The cloned-voice worker has its own environment:
+# see requirements-tts.txt and scripts/setup_tts_worker.bat.
 
-# Core
+# Speech
 faster-whisper==1.0.3
-coqui-tts[cpu]==0.27.5
 openwakeword==0.6.0
+# Optional XTTS voice (tts.provider: local). coqui-tts pins transformers 4.x and torch.
+coqui-tts[cpu]==0.27.5
 transformers==4.57.1
 torch==2.8.0
 torchaudio==2.8.0
-
-# Audio
-pyaudio==0.2.14
-sounddevice==0.4.7
-soundfile==0.12.1
-webrtcvad-wheels==2.0.14
-pydub>=0.25.1
-
-# LLM
-requests==2.31.0
-httpx==0.27.0
 
 # Whisper on NVIDIA GPUs (stt.device: cuda): cuBLAS 12 + cuDNN 9 DLLs for CTranslate2.
 # Without an NVIDIA GPU, WhisperSTT falls back to CPU automatically.
 nvidia-cublas-cu12==12.4.5.8; sys_platform == "win32"
 nvidia-cudnn-cu12==9.1.0.70; sys_platform == "win32"
 
-# Voice (cloud)
-dashscope==1.27.6
-
-# System
-comtypes==1.4.12
-pyttsx3==2.99
-psutil==5.9.8
-pyautogui==0.9.54
-pyyaml==6.0.1
+# Audio
+sounddevice==0.4.7
+soundfile==0.12.1
 numpy==1.26.4
 
-# Utils
-python-dotenv==1.0.1
-colorlog==6.8.2
+# Optional cloud voice (Alibaba Model Studio)
+dashscope==1.27.6
+
+# Windows desktop integration (SAPI voice, windows, shortcuts, processes)
+comtypes==1.4.12
+pywin32==312; sys_platform == "win32"
+psutil==5.9.8

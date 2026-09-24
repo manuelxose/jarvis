@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import math
 from collections import deque
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -77,6 +77,7 @@ class ClapTuning:
 
 @dataclass(frozen=True)
 class Clap:
+    """One detected clap transient with its level, confidence and the features that scored it."""
     time: float
     peak_dbfs: float
     confidence: float
@@ -85,6 +86,7 @@ class Clap:
 
 @dataclass(frozen=True)
 class ClapGesture:
+    """A confirmed activation gesture: the claps that formed it and their combined confidence."""
     time: float  # stream time of the confirmation
     confidence: float
     claps: tuple[Clap, ...]
@@ -341,6 +343,7 @@ class ClapDetector:
 # -- calibration -------------------------------------------------------------
 
 def calibration_path(base: Path) -> Path:
+    """Location of the owner's saved clap calibration inside the Jarvis data directory."""
     return base / "clap_calibration.json"
 
 
@@ -412,7 +415,3 @@ def calibrate(noise: Any, claps: Any, tuning: ClapTuning | None = None) -> dict[
         "sensitivity": tuning.sensitivity,
         "gestures_seen": gestures,
     }
-
-
-def tuning_dict(tuning: ClapTuning) -> dict[str, Any]:
-    return asdict(tuning)

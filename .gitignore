@@ -18,12 +18,12 @@ dist/
 # Editor
 .vscode/
 
-# Local runtime/cache artifacts
+# Local runtime data: logs, conversation memory and cached audio
+logs/
+memory/
 cache/cached_responses/
 cache/screenshots/
 cache/tts_acks/
-legacy/cache/cached_responses/
-legacy/cache/screenshots/
 
 # Local secret overrides (never committed)
 config.local.json
@@ -59,6 +59,8 @@ mcp.json
 .gsd-worktrees/
 .gsd-backups/
 .gsd-id
+skills-lock.json
+.superpowers/
 .bg-shell/
 nul
 nul.*

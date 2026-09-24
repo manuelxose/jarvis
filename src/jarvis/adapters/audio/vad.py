@@ -6,7 +6,6 @@ import array
 import math
 import sys
 
-from jarvis.core.contracts import VoiceActivityDetector
 
 
 def rms_int16(audio: bytes) -> float:

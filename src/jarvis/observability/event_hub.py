@@ -50,6 +50,12 @@ SCHEMAS: dict[str, dict[str, tuple[type, ...]]] = {
 
 
 class EventHub:
+    """Thread-safe in-process publisher of versioned, schema-checked events.
+
+    Invalid events are dropped and logged, and a failing subscriber never
+    breaks the publisher.
+    """
+
     def __init__(self) -> None:
         self._subscribers: list[Callable[[dict[str, Any]], None]] = []
         self._lock = threading.Lock()
@@ -86,6 +92,7 @@ class EventHub:
 
 
 def validate(name: str, payload: dict[str, Any]) -> str:
+    """Return a problem description when *payload* does not match the event schema, else an empty string."""
     schema = SCHEMAS.get(name)
     if schema is None:
         return "unknown event name"

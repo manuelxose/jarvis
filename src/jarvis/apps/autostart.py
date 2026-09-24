@@ -18,6 +18,7 @@ LAUNCHER = PROJECT_ROOT / "scripts" / "jarvis_daemon.pyw"
 
 
 def startup_folder() -> Path:
+    """The current user's Startup folder (Windows only)."""
     appdata = os.environ.get("APPDATA")
     if not appdata:
         raise RuntimeError("APPDATA is not set; autostart is Windows-only")
@@ -25,6 +26,7 @@ def startup_folder() -> Path:
 
 
 def pythonw() -> Path:
+    """``pythonw.exe`` next to the running interpreter, so the daemon starts without a console."""
     candidate = Path(sys.executable).with_name("pythonw.exe")
     return candidate if candidate.is_file() else Path(sys.executable)
 
@@ -49,6 +51,7 @@ def unc(path: Path) -> Path:
 
 
 def install(config_path: Path) -> Path:
+    """Create the Startup-folder shortcut that launches the daemon at sign-in."""
     if sys.platform != "win32":
         raise RuntimeError("autostart is Windows-only")
     import win32com.client  # noqa: PLC0415
@@ -66,6 +69,7 @@ def install(config_path: Path) -> Path:
 
 
 def remove() -> bool:
+    """Delete the autostart shortcut; return True when one existed."""
     target = startup_folder() / SHORTCUT_NAME
     if target.exists():
         target.unlink()
@@ -74,6 +78,7 @@ def remove() -> bool:
 
 
 def status() -> dict[str, object]:
+    """Describe the autostart shortcut for ``jarvis autostart status``."""
     try:
         target = startup_folder() / SHORTCUT_NAME
     except RuntimeError as error:

@@ -1,4 +1,4 @@
-"""Owner-authorized Windows desktop tools (M007).
+"""Owner-authorized Windows desktop tools.
 
 Least-intrusive API per operation: Win32 window messages via pywin32 for
 windows, ``psutil`` for processes, ``nvidia-smi`` for the GPU, the shell's
@@ -70,6 +70,7 @@ def _norm(text: str) -> str:
 
 
 def is_secret_file(path: str | Path) -> bool:
+    """Return True for credential-looking files (``.env``, keys, ``config.local.json``...)."""
     return bool(_SECRET_FILE.search(Path(path).name))
 
 
@@ -137,6 +138,7 @@ def recent_vscode_folders() -> list[str]:
 
 
 class DesktopTool(Tool):
+    """Base class for desktop tools: name, spoken description, risk and argument schema."""
     strict = True
 
     def __init__(self, name: str, description: str, risk: Risk, schema: Mapping[str, Any] | None = None, *, timeout: float = 30.0) -> None:
@@ -299,6 +301,7 @@ class ListWindowsTool(DesktopTool):
 
 
 def describe_desktop() -> ToolResult:
+    """Foreground window and open applications, as a spoken summary plus raw data."""
     import win32gui  # noqa: PLC0415
 
     names = _process_names()
@@ -606,6 +609,7 @@ _DESTRUCTIVE = re.compile(
 
 
 def command_risk(argv: list[str]) -> Risk:
+    """Classify a command line: known dev programs are MEDIUM, destructive or unknown ones HIGH."""
     if not argv:
         return Risk.HIGH_RISK
     line = " ".join(argv)
@@ -702,6 +706,7 @@ def _nvidia_smi(*args: str) -> str:
 
 
 def gpu_status() -> Optional[dict[str, Any]]:
+    """Name, utilization, VRAM, temperature and clock of the GPU via ``nvidia-smi``, or None."""
     try:
         line = _nvidia_smi("--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,clocks.sm", "--format=csv,noheader,nounits").strip().splitlines()[0]
     except (OSError, subprocess.SubprocessError, IndexError):
@@ -711,6 +716,7 @@ def gpu_status() -> Optional[dict[str, Any]]:
 
 
 def gpu_free_mb() -> Optional[float]:
+    """Free VRAM in MiB, or None when ``nvidia-smi`` is unavailable."""
     status = gpu_status()
     if not status or status["memory_total_mb"] is None or status["memory_used_mb"] is None:
         return None
@@ -753,6 +759,7 @@ class ProcessListTool(DesktopTool):
 
 
 def top_processes(sort: str, limit: int) -> list[dict[str, Any]]:
+    """The *limit* processes using the most CPU or memory."""
     import psutil  # noqa: PLC0415
 
     procs = list(psutil.process_iter(["pid", "name", "memory_info"]))
@@ -800,6 +807,7 @@ class GpuProcessesTool(DesktopTool):
 
 
 def parse_compute_apps(raw: str) -> list[dict[str, Any]]:
+    """Parse ``nvidia-smi --query-compute-apps`` CSV into process rows."""
     rows = []
     for line in raw.strip().splitlines():
         parts = [p.strip() for p in line.split(",")]
@@ -832,6 +840,7 @@ class NetworkStatsTool(DesktopTool):
 
 
 def network_rates(seconds: float = 1.0) -> dict[str, float]:
+    """Download/upload rate sampled over *seconds*, plus session totals."""
     import psutil  # noqa: PLC0415
 
     first = psutil.net_io_counters()
@@ -873,6 +882,7 @@ class ProjectOpenTool(_FileTool):
 
 
 def find_projects(scopes: list[Path], name: str, depth: int = 2) -> list[Path]:
+    """Folders under *scopes* whose name matches *name*, exact matches first."""
     wanted = re.sub(r"[\s_-]+", "", _norm(name))
     exact, partial = [], []
     for scope in scopes:
@@ -944,6 +954,7 @@ class VolumeLevelTool(DesktopTool):
 
 
 def set_master_volume(level: int) -> None:
+    """Set the master volume via pycaw, falling back to media-key steps."""
     try:
         from pycaw.pycaw import AudioUtilities  # noqa: PLC0415
 
@@ -1108,6 +1119,7 @@ def build_desktop_tools(
     default_profile: str = "dev",
     restarters: Optional[Mapping[str, Callable[[], Awaitable[Any]]]] = None,
 ) -> list[Tool]:
+    """Instantiate every desktop tool with its scopes, data directory and collaborators."""
     files = {"scopes": scopes, "backup_dir": data_dir / "backups", "memory": memory}
     tools: list[Tool] = [
         FocusWindowTool(), WindowTool(), VirtualDesktopTool(), ListWindowsTool(), CloseAppTool(),

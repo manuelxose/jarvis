@@ -1,7 +1,5 @@
 param(
     [switch]$ForceDependencies,
-    [switch]$NoMonitor,
-    [switch]$WithMonitor,
     [string]$PythonPath
 )
 
@@ -16,12 +14,6 @@ $bootstrapArgs = @{
 }
 if ($ForceDependencies) {
     $bootstrapArgs["ForceDependencies"] = $true
-}
-if ($NoMonitor) {
-    $bootstrapArgs["NoMonitor"] = $true
-}
-if ($WithMonitor) {
-    $bootstrapArgs["WithMonitor"] = $true
 }
 if ($PythonPath) {
     $bootstrapArgs["PythonPath"] = $PythonPath

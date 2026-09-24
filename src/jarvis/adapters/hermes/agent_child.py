@@ -19,6 +19,7 @@ SYSTEM_PROMPT = "Eres Jarvis, asistente en español."
 
 
 def emit(request_id: str, turn_id: str, event_type: str, payload: dict | None = None) -> None:
+    """Write one protocol message as a JSON line on stdout."""
     message = {
         "request_id": request_id,
         "turn_id": turn_id,
@@ -62,6 +63,7 @@ def _stream_ollama(base_url: str, model: str, text: str):
 
 
 def handle(request_id: str, turn_id: str, text: str) -> None:
+    """Answer one request: stream an Ollama reply as ``partial_response`` events, then ``completed``."""
     if text.strip() == "__CRASH__":
         sys.exit(1)
     base_url = os.environ.get("JARVIS_OLLAMA_BASE_URL", "http://127.0.0.1:11434")
@@ -76,6 +78,7 @@ def handle(request_id: str, turn_id: str, text: str) -> None:
 
 
 def main() -> int:
+    """Read JSON-line requests from stdin until EOF and answer each one."""
     for line in sys.stdin:
         line = line.strip()
         if not line:

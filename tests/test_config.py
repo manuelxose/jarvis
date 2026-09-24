@@ -42,21 +42,19 @@ class ConfigTests(unittest.TestCase):
         self.write_config(
             {
                 "runtime": {},
-                "providers": {"fast_model_api_key": "${JARVIS_TEST_TOKEN}"},
-                "memory": {},
-                "security": {},
+                "stt": {"api_key": "${JARVIS_TEST_TOKEN}"},
             }
         )
 
         config = load_config(self.path, {"JARVIS_TEST_TOKEN": "secret"})
 
         self.assertEqual(config.runtime.command_deadline_ms, 500)
-        self.assertEqual(config.providers.fast_model_api_key, "secret")
+        self.assertEqual(config.stt.api_key, "secret")
         self.assertNotIn("secret", repr(config))
         self.assertNotIn("secret", json.dumps(config.public_dict()))
 
     def test_rejects_missing_runtime_section(self):
-        self.write_config({"providers": {}, "memory": {}, "security": {}})
+        self.write_config({"memory": {}})
 
         with self.assertRaises(ValueError):
             load_config(self.path, {})
@@ -65,9 +63,6 @@ class ConfigTests(unittest.TestCase):
         self.write_config(
             {
                 "runtime": {"command_deadline_ms": 0},
-                "providers": {},
-                "memory": {},
-                "security": {},
             }
         )
 
@@ -78,9 +73,7 @@ class ConfigTests(unittest.TestCase):
         self.write_config(
             {
                 "runtime": {},
-                "providers": {"fast_model_api_key": "${PATH}"},
-                "memory": {},
-                "security": {},
+                "stt": {"api_key": "${PATH}"},
             }
         )
 

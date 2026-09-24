@@ -11,13 +11,14 @@ import threading
 import unicodedata
 from typing import AsyncIterator, Optional
 
-from jarvis.core.contracts import SpeechToText, Transcript, TurnContext
+from jarvis.core.contracts import Transcript, TurnContext
 from jarvis.core.errors import ProviderUnavailable
 
 logger = logging.getLogger(__name__)
 
 
 def whisper_available() -> bool:
+    """Return True when ``faster_whisper`` is importable."""
     try:
         import faster_whisper  # noqa: F401
 

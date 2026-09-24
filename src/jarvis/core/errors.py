@@ -62,7 +62,3 @@ class HermesError(JarvisError):
 
 class MemoryError(JarvisError):
     """The memory store failed or refused an unsafe operation."""
-
-
-class CancellationError(JarvisError):
-    """Work was cancelled and cannot complete."""

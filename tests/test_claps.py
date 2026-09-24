@@ -215,7 +215,6 @@ class TwoClapTests(unittest.TestCase):
 
     def test_dull_mic_clap_is_not_penalised_twice(self):
         """Real clap on the owner's mic: loud, 60 ms room tail, HF share right at the gate."""
-        from jarvis.adapters.audio import claps as module
 
         detector = ClapDetector(ClapTuning(min_hf_ratio=0.2))
         accepted = []

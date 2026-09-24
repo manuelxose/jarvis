@@ -36,7 +36,6 @@ DEFAULT_DEGRADED = (
     "{greeting}, {name}. Estoy en marcha, pero con limitaciones: {issues}. "
     "Preparando tu entorno de trabajo. ¿En qué puedo ayudarte?"
 )
-REFERENCE_MUSIC_URL = "https://www.youtube.com/watch?v=BN1WwnEDWAM"
 
 # Spoken names for health components (the supervisor uses English ids).
 _SPOKEN = {
@@ -54,6 +53,7 @@ _SPOKEN = {
 
 
 class StartupPhase(str, enum.Enum):
+    """Progress of the activation sequence, from gesture to listening."""
     IDLE = "idle"
     ACKNOWLEDGED = "acknowledged"
     INITIALIZING = "initializing"
@@ -69,6 +69,7 @@ _DONE = {StartupPhase.READY, StartupPhase.DEGRADED, StartupPhase.FAILED}
 
 @dataclass(frozen=True)
 class StartupOptions:
+    """Welcome sequence settings (the ``welcome`` config section)."""
     owner_name: str = "Manuel"
     welcome: str = DEFAULT_WELCOME
     degraded: str = DEFAULT_DEGRADED
@@ -102,6 +103,7 @@ class StartupOptions:
 
 @dataclass
 class StartupReport:
+    """What one activation did and how long each phase took (``startup-report.json``)."""
     trigger: str = ""
     phase: StartupPhase = StartupPhase.IDLE
     welcome: str = ""
