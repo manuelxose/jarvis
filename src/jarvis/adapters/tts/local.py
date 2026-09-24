@@ -22,6 +22,8 @@ def local_tts_available() -> bool:
 class LocalTTS:
     """Synthesize text chunks with Coqui XTTS-v2, buffering to WAV bytes."""
 
+    name = "local"
+
     def __init__(self, *, language: str = "es", speaker_wav_dir: Optional[str] = None) -> None:
         self.language = language
         self.speaker_wav_dir = speaker_wav_dir

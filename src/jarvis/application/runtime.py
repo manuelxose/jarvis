@@ -39,7 +39,7 @@ from jarvis.adapters.stt import resolve_stt, stt_available, stt_provider
 from jarvis.adapters.stt.fallback import STTChain
 from jarvis.adapters.stt.whisper import WhisperSTT
 from jarvis.adapters.tts import resolve_tts, tts_available, tts_provider
-from jarvis.adapters.tts.fallback import TTSChain
+from jarvis.adapters.tts.fallback import TTSChain, order_tts_candidates
 from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
 from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
 from jarvis.adapters.tts.voice_cache import VoiceCache, voice_identity
@@ -336,11 +336,16 @@ def _build_memory(config: RuntimeConfig) -> MemoryService:
 def _build_tts_chain(config: RuntimeConfig, shared_clone: Any = None):
     """Resolve the configured TTS provider, with a local fallback when cloud is primary."""
     primary = shared_clone if shared_clone is not None and tts_provider(config) == "qwen_clone" else resolve_tts(config)
-    if tts_provider(config) not in ("alibaba_qwen", "qwen_clone"):
-        return primary
-    # The breaker probes the clone again every few seconds, so the owner's voice
-    # takes over as soon as the worker finishes warming up.
-    return TTSChain([primary, Pyttsx3TTS()], breaker=CircuitBreaker(cooldown_seconds=5.0))
+    candidates = [primary]
+    if tts_provider(config) in ("alibaba_qwen", "qwen_clone"):
+        candidates.append(Pyttsx3TTS())
+    ordered, reason = order_tts_candidates(candidates, config.tts.profile, config.tts.routing_evidence)
+    logger.info("TTS routing profile=%s providers=%s reason=%s", config.tts.profile,
+                [provider.name for provider in ordered], reason)
+    if len(ordered) == 1:
+        return ordered[0]
+    # Keep the existing breaker and replay/commit behavior; only the input order changes.
+    return TTSChain(ordered, breaker=CircuitBreaker(cooldown_seconds=5.0))
 
 
 def _build_stt_chain(config: RuntimeConfig):
@@ -395,15 +400,19 @@ def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
 def _model_pricing(config: RuntimeConfig) -> dict[str, ProviderRate]:
     """Provider-name -> rate for every openai_compat spec, matching the names
     given to OpenAICompatProvider in _build_model_chain. Ollama specs are never
-    priced (no configured USD rate); a TTS per-character rate is added here
-    too once a config field for it exists (S10 follow-up)."""
+    priced. TTS rates come only from operator-configured evidence, keyed by
+    the serving adapter name rather than by the preferred routing profile."""
     from jarvis.observability.cost import ProviderRate  # noqa: PLC0415
 
-    return {
+    pricing = {
         spec.name or "openai_compat": ProviderRate(spec.input_usd_per_million, spec.output_usd_per_million)
         for spec in config.models.providers
         if spec.kind != "ollama"
     }
+    for row in config.tts.routing_evidence:
+        if row.usd_per_character is not None:
+            pricing[row.provider] = ProviderRate(character=row.usd_per_character)
+    return pricing
 
 
 def _data_dir() -> Path:

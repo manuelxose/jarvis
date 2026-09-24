@@ -198,6 +198,7 @@ class TurnManager:
         self._state_setter = state_setter
         self._ack_cache = ack_cache
         self._pricing = pricing
+        self._tts_usage_record: Optional[UsageRecord] = None
         # Desktop planner and the tool entry used for agent-originated
         # requests, which the gateway treats as untrusted.
         self.planner = planner
@@ -226,13 +227,10 @@ class TurnManager:
         response = ""
         route = "fast_model"
         ok = False
-        # A fresh UsageRecord instance is created only when a provider actually
-        # serves this turn (leaf providers reset the attribute to None at the
-        # start of every call), so an identity change from these snapshots is
-        # what separates this turn's usage from a stale record left by a prior
-        # turn that never touched the provider (e.g. a cached-ack fast command).
+        # Compare record identity so a cached acknowledgement cannot reuse a
+        # prior turn's TTS charge.
         model_before = getattr(self._model, "last_usage_record", None)
-        tts_before = getattr(self._tts, "last_usage_record", None)
+        tts_before = self._tts_usage_record
         cost_dict: Optional[dict[str, Any]] = None
         try:
             self._set_state(RuntimeState.THINKING)
@@ -306,7 +304,7 @@ class TurnManager:
                 model_after = getattr(self._model, "last_usage_record", None)
                 if model_after is not None and model_after is not model_before:
                     usages.append(model_after)
-            tts_after = getattr(self._tts, "last_usage_record", None)
+            tts_after = self._tts_usage_record
             if tts_after is not None and tts_after is not tts_before:
                 usages.append(tts_after)
             return build_turn_cost(context.trace_id, route, usages, self._pricing).to_dict()
@@ -352,11 +350,9 @@ class TurnManager:
         return response
 
     def _ready_clone(self) -> Any:
-        """The cloned-voice provider if it is loaded (only its audio may be cached)."""
-        for provider in getattr(self._tts, "providers", (self._tts,)):
-            if getattr(provider, "ready", False):
-                return provider
-        return None
+        """Only cache a ready clone when it is the selected first candidate."""
+        provider = next(iter(getattr(self._tts, "providers", (self._tts,))), None)
+        return provider if provider is not None and getattr(provider, "ready", False) else None
 
     async def _speak_and_cache(self, text: str, context: TurnContext) -> None:
         clone = self._ready_clone()
@@ -375,6 +371,7 @@ class TurnManager:
         await self._audio.play(_tee(), context)
         hub.publish("speech.completed", trace_id=context.trace_id, cancelled=context.cancellation.cancelled)
         if chunks and not context.cancellation.cancelled:
+            self._record_tts_usage(clone, len(text))
             try:
                 self._ack_cache.put(text, join_wavs(chunks))
             except (OSError, ValueError):
@@ -431,6 +428,9 @@ class TurnManager:
         marked: set[str] = set()
         try:
             await self._audio.play(_timed_audio(), context)
+            if marked and not context.cancellation.cancelled:
+                self._record_tts_usage(getattr(self._tts, "last_provider", None) or self._tts,
+                                       sum(len(chunk) for chunk in collected))
         finally:
             if marked:
                 hub.publish("speech.completed", trace_id=context.trace_id, cancelled=context.cancellation.cancelled)
@@ -473,7 +473,23 @@ class TurnManager:
         async def _gen() -> AsyncIterator[str]:
             yield text
 
-        await self._audio.play(self._tts.synthesize(_gen(), context), context)
+        heard = False
+
+        async def _audio() -> AsyncIterator[bytes]:
+            nonlocal heard
+            async for chunk in self._tts.synthesize(_gen(), context):
+                heard = True
+                yield chunk
+
+        await self._audio.play(_audio(), context)
+        if heard and not context.cancellation.cancelled:
+            self._record_tts_usage(getattr(self._tts, "last_provider", None) or self._tts, len(text))
+
+    def _record_tts_usage(self, provider: TextToSpeech, characters: int) -> None:
+        """Only a completed live playback with a known adapter has attributable usage."""
+        name = getattr(provider, "name", None)
+        if name and characters:
+            self._tts_usage_record = UsageRecord(provider=name, kind="tts", characters=characters)
 
     async def _build_prompt(self, text: str, context: TurnContext) -> str:
         if self._memory is None:
