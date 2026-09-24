@@ -179,3 +179,15 @@ class QwenCloneTTSTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenerationBudgetTests(unittest.TestCase):
+    def test_short_text_cannot_babble_but_long_text_is_never_cut(self):
+        from jarvis.adapters.tts.qwen_worker import max_tokens_for
+
+        self.assertLess(max_tokens_for("Listo, señor.") / 12, 4.6)  # measured runaway: 4.6 s
+        confirmation = (
+            "Atención: voy a apagarme por completo; para volver a usarme tendrás que arrancarme "
+            "a mano o reiniciar la sesión de Windows. ¿Confirmas? Di «confirmo» o «no»."
+        )
+        self.assertGreater(max_tokens_for(confirmation) / 12, 12.7)  # longest real take: 12.7 s

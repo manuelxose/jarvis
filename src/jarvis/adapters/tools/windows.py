@@ -353,7 +353,7 @@ class StopTool(_CommandTool):
 
     async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
         context.cancellation.cancel()
-        return "Hecho."
+        return "Listo, señor."
 
 
 class RepeatTool(_CommandTool):
@@ -363,7 +363,7 @@ class RepeatTool(_CommandTool):
         super().__init__("repeat", "Repeat the last response.", Risk.READ_ONLY)
 
     async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
-        return "Hecho."
+        return "Listo, señor."
 
 
 def _normalize(text: str) -> str:
@@ -389,9 +389,9 @@ def build_windows_tools() -> list[Tool]:
         VolumeSetTool(),
         _WindowsKeyTool("mute", "Mute system volume.", 173, "Sonido silenciado."),
         _WindowsKeyTool("unmute", "Unmute system volume.", 173, "Sonido restaurado."),
-        _WindowsKeyTool("media_play_pause", "Toggle media play/pause.", 179, "Hecho."),
-        _WindowsKeyTool("media_next", "Skip to the next track.", 176, "Siguiente."),
-        _WindowsKeyTool("media_previous", "Go to the previous track.", 177, "Anterior."),
+        _WindowsKeyTool("media_play_pause", "Toggle media play/pause.", 179, "Listo, señor."),
+        _WindowsKeyTool("media_next", "Skip to the next track.", 176, "Siguiente canción."),
+        _WindowsKeyTool("media_previous", "Go to the previous track.", 177, "Canción anterior."),
         StopTool(),
         RepeatTool(),
     ]

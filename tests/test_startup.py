@@ -315,6 +315,28 @@ class MixerRenderTests(unittest.TestCase):
         mixer.render(int(mixer.rate * 0.06))
         self.assertFalse(mixer.music_playing)
 
+    def test_next_session_plays_music_after_a_fade_out_ended_the_last_one(self):
+        import tempfile
+
+        import soundfile as sf
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.wav"
+            sf.write(str(path), np.full((mixer_rate := Mixer().rate, 2), 0.5, dtype=np.float32), mixer_rate)
+            mixer = Mixer()
+            mixer._ensure_stream = lambda: None  # no audio device in tests
+            mixer._close_stream = lambda: None
+            mixer.load(path)
+            mixer.play_music(0.6, 0.0)
+            mixer.fade_out(0.01)  # "para la música" / after-welcome fade
+            mixer.stop()  # session ends
+            mixer.load(path)  # next activation, decoded track from the cache
+            mixer.render(256)  # the audio callback runs before play_music
+            mixer.play_music(0.6, 0.0, "auto")
+            mixer.render(256)
+            self.assertTrue(mixer.music_playing)
+            self.assertAlmostEqual(mixer.gain, 0.6, places=3)
+
     def test_chime_mixes_over_music_and_clips_safely(self):
         mixer = self._mixer_with_music()
         mixer.ramp(1.0, 0.0)

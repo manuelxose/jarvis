@@ -1,6 +1,6 @@
 """Local pre-generated audio cache for fixed fast-command acknowledgements.
 
-Fast-command acknowledgements ("He subido el volumen.", "Abriendo.") are drawn
+Fast-command acknowledgements ("He subido el volumen.", "Abriendo la aplicación.") are drawn
 from a small fixed vocabulary. Synthesizing them through a remote TTS provider
 on every turn adds a full round trip to the fastest, most latency-sensitive
 path in the runtime for no benefit: the audio never changes. This cache stores

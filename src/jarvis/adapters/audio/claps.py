@@ -27,6 +27,11 @@ from typing import Any, Callable, Optional
 
 _HOP_SECONDS = 0.01
 _HF_CUTOFF_HZ = 1500.0
+# Loudness hysteresis for the confirming clap: the first clap already passed the
+# strict gates, and people's second clap is usually a few dB softer. Only the
+# loudness gate is relaxed: relaxing the shape gates let drum hits in music
+# confirm (measured on a 190 s track), relaxing loudness did not.
+_CONFIRM_RELAX_DB = 6.0
 
 
 @dataclass(frozen=True)
@@ -210,7 +215,8 @@ class ClapDetector:
         self._floor = max(1e-4, self._floor + rate * (level - self._floor))
 
     def _is_onset(self, level: float, now: float) -> bool:
-        if _dbfs(level) < self.tuning.min_peak_dbfs:
+        min_peak = self.tuning.min_peak_dbfs - (_CONFIRM_RELAX_DB if self._claps else 0.0)
+        if _dbfs(level) < min_peak:
             return False
         if level < self._floor * self.tuning.onset_ratio:
             return False

@@ -121,9 +121,9 @@ class WindowsToolsTests(unittest.IsolatedAsyncioTestCase):
     async def test_stop_cancels_context_and_repeat_acknowledges(self):
         context = self.context()
 
-        self.assertEqual("Hecho.", await self.tools["stop"].execute({}, context))
+        self.assertEqual("Listo, señor.", await self.tools["stop"].execute({}, context))
         self.assertTrue(context.cancellation.cancelled)
-        self.assertEqual("Hecho.", await self.tools["repeat"].execute({}, self.context()))
+        self.assertEqual("Listo, señor.", await self.tools["repeat"].execute({}, self.context()))
 
     async def test_file_tool_reads_and_writes_within_cwd(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -76,7 +76,7 @@ class MusicToolTests(unittest.IsolatedAsyncioTestCase):
             pressed.append(True)
 
         result = await MusicTool(FakeMixer(playing=False), media_key=media_key).execute({"action": "stop"}, TurnContext.fresh("t"))
-        self.assertEqual((result.say, pressed), ("Pausado.", [True]))
+        self.assertEqual((result.say, pressed), ("Música en pausa.", [True]))
         lower = await MusicTool(None).execute({"action": "lower"}, TurnContext.fresh("t"))
         self.assertFalse(lower.ok)
 

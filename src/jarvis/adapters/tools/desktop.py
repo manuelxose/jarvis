@@ -287,7 +287,7 @@ class VirtualDesktopTool(DesktopTool):
             return _windows_only("Los escritorios virtuales")
         # No public Win32 API switches virtual desktops; the documented shortcuts are the stable path.
         await asyncio.to_thread(_keys, self._CHORDS[arguments["action"]])
-        return ToolResult("Hecho.")
+        return ToolResult("Listo, señor.")
 
 
 class ListWindowsTool(DesktopTool):
@@ -1015,7 +1015,7 @@ class MusicTool(DesktopTool):
             return ToolResult("Música más baja." if action == "lower" else "Música más alta.")
         if action == "stop" and self._media_key is not None:
             await self._media_key()  # pause whatever player is active
-            return ToolResult("Pausado.")
+            return ToolResult("Música en pausa.")
         return ToolResult("No está sonando la música de arranque.", ok=False)
 
 
