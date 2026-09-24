@@ -13,6 +13,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from jarvis.application.demo import NOTAS_CONTENT, run_hardware_acceptance
+import sys
+sys.path.insert(0, str(Path(__file__).parent))  # standalone `-m unittest tests.X` runs
 from committed_config import load_committed_config
 
 
