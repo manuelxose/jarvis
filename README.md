@@ -19,65 +19,30 @@ una política de riesgos explícita.
 
 - Windows 10/11 con micrófono y altavoces (la ejecución se puede lanzar desde WSL).
 - Python 3.11 (el bootstrap lo instala si falta).
-- Para la voz clonada: GPU NVIDIA con ≥ 6 GB de VRAM (probado en RTX 3070 Laptop 8 GB).
+- Para la voz clonada: GPU NVIDIA con ≥ 6 GB de VRAM (probado en RTX 3070 Laptop 8 GB) y
+  [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`).
 - Opcional: [Ollama](https://ollama.com) para el modelo local, una API key de un proveedor
   compatible con OpenAI para el modelo en la nube.
 
-## Instalación (Windows)
+## Instalación rápida (Windows)
 
 ```powershell
 git clone https://github.com/manuelxose/jarvis.git
 cd jarvis
-.\bootstrap.ps1          # Python 3.11, .venv, dependencias, Ollama y mistral:7b-instruct
-```
-
-Opciones: `-SkipModelPull` (no descargar el modelo de Ollama), `-ForceDependencies`
-(reinstalar dependencias), `-PythonPath C:\ruta\python.exe` (usar un Python concreto),
-`-Run` (arrancar al terminar; equivale a `.\run_jarvis.bat`).
-
-En los ejemplos siguientes, `jarvis <comando>` significa:
-
-```powershell
+.\bootstrap.ps1                                    # Python 3.11, .venv, dependencias, Ollama
+Copy-Item config.local.example.json config.local.json  # tus ajustes (nombre, carpetas, nube)
+scripts\setup_tts_worker.bat                        # opcional: motor de voz clonada (GPU NVIDIA)
 $env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m jarvis <comando> --config config.win.json
+.\.venv\Scripts\python.exe -m jarvis.voice_profile record              # graba tu voz (~10 s)
+.\.venv\Scripts\python.exe -m jarvis claps calibrate --config config.win.json
+.\.venv\Scripts\python.exe -m jarvis daemon --config config.win.json   # y da dos palmadas
 ```
 
-## Puesta en marcha
+**Guía completa paso a paso, con configuración y solución de problemas:
+[docs/installation.md](docs/installation.md).**
 
-1. **Motor de voz clonada** (entorno aislado, descarga solo el modelo 0.6B, ~2 GB):
-
-   ```powershell
-   scripts\setup_tts_worker.bat
-   ```
-
-2. **Graba tu voz** (lee en voz alta el texto que aparece, ~10 s, en un sitio silencioso):
-
-   ```powershell
-   .\.venv\Scripts\python.exe -m jarvis.voice_profile record
-   ```
-
-   Escucha `%LOCALAPPDATA%\jarvis\voice\default\preview.wav`. También puedes importar un WAV:
-   `... -m jarvis.voice_profile enroll --audio mi_voz.wav --text "transcripción exacta"`.
-
-3. **Modelo en la nube** (opcional): copia la plantilla y da la clave por variable de entorno.
-
-   ```powershell
-   Copy-Item config.local.example.json config.local.json
-   $env:DEEPSEEK_API_KEY = "sk-..."
-   ```
-
-4. **Calibra las palmadas** con tu micrófono y comprueba la detección:
-
-   ```powershell
-   jarvis claps calibrate
-   jarvis claps test --seconds 30
-   ```
-
-5. **Diagnóstico**: `jarvis doctor` (o `doctor --json`) muestra el estado de cada componente,
-   el enrutado de modelos y si el respaldo local está listo. Nunca imprime secretos.
-
-6. **Arranque automático** al iniciar sesión (acceso directo en la carpeta Inicio, sin
-   privilegios de administrador): `jarvis autostart install`.
+En el resto de este documento, `jarvis <comando>` significa
+`.\.venv\Scripts\python.exe -m jarvis <comando> --config config.win.json` con `$env:PYTHONPATH = "src"`.
 
 ## Uso
 
@@ -135,6 +100,7 @@ docs/             arquitectura, configuración, control del escritorio, voz, ren
 
 ## Documentación
 
+- [Instalación](docs/installation.md): de cero a funcionando, configuración personal y problemas frecuentes.
 - [Arquitectura](docs/architecture.md): capas, flujo de una activación y de un turno, datos locales.
 - [Configuración](docs/configuration.md): todas las secciones y valores por defecto.
 - [Control del escritorio](docs/desktop-control.md): comandos de voz, riesgos, perfiles de trabajo.
@@ -150,3 +116,11 @@ docs/             arquitectura, configuración, control del escritorio, voz, ren
 - Las acciones de riesgo alto se confirman de viva voz justo antes de ejecutarse; las peticiones que
   vienen de un agente nunca heredan permisos de confianza; Jarvis no tiene ruta de elevación (UAC).
 - Cada decisión de herramienta queda en `audit.jsonl` con los argumentos sensibles redactados.
+
+## Licencia
+
+Código bajo licencia [MIT](LICENSE). Los modelos y dependencias que descarga Jarvis tienen sus
+propias licencias: Qwen3-TTS (Apache 2.0), Whisper (MIT), Mistral 7B (Apache 2.0). El modelo
+XTTS v2 del proveedor opcional `tts.provider: "local"` usa la Coqui Public Model License, que
+no permite uso comercial. Clonar una voz requiere el consentimiento de su dueño.
+

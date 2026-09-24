@@ -495,7 +495,7 @@ def bench_voice(config: Any) -> None:
         warm = (time.perf_counter() - t) * 1000
         first = None
         t = time.perf_counter()
-        async for _ in manager.tts.synthesize(one("Hola, Manuel."), TurnContext.fresh("bench")):
+        async for _ in manager.tts.synthesize(one("Hola."), TurnContext.fresh("bench")):
             first = first or time.perf_counter()
         ttfa = (first - t) * 1000
         await manager.release("session")
