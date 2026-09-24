@@ -39,7 +39,8 @@
     "enabled": true,
     "sensitivity": 0.5,
     "window_seconds": 2.0,
-    "cooldown_seconds": 5.0
+    "cooldown_seconds": 5.0,
+    "claps_required": 2
   },
   "welcome": {
     "owner_name": "Manuel",
@@ -47,16 +48,16 @@
     "music_url": "https://www.youtube.com/watch?v=BN1WwnEDWAM",
     "music_volume": 0.55,
     "duck_volume": 0.12,
-    "after_welcome": "fade",
+    "after_welcome": "restore",
     "welcome_delay_seconds": 2.0,
-    "voice_ready_timeout_seconds": 60
+    "voice_ready_timeout_seconds": 8
   },
   "daemon": {
     "hotkey": "ctrl+alt+j",
     "wake_word": false,
     "control_port": 47811,
     "min_free_vram_mb_for_ollama": 5000,
-    "preload_voice": false
+    "session_idle_seconds": 900
   },
   "desktop": {
     "authorized_scopes": [
@@ -149,5 +150,15 @@
         ]
       }
     }
+  },
+  "voice": {
+    "preload": "adaptive",
+    "speculative": true,
+    "predictive_on_wake_word": true,
+    "cooldown_seconds": 600,
+    "max_gpu_mb": 4500,
+    "evict_on_pressure": true,
+    "min_free_vram_mb": 700,
+    "gpu_busy_processes": []
   }
 }

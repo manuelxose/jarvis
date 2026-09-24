@@ -164,6 +164,17 @@ class QwenCloneTTS:
         # that is merely loading its model kills it mid-load (seconds lost per retry).
         return HealthReport("TTS voice clone", HealthStatus.DEGRADED, detail, required=False, retryable=not alive)
 
+    @property
+    def ready(self) -> bool:
+        """Model loaded with an enrolled profile: audio will be the owner's voice."""
+        alive = self._process is not None and self._process.returncode is None
+        return bool(alive and self._ready is not None and self._ready.done() and self._ready.result() and self._info.get("profile"))
+
+    @property
+    def busy(self) -> bool:
+        """A synthesis request is in flight (never unload the model now)."""
+        return bool(self._queues)
+
     def state(self) -> dict[str, Any]:
         ttfa = sorted(t["ttfa_ms"] for t in self._timings if t.get("ttfa_ms"))
         return {
@@ -184,6 +195,9 @@ class QwenCloneTTS:
         try:
             self._process = await asyncio.create_subprocess_exec(
                 *self._command,
+                # Windows: no console window. Launched from pythonw, the worker would
+                # otherwise get its own console, and closing it kills the model.
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=stderr,

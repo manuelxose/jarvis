@@ -102,7 +102,7 @@ def _claps_test(config: Any, seconds: float, out: TextIO) -> int:
         if gesture is not None:
             events.append({"GESTURE": gesture.time, "confidence": gesture.confidence, "latency_ms": round(gesture.latency_seconds * 1000)})
 
-    out.write(f"Escuchando {seconds:.0f} s: da tres palmadas...\n")
+    out.write(f"Escuchando {seconds:.0f} s: da {detector.tuning.claps_required} palmadas...\n")
     out.flush()
     device = config.daemon.get("input_device", config.audio.input_device)
     with sd.InputStream(samplerate=detector.tuning.sample_rate, channels=1, dtype="float32", blocksize=320, device=device, callback=_cb):
@@ -128,7 +128,7 @@ def _claps_calibrate(config: Any, out: TextIO) -> int:
     out.write("1/2 Silencio durante 4 segundos (ruido de la habitación)...\n")
     out.flush()
     noise = _record(config, 4.0, tuning.sample_rate)
-    out.write("2/2 Ahora da tres palmadas, espera, y otras tres (8 segundos)...\n")
+    out.write("2/2 Ahora da dos palmadas, espera un segundo, y otras dos (8 segundos)...\n")
     out.flush()
     claps = _record(config, 8.0, tuning.sample_rate)
     result = calibrate(noise, claps, tuning)
@@ -197,7 +197,7 @@ def _welcome(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
     from jarvis.application.startup import welcome_texts  # noqa: PLC0415
     from jarvis.core.turn import TurnContext  # noqa: PLC0415
 
-    cache = Sentinel.welcome_cache_for()
+    cache = Sentinel.welcome_cache_for(config)
     clone = build_qwen_clone(config)
 
     async def _record() -> list[str]:

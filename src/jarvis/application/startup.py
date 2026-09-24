@@ -86,7 +86,11 @@ class StartupOptions:
     after_welcome: str = "fade"  # fade | restore
     activation_sound: str = ""  # empty = synthesized chime
     services_timeout_seconds: float = 20.0
-    voice_ready_timeout_seconds: float = 30.0
+    # A live (degraded) welcome waits this long for the cloned voice, then the
+    # truthful warning is spoken in the fallback voice instead.
+    voice_ready_timeout_seconds: float = 8.0
+    # Hard cap on the whole announcement: speech can never block the session.
+    announce_timeout_seconds: float = 30.0
     # Components that must be HEALTHY for the "all systems operational" line.
     essential: tuple[str, ...] = ("configuration", "storage path", "audio input", "audio output", "STT", "TTS", "fast model")
 
@@ -98,7 +102,7 @@ class StartupReport:
     welcome: str = ""
     issues: list[str] = field(default_factory=list)
     music: str = "none"  # file | url | missing | error | none
-    welcome_source: str = "live"  # live | cache
+    welcome_source: str = "live"  # live | cache | fallback
     timings_ms: dict[str, float] = field(default_factory=dict)
     workspace: Any = None
 
@@ -171,6 +175,7 @@ class StartupSequence:
         on_phase: Optional[Callable[[StartupPhase, dict[str, Any]], None]] = None,
         cached_welcome: Optional[Callable[[str], Optional[bytes]]] = None,
         play_audio: Optional[Callable[[bytes], Awaitable[None]]] = None,
+        speak_fallback: Optional[Callable[[str], Awaitable[None]]] = None,
         open_url: Callable[[str], Any] = webbrowser.open,
         clock: Callable[[], datetime.datetime] = datetime.datetime.now,
     ) -> None:
@@ -183,6 +188,7 @@ class StartupSequence:
         self._on_phase = on_phase
         self._cached_welcome = cached_welcome
         self._play_audio = play_audio
+        self._speak_fallback = speak_fallback
         self._open_url = open_url
         self._clock = clock
         self._task: Optional[asyncio.Task[StartupReport]] = None
@@ -268,7 +274,9 @@ class StartupSequence:
                 # so it lands shortly after the music instead of after the load.
                 self.report.welcome_source = "cache"
                 music_at = self.report.timings_ms.get("music_started", 0.0) / 1000
-                await asyncio.sleep(max(0.0, music_at + options.welcome_delay_seconds - (time.perf_counter() - started)))
+                # Start ducking early so the voice itself lands on the delay mark.
+                duck = options.duck_seconds if getattr(self._mixer, "music_playing", False) else 0.0
+                await asyncio.sleep(max(0.0, music_at + options.welcome_delay_seconds - duck - (time.perf_counter() - started)))
                 speak = lambda: self._play_audio(cached)  # noqa: E731
             else:
                 voice_ready = True
@@ -279,7 +287,9 @@ class StartupSequence:
                         voice_ready = False
                 self._mark("voice_ready", started)
                 text, issues = compose_welcome(reports, options, self._clock(), voice_ready=voice_ready)
-                speak = lambda: self._speak(text)  # noqa: E731
+                use_fallback = not voice_ready and self._speak_fallback is not None
+                self.report.welcome_source = "fallback" if use_fallback else "live"
+                speak = (lambda: self._speak_fallback(text)) if use_fallback else (lambda: self._speak(text))  # noqa: E731
             self.report.welcome, self.report.issues = text, issues
             self._set_phase(StartupPhase.ANNOUNCING, issues=issues)
             await self._announce(speak)
@@ -344,7 +354,10 @@ class StartupSequence:
             mixer.ramp(options.duck_volume, options.duck_seconds)
             await asyncio.sleep(options.duck_seconds)
         try:
-            await speak()
+            await asyncio.wait_for(speak(), options.announce_timeout_seconds)
+        except asyncio.TimeoutError:
+            logger.warning("welcome speech timed out after %.0f s", options.announce_timeout_seconds)
+            self.report.issues.append("speech timed out")
         except Exception as error:  # noqa: BLE001 - still finish the sequence
             logger.warning("welcome speech failed: %s", error)
             self.report.issues.append("speech failed")

@@ -5,9 +5,14 @@ noise floor within ~20 ms), a fast decay (back under -12 dB of its peak within
 ~120 ms) and a large share of its energy above 1.5 kHz. Speech and music fail
 at least one of those tests (sustained vowels/notes, low spectral centroid).
 
-The gesture is exactly three claps inside a configurable window, with regular
-spacing and quiet on both sides: a drum pattern produces a 4th/5th transient
-and a stray clap never completes the pattern. ``numpy`` is lazy-imported so
+The gesture is ``claps_required`` claps (default two) inside a configurable
+window, preceded by quiet: speech or music just before the first clap vetoes
+it. The first accepted clap raises ``on_candidate`` (the sentinel starts
+speculative warm-up); ``on_candidate_expired`` fires when no confirming clap
+arrives in time. With two claps the gesture confirms on the second clap
+(optionally after ``confirm_quiet_seconds``); with three it waits for a
+possible 4th clap so rhythms are rejected. After a gesture the detector is in
+cooldown, so extra claps never restart the activation. ``numpy`` is lazy-imported so
 the contract tier stays importable without it.
 """
 
@@ -18,7 +23,7 @@ import math
 from collections import deque
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 _HOP_SECONDS = 0.01
 _HF_CUTOFF_HZ = 1500.0
@@ -29,16 +34,20 @@ class ClapTuning:
     """Detector parameters; every field is owner-configurable."""
 
     sample_rate: int = 16000
+    claps_required: int = 2  # 2 (default) or 3
     # 0..1: higher accepts quieter/softer claps (and more false positives).
     sensitivity: float = 0.5
     # Absolute floor so distant taps and keyboard clicks never count.
     min_peak_dbfs: float = -32.0
     window_seconds: float = 2.0  # first to third clap
     min_gap_seconds: float = 0.12  # closer onsets are the same clap's reverb
-    max_gap_seconds: float = 0.9
+    max_gap_seconds: float = 0.9  # also the first clap's candidate lifetime
     max_gap_ratio: float = 2.5  # spacing regularity (longest / shortest gap)
-    quiet_before_seconds: float = 0.5
-    quiet_after_seconds: float = 0.35
+    quiet_before_seconds: float = 0.8
+    quiet_after_seconds: float = 0.35  # three-clap mode only
+    # Two-clap mode: wait this long after the 2nd clap for a rhythm-breaking 3rd
+    # transient before confirming (0 = confirm on the 2nd clap, lowest latency).
+    confirm_quiet_seconds: float = 0.0
     max_decay_seconds: float = 0.12
     min_hf_ratio: float = 0.2
     confidence_threshold: float = 0.55
@@ -57,6 +66,8 @@ class ClapTuning:
             raise ValueError("window_seconds is too short for three claps")
         if self.min_peak_dbfs >= 0:
             raise ValueError("min_peak_dbfs must be negative")
+        if self.claps_required not in (2, 3):
+            raise ValueError("claps_required must be 2 or 3")
 
     @property
     def onset_ratio(self) -> float:
@@ -113,6 +124,9 @@ class ClapDetector:
         self._suspended_until = -1e9
         self._suspended = False
         self.rejected: list[dict[str, float]] = []  # recent non-clap transients (diagnostics)
+        # Called from the audio thread; keep them cheap (schedule work elsewhere).
+        self.on_candidate: Optional[Callable[[Clap], None]] = None
+        self.on_candidate_expired: Optional[Callable[[str], None]] = None
         self.accepted: list[Clap] = []  # recent single claps (diagnostics, calibration)
 
     # -- control ---------------------------------------------------------
@@ -123,12 +137,12 @@ class ClapDetector:
     def suspend(self) -> None:
         """Ignore everything (startup music, Jarvis speaking) until resume()."""
         self._suspended = True
-        self._claps.clear()
+        self._clear("suspended")
         self._event = None
 
     def resume(self, *, cooldown: bool = True) -> None:
         self._suspended = False
-        self._claps.clear()
+        self._clear("resumed")
         self._event = None
         if cooldown:
             self._suspended_until = self.now + self.tuning.cooldown_seconds
@@ -243,41 +257,64 @@ class ClapDetector:
             return  # reverb / double hit of the same clap
         self._last_onset = start
         if self._claps and start - self._claps[-1].time > tuning.max_gap_seconds:
-            self._claps.clear()
+            self._clear("timeout")
         clap = Clap(start, features["peak_dbfs"], round(confidence, 3), features)
         self.accepted.append(clap)
         del self.accepted[:-20]
+        if not self._claps and self._onset_before(start):
+            return  # a hit inside music/speech never starts a candidate
         self._claps.append(clap)
-        if len(self._claps) > 3:
-            # Four or more: a rhythm (music, applause), not the gesture.
-            self._claps.clear()
+        if len(self._claps) == 1 and self.on_candidate is not None:
+            self.on_candidate(clap)
+        if len(self._claps) > tuning.claps_required:
+            # One more than required: a rhythm (music, applause), not the gesture.
+            self._clear("rhythm")
             self._suspended_until = self.now + tuning.quiet_before_seconds
+
+    def _clear(self, reason: str) -> None:
+        pending = bool(self._claps)
+        self._claps.clear()
+        if pending and self.on_candidate_expired is not None:
+            self.on_candidate_expired(reason)
 
     def _reject(self, event: dict[str, Any], duration: float, reason: str, features: dict | None = None) -> None:
         start = event["start"]
         self.rejected.append({"time": round(start, 3), "reason": reason, "duration": round(duration, 3), **(features or {})})
         del self.rejected[:-20]
-        self._claps.clear()
+        self._clear("interrupted")
         self._last_onset = start
 
     def _maybe_confirm(self, now: float) -> Optional[ClapGesture]:
         tuning = self.tuning
-        if len(self._claps) != 3:
+        if len(self._claps) == 1 and now - self._claps[0].time > tuning.max_gap_seconds:
+            self._clear("timeout")  # the confirming clap never came
+            return None
+        if len(self._claps) != tuning.claps_required:
             return None
         claps = tuple(self._claps)
         gaps = [b.time - a.time for a, b in zip(claps, claps[1:])]
-        # Wait long enough for a 4th clap at the owner's own tempo to show up.
-        if now - claps[-1].time < max(tuning.quiet_after_seconds, 1.25 * max(gaps)):
+        if tuning.claps_required == 2:
+            wait = tuning.confirm_quiet_seconds
+        else:
+            # Wait long enough for a 4th clap at the owner's own tempo to show up.
+            wait = max(tuning.quiet_after_seconds, 1.25 * max(gaps))
+        if now - claps[-1].time < wait:
             return None
         self._claps.clear()
         span = claps[-1].time - claps[0].time
         if span > tuning.window_seconds or max(gaps) / max(min(gaps), 1e-3) > tuning.max_gap_ratio:
+            self._notify_expired("irregular")
             return None
         if self._onset_before(claps[0].time):
+            self._notify_expired("not quiet before")
             return None
-        confidence = sum(c.confidence for c in claps) / 3
+        confidence = sum(c.confidence for c in claps) / len(claps)
         self._suspended_until = now + tuning.cooldown_seconds
         return ClapGesture(round(now, 3), round(confidence, 3), claps)
+
+    def _notify_expired(self, reason: str) -> None:
+        if self.on_candidate_expired is not None:
+            self.on_candidate_expired(reason)
 
     def _onset_before(self, first: float) -> bool:
         # Sustained sound or a clap-like-but-failing hit (a snare) shortly before
@@ -312,19 +349,32 @@ def load_calibration(tuning: ClapTuning, path: Path) -> ClapTuning:
     except (OSError, ValueError):
         return tuning
     updates = {k: float(data[k]) for k in ("min_peak_dbfs", "sensitivity", "min_hf_ratio") if isinstance(data.get(k), (int, float))}
+    if all(isinstance(data.get(k), (int, float)) for k in ("noise_p99_dbfs", "softest_clap_dbfs")):
+        # Re-derive with the current rule so older calibration files get stricter too.
+        updates["min_peak_dbfs"] = min_peak_for(float(data["noise_p99_dbfs"]), float(data["softest_clap_dbfs"]))
     try:
         return replace(tuning, **updates)
     except ValueError:
         return tuning
 
 
+def min_peak_for(noise_p99_dbfs: float, softest_clap_dbfs: float) -> float:
+    """Loudness gate: 9 dB under the softest clap, never within 12 dB of the room.
+
+    With two claps, loudness is the strongest separator from keyboard clicks and
+    other short transients (their shape can be clap-like); the owner's claps are
+    far louder than typing at the microphone.
+    """
+    return round(min(max(noise_p99_dbfs + 12.0, softest_clap_dbfs - 9.0), -3.0), 1)
+
+
 def calibrate(noise: Any, claps: Any, tuning: ClapTuning | None = None) -> dict[str, Any]:
     """Derive owner-specific thresholds from an ambient and a clapping recording.
 
     *noise* and *claps* are float32 mono arrays at ``tuning.sample_rate``.
-    The minimum peak is set halfway (in dB) between the loud tail of the room
-    noise and the softest detected clap, so the owner's claps pass and the
-    room does not.
+    The minimum peak is set 9 dB under the softest detected clap (and at least
+    12 dB over the room's loud tail), so the owner's claps pass and quieter
+    transients such as typing do not.
     """
     import numpy as np  # noqa: PLC0415
 
@@ -350,12 +400,11 @@ def calibrate(noise: Any, claps: Any, tuning: ClapTuning | None = None) -> dict[
     if not peaks:
         return {"ok": False, "reason": "no claps detected", "noise_p99_dbfs": round(noise_p99, 1)}
     softest = min(peaks)
-    min_peak = max(noise_p99 + 6.0, (noise_p99 + softest) / 2.0)
     return {
-        "ok": softest > noise_p99 + 6.0,
+        "ok": softest > noise_p99 + 15.0,
         "noise_p99_dbfs": round(noise_p99, 1),
         "softest_clap_dbfs": round(softest, 1),
-        "min_peak_dbfs": round(min(min_peak, softest - 3.0, -1.0), 1),
+        "min_peak_dbfs": min_peak_for(noise_p99, softest),
         # Mics with DSP noise suppression dull the clap's top end; speech stays < 0.1.
         "min_hf_ratio": round(min(tuning.min_hf_ratio, max(0.15, 0.75 * min(hf))), 3),
         "sensitivity": tuning.sensitivity,

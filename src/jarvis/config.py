@@ -199,6 +199,7 @@ class RuntimeConfig:
     workspace: Mapping[str, Any] = field(default_factory=dict)
     desktop: Mapping[str, Any] = field(default_factory=dict)
     daemon: Mapping[str, Any] = field(default_factory=dict)
+    voice: Mapping[str, Any] = field(default_factory=dict)  # VoicePolicy (M009)
 
     def public_dict(self) -> dict[str, dict[str, Any]]:
         return {
@@ -296,6 +297,7 @@ class RuntimeConfig:
             "workspace": dict(self.workspace),
             "desktop": dict(self.desktop),
             "daemon": dict(self.daemon),
+            "voice": dict(self.voice),
         }
 
 
@@ -649,7 +651,10 @@ def _parse_allowlist(data: Mapping[str, Any]) -> list[str]:
 
 
 _DESKTOP_KEYS = {"authorized_scopes", "trusted_operations", "apps"}
-_DAEMON_KEYS = {"hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama", "preload_voice"}
+_DAEMON_KEYS = {
+    "hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama",
+    "preload_voice", "session_idle_seconds", "metrics_interval_seconds", "events_log",
+}
 
 
 def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
@@ -663,11 +668,15 @@ def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     workspace = dict(_section(document, "workspace"))
     desktop = dict(_section(document, "desktop"))
     daemon = dict(_section(document, "daemon"))
+    voice = dict(_section(document, "voice"))
     try:
         ClapTuning(**{k: v for k, v in claps.items() if k != "enabled"})
         StartupOptions(**{k: tuple(v) if k == "essential" else v for k, v in welcome.items()})
+        from jarvis.application.voice_manager import VoicePolicy  # noqa: PLC0415
+
+        VoicePolicy.from_config(voice)
     except TypeError as error:
-        raise ValueError(f"unknown claps/welcome setting: {error}") from error
+        raise ValueError(f"unknown claps/welcome/voice setting: {error}") from error
     profiles = parse_profiles(workspace.get("profiles", {}))
     default = workspace.get("default_profile")
     if default is not None and default not in profiles:
@@ -683,4 +692,4 @@ def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     apps = desktop.get("apps", {})
     if not isinstance(apps, dict) or not all(isinstance(v, list) and all(isinstance(p, str) for p in v) for v in apps.values()):
         raise ValueError("desktop.apps must map names to command lists")
-    return {"claps": claps, "welcome": welcome, "workspace": workspace, "desktop": desktop, "daemon": daemon}
+    return {"claps": claps, "welcome": welcome, "workspace": workspace, "desktop": desktop, "daemon": daemon, "voice": voice}

@@ -44,6 +44,7 @@ from jarvis.adapters.tts import AckAudioCache, resolve_tts, tts_available, tts_p
 from jarvis.adapters.tts.fallback import TTSChain
 from jarvis.adapters.tts.pyttsx3 import Pyttsx3TTS
 from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
+from jarvis.adapters.tts.voice_cache import VoiceCache, voice_identity
 from jarvis.core.circuit_breaker import CircuitBreaker
 from jarvis.adapters.tools.desktop import DesktopContext, SleepTool, build_desktop_tools, gpu_free_mb, windows_path_for
 from jarvis.adapters.tools.gateway import AuditLog, Risk, Tool, ToolGateway
@@ -176,6 +177,7 @@ def build_runtime(
     *,
     use_fakes: bool = False,
     fake_stt: Any = None,
+    voice_clone: Any = None,
 ) -> JarvisRuntime:
     """Compose the runtime. ``use_fakes=True`` yields a fully-healthy offline runtime.
 
@@ -185,10 +187,11 @@ def build_runtime(
     """
     if use_fakes:
         return _build_fake_runtime(config, stt=fake_stt)
-    return _build_real_runtime(config)
+    return _build_real_runtime(config, voice_clone=voice_clone)
 
 
-def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
+def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> JarvisRuntime:
+    """``voice_clone``: a shared, externally managed QwenCloneTTS (daemon) or None."""
     memory = _build_memory(config)
     model = _build_model_chain(config)
     hermes = HermesChildAdapter(
@@ -206,7 +209,7 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
     audio_output = AudioOutputQueue(
         render=make_sounddevice_render(device=config.audio.output_device), render_timeout_seconds=60.0
     )
-    tts = _build_tts_chain(config)
+    tts = _build_tts_chain(config, shared_clone=voice_clone)
     stt = _build_stt_chain(config)
     audio_input = MicCapture(
         sample_rate=config.audio.sample_rate,
@@ -223,7 +226,7 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
         audio=audio_output,
         hermes=hermes,
         memory=memory,
-        ack_cache=AckAudioCache(Path("cache/tts_acks")),
+        ack_cache=VoiceCache(_data_dir() / "cache" / "voice", voice_identity(config)),
         agent_tools=functools.partial(tools.execute, origin="agent"),
     )
     turn_manager.planner = DesktopPlanner(
@@ -235,11 +238,15 @@ def _build_real_runtime(config: RuntimeConfig) -> JarvisRuntime:
     confirmer.speak = turn_manager._speak_text
 
     health_components = _real_health_components(config, memory, model, hermes, audio_input, audio_output)
-    voice_clone = next((p for p in getattr(tts, "providers", (tts,)) if isinstance(p, QwenCloneTTS)), None)
     if voice_clone is not None:
-        # Supervised worker: started with the runtime (non-blocking; SAPI speaks
-        # until the model is warm) and stopped with it.
-        health_components.append(voice_clone)
+        # The daemon's VoiceModelManager owns the model: report health only.
+        health_components.append(_SharedComponent(voice_clone))
+    else:
+        own_clone = next((p for p in getattr(tts, "providers", (tts,)) if isinstance(p, QwenCloneTTS)), None)
+        if own_clone is not None:
+            # Supervised worker: started with the runtime (non-blocking; SAPI speaks
+            # until the model is warm) and stopped with it.
+            health_components.append(own_clone)
     supervisor = Supervisor(health_components)
     activation = ActivationManager(
         mode=config.activation.mode,
@@ -315,9 +322,9 @@ def _build_memory(config: RuntimeConfig) -> MemoryService:
     return MemoryService(store, max_recall=config.memory.max_recall)
 
 
-def _build_tts_chain(config: RuntimeConfig):
+def _build_tts_chain(config: RuntimeConfig, shared_clone: Any = None):
     """Resolve the configured TTS provider, with a local fallback when cloud is primary."""
-    primary = resolve_tts(config)
+    primary = shared_clone if shared_clone is not None and tts_provider(config) == "qwen_clone" else resolve_tts(config)
     if tts_provider(config) not in ("alibaba_qwen", "qwen_clone"):
         return primary
     # The breaker probes the clone again every few seconds, so the owner's voice
@@ -687,6 +694,25 @@ def _audio_output_available() -> bool:
     except Exception:  # noqa: BLE001 - a probe that raises cannot confirm output either
         return False
     return True
+
+
+class _SharedComponent:
+    """Health of a component owned elsewhere; its lifecycle is not ours."""
+
+    required = False
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.name = getattr(inner, "name", type(inner).__name__)
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def health(self) -> HealthReport:
+        return await self._inner.health()
 
 
 class _StaticComponent:
