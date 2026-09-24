@@ -235,6 +235,7 @@ def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> Jarvi
         memory=memory,
         ack_cache=VoiceCache(_data_dir() / "cache" / "voice", voice_identity(config)),
         agent_tools=functools.partial(tools.execute, origin="agent"),
+        pricing=_model_pricing(config),
     )
     turn_manager.planner = DesktopPlanner(
         model=model,
@@ -389,6 +390,20 @@ def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
                 )
             )
     return ProviderChain(providers)
+
+
+def _model_pricing(config: RuntimeConfig) -> dict[str, ProviderRate]:
+    """Provider-name -> rate for every openai_compat spec, matching the names
+    given to OpenAICompatProvider in _build_model_chain. Ollama specs are never
+    priced (no configured USD rate); a TTS per-character rate is added here
+    too once a config field for it exists (S10 follow-up)."""
+    from jarvis.observability.cost import ProviderRate  # noqa: PLC0415
+
+    return {
+        spec.name or "openai_compat": ProviderRate(spec.input_usd_per_million, spec.output_usd_per_million)
+        for spec in config.models.providers
+        if spec.kind != "ollama"
+    }
 
 
 def _data_dir() -> Path:
