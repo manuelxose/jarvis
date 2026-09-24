@@ -23,6 +23,9 @@ from jarvis.core.contracts import TurnContext
 from .gateway import Risk, Tool
 
 _IS_WINDOWS = sys.platform == "win32"
+# Internal console helpers (powershell, cmd start) must not flash a window
+# when the daemon runs under pythonw.
+_NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if _IS_WINDOWS else {}
 
 _APP_MAP: dict[str, list[str]] = {
     "notepad": ["notepad"],
@@ -154,7 +157,7 @@ class OpenApplicationTool(_CommandTool):
             return f"Abriendo '{raw}' no esta disponible fuera de Windows."
         try:
             if command[0] == "start":
-                subprocess.Popen(["cmd", "/c", "start", "", command[1]])
+                subprocess.Popen(["cmd", "/c", "start", "", command[1]], **_NO_WINDOW)
             else:
                 subprocess.Popen(command)
         except Exception as error:
@@ -259,6 +262,7 @@ class ClipboardTool(_CommandTool):
             try:
                 result = subprocess.run(
                     ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                    **_NO_WINDOW,
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -280,6 +284,7 @@ class ClipboardTool(_CommandTool):
         try:
             result = subprocess.run(
                 ["powershell", "-NoProfile", "-EncodedCommand", encoded],
+                **_NO_WINDOW,
                 input=str(content),
                 capture_output=True,
                 text=True,
@@ -309,6 +314,7 @@ class _WindowsKeyTool(_CommandTool):
         try:
             subprocess.run(
                 ["powershell", "-NoProfile", "-Command", script],
+                **_NO_WINDOW,
                 check=False,
                 capture_output=True,
                 timeout=10,

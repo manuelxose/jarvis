@@ -358,7 +358,10 @@ def _kill_tree(process) -> None:
     if process.returncode is not None:
         return
     if sys.platform == "win32":
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False)
+        # CREATE_NO_WINDOW: the daemon runs under pythonw, so a console program
+        # would otherwise flash a terminal window on the owner's screen.
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     else:
         with suppress(ProcessLookupError):
             process.kill()
