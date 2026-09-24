@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from jarvis.core.contracts import TextToSpeech
@@ -10,11 +11,12 @@ from jarvis.core.errors import ProviderConfigError
 from .alibaba_qwen import AlibabaQwenTTS, alibaba_qwen_tts_available
 from .local import LocalTTS, local_tts_available
 from .pyttsx3 import Pyttsx3TTS, pyttsx3_available
+from .qwen_clone import QwenCloneTTS, default_worker_python, worker_command
 
 if TYPE_CHECKING:
     from jarvis.config import RuntimeConfig
 
-_PROVIDERS = {"local", "sapi", "alibaba_qwen"}
+_PROVIDERS = {"local", "sapi", "alibaba_qwen", "qwen_clone"}
 
 
 def tts_provider(config: RuntimeConfig) -> str:
@@ -34,7 +36,26 @@ def resolve_tts(config: RuntimeConfig) -> TextToSpeech:
         return Pyttsx3TTS()
     if provider == "alibaba_qwen":
         return AlibabaQwenTTS.from_config(config)
+    if provider == "qwen_clone":
+        return build_qwen_clone(config)
     return LocalTTS(language=config.tts.language)
+
+
+def build_qwen_clone(config: RuntimeConfig) -> QwenCloneTTS:
+    from jarvis.voice_profile import default_profile_dir  # noqa: PLC0415
+
+    command = worker_command(
+        config.tts.worker_python or default_worker_python(),
+        profile_dir=config.tts.profile_dir or str(default_profile_dir()),
+        language=config.tts.language,
+        chunk_size=config.tts.chunk_size,
+        model=config.tts.model,
+    )
+    return QwenCloneTTS(
+        command,
+        stderr_path=str(Path("logs") / "tts-worker.log"),
+        warmup_wait_seconds=getattr(config.tts, "warmup_wait_seconds", 0.0),
+    )
 
 
 def tts_available(config: RuntimeConfig) -> bool:
@@ -44,4 +65,6 @@ def tts_available(config: RuntimeConfig) -> bool:
         return pyttsx3_available()
     if provider == "alibaba_qwen":
         return alibaba_qwen_tts_available(config)
+    if provider == "qwen_clone":
+        return Path(config.tts.worker_python or default_worker_python()).is_file()
     return local_tts_available()

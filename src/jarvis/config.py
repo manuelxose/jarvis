@@ -60,6 +60,8 @@ class AudioSettings:
     chunk_size: int = 1024
     input_device: Optional[int] = None
     output_device: Optional[int] = None
+    # Energy barge-in: only safe with a headset (no acoustic echo cancellation).
+    barge_in: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,10 +83,17 @@ class STTSettings:
 
 @dataclass(frozen=True)
 class TTSSettings:
-    provider: str = "local"  # local | sapi | alibaba_qwen
+    provider: str = "local"  # local | sapi | alibaba_qwen | qwen_clone
     voice: str = ""
     language: str = "es"
     api_key: Optional[str] = field(default=None, repr=False)
+    # qwen_clone: local Faster Qwen3-TTS worker (empty = platform default path)
+    worker_python: str = ""
+    profile_dir: str = ""
+    model: str = ""
+    chunk_size: int = 4
+    # qwen_clone: seconds a turn waits for a still-loading clone before SAPI (0 = never)
+    warmup_wait_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -110,11 +119,19 @@ class ModelProviderConfig:
     model: str = ""
     timeout_seconds: float = 30.0
     temperature: float = 0.7
+    # USD per million tokens, for cost telemetry and the daily cap (0 = unpriced)
+    input_usd_per_million: float = 0.0
+    output_usd_per_million: float = 0.0
+    # Extra top-level request fields for openai_compat providers
+    extra_body: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class ModelSettings:
     providers: tuple[ModelProviderConfig, ...] = ()
+    # Hard daily spend cap across cloud LLM providers; once reached, turns fall
+    # back to local models until midnight.
+    max_daily_usd: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -173,6 +190,16 @@ class RuntimeConfig:
     logging: LoggingSettings = field(default_factory=LoggingSettings)
     timeouts: TimeoutSettings = field(default_factory=TimeoutSettings)
     latency: LatencySettings = field(default_factory=LatencySettings)
+    # M007 sections, validated at load by their owning modules and kept as plain
+    # mappings: claps (ClapTuning + enabled), welcome (StartupOptions),
+    # workspace (default_profile + profiles), desktop (scopes, trusted, apps),
+    # daemon (hotkey, wake_word, control_port...). None of them hold secrets.
+    claps: Mapping[str, Any] = field(default_factory=dict)
+    welcome: Mapping[str, Any] = field(default_factory=dict)
+    workspace: Mapping[str, Any] = field(default_factory=dict)
+    desktop: Mapping[str, Any] = field(default_factory=dict)
+    daemon: Mapping[str, Any] = field(default_factory=dict)
+    voice: Mapping[str, Any] = field(default_factory=dict)  # VoicePolicy (M009)
 
     def public_dict(self) -> dict[str, dict[str, Any]]:
         return {
@@ -196,6 +223,7 @@ class RuntimeConfig:
                 "channels": self.audio.channels,
                 "input_device": self.audio.input_device,
                 "output_device": self.audio.output_device,
+                "barge_in": self.audio.barge_in,
             },
             "activation": {
                 "mode": self.activation.mode,
@@ -215,6 +243,11 @@ class RuntimeConfig:
                 "voice": self.tts.voice,
                 "language": self.tts.language,
                 "api_key": "<redacted>" if self.tts.api_key is not None else None,
+                "worker_python": self.tts.worker_python,
+                "profile_dir": self.tts.profile_dir,
+                "model": self.tts.model,
+                "chunk_size": self.tts.chunk_size,
+                "warmup_wait_seconds": self.tts.warmup_wait_seconds,
             },
             "alibaba": {
                 "region": self.alibaba.region,
@@ -230,9 +263,12 @@ class RuntimeConfig:
                         "base_url": p.base_url,
                         "api_key": "<redacted>" if p.api_key is not None else None,
                         "model": p.model,
+                        "input_usd_per_million": p.input_usd_per_million,
+                        "output_usd_per_million": p.output_usd_per_million,
                     }
                     for p in self.models.providers
-                ]
+                ],
+                "max_daily_usd": self.models.max_daily_usd,
             },
             "hermes": {
                 "command": list(self.hermes.command),
@@ -256,6 +292,12 @@ class RuntimeConfig:
                 "tool_seconds": self.timeouts.tool_seconds,
             },
             "latency": {"target_first_audio_ms": self.latency.target_first_audio_ms},
+            "claps": dict(self.claps),
+            "welcome": dict(self.welcome),
+            "workspace": dict(self.workspace),
+            "desktop": dict(self.desktop),
+            "daemon": dict(self.daemon),
+            "voice": dict(self.voice),
         }
 
 
@@ -318,6 +360,7 @@ def load_config(
             chunk_size=_positive_int(audio_data, "chunk_size", 1024, "audio.chunk_size"),
             input_device=_optional_int(audio_data, "input_device"),
             output_device=_optional_int(audio_data, "output_device"),
+            barge_in=_bool(audio_data, "barge_in", False),
         ),
         activation=ActivationSettings(
             mode=_string(activation_data, "mode", "wake_word"),
@@ -333,10 +376,15 @@ def load_config(
             api_key=_resolve_secret(stt_data.get("api_key"), env),
         ),
         tts=TTSSettings(
-            provider=_choice(tts_data, "provider", "local", {"local", "sapi", "alibaba_qwen"}, "tts"),
+            provider=_choice(tts_data, "provider", "local", {"local", "sapi", "alibaba_qwen", "qwen_clone"}, "tts"),
             voice=_string(tts_data, "voice", ""),
             language=_string(tts_data, "language", "es"),
             api_key=_resolve_secret(tts_data.get("api_key"), env),
+            worker_python=_string(tts_data, "worker_python", ""),
+            profile_dir=_string(tts_data, "profile_dir", ""),
+            model=_string(tts_data, "model", ""),
+            chunk_size=_positive_int(tts_data, "chunk_size", 4, "tts.chunk_size"),
+            warmup_wait_seconds=_number(tts_data, "warmup_wait_seconds", 0.0),
         ),
         alibaba=AlibabaSettings(
             region=_choice(alibaba_data, "region", "singapore", {"singapore", "beijing"}, "alibaba"),
@@ -344,7 +392,10 @@ def load_config(
             stt_model=_string(alibaba_data, "stt_model", "qwen3-asr-flash-realtime"),
             tts_model=_string(alibaba_data, "tts_model", "qwen3-tts-flash-realtime"),
         ),
-        models=ModelSettings(providers=tuple(_parse_providers(models_data, env))),
+        models=ModelSettings(
+            providers=tuple(_parse_providers(models_data, env)),
+            max_daily_usd=_number(models_data, "max_daily_usd", 1.0),
+        ),
         hermes=HermesSettings(
             command=tuple(_parse_command(hermes_data)),
             timeout_seconds=_positive_number(hermes_data, "timeout_seconds", 300.0, "hermes.timeout_seconds"),
@@ -369,6 +420,7 @@ def load_config(
         latency=LatencySettings(
             target_first_audio_ms=_positive_int(latency_data, "target_first_audio_ms", 1500, "latency.target_first_audio_ms"),
         ),
+        **_m007_sections(document),
     )
 
 
@@ -536,9 +588,19 @@ def _parse_providers(data: Mapping[str, Any], environ: Mapping[str, str]) -> lis
                 model=_string(item, "model", ""),
                 timeout_seconds=_bounded_timeout(item),
                 temperature=_number(item, "temperature", 0.7),
+                input_usd_per_million=_number(item, "input_usd_per_million", 0.0),
+                output_usd_per_million=_number(item, "output_usd_per_million", 0.0),
+                extra_body=_extra_body(item),
             )
         )
     return providers
+
+
+def _extra_body(item: Mapping[str, Any]) -> dict[str, Any]:
+    value = item.get("extra_body", {})
+    if not isinstance(value, dict):
+        raise ValueError("models.providers.extra_body must be an object")
+    return dict(value)
 
 
 def _provider_kind(item: Mapping[str, Any]) -> str:
@@ -586,3 +648,48 @@ def _parse_allowlist(data: Mapping[str, Any]) -> list[str]:
     if not isinstance(raw, list) or not all(isinstance(part, str) for part in raw):
         raise ValueError("tools.allowlist must be a list of strings")
     return list(raw)
+
+
+_DESKTOP_KEYS = {"authorized_scopes", "trusted_operations", "apps"}
+_DAEMON_KEYS = {
+    "hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama",
+    "preload_voice", "session_idle_seconds", "metrics_interval_seconds", "events_log",
+}
+
+
+def _m007_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Validate the M007 sections with the classes that consume them."""
+    from jarvis.adapters.audio.claps import ClapTuning  # noqa: PLC0415
+    from jarvis.application.startup import StartupOptions  # noqa: PLC0415
+    from jarvis.application.workspace import parse_profiles  # noqa: PLC0415
+
+    claps = dict(_section(document, "claps"))
+    welcome = dict(_section(document, "welcome"))
+    workspace = dict(_section(document, "workspace"))
+    desktop = dict(_section(document, "desktop"))
+    daemon = dict(_section(document, "daemon"))
+    voice = dict(_section(document, "voice"))
+    try:
+        ClapTuning(**{k: v for k, v in claps.items() if k != "enabled"})
+        StartupOptions(**{k: tuple(v) if k == "essential" else v for k, v in welcome.items()})
+        from jarvis.application.voice_manager import VoicePolicy  # noqa: PLC0415
+
+        VoicePolicy.from_config(voice)
+    except TypeError as error:
+        raise ValueError(f"unknown claps/welcome/voice setting: {error}") from error
+    profiles = parse_profiles(workspace.get("profiles", {}))
+    default = workspace.get("default_profile")
+    if default is not None and default not in profiles:
+        raise ValueError(f"workspace.default_profile {default!r} is not a defined profile")
+    for name, data, allowed in (("desktop", desktop, _DESKTOP_KEYS), ("daemon", daemon, _DAEMON_KEYS)):
+        unknown = set(data) - allowed
+        if unknown:
+            raise ValueError(f"unknown {name} settings: {sorted(unknown)}")
+    for key in ("authorized_scopes", "trusted_operations"):
+        value = desktop.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise ValueError(f"desktop.{key} must be a list of strings")
+    apps = desktop.get("apps", {})
+    if not isinstance(apps, dict) or not all(isinstance(v, list) and all(isinstance(p, str) for p in v) for v in apps.values()):
+        raise ValueError("desktop.apps must map names to command lists")
+    return {"claps": claps, "welcome": welcome, "workspace": workspace, "desktop": desktop, "daemon": daemon, "voice": voice}

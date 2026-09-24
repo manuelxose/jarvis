@@ -71,10 +71,10 @@ Copy-Item config.local.example.json config.local.json
 2. Proporciona la clave solo por variable de entorno (nunca dentro de un archivo versionado):
 
 ```powershell
-$env:OPENAI_API_KEY = "sk-tu-clave"
+$env:DEEPSEEK_API_KEY = "sk-tu-clave"
 ```
 
-`config.local.json` referencia `${OPENAI_API_KEY}` y el valor se resuelve en tiempo de
+`config.local.json` referencia `${DEEPSEEK_API_KEY}` y el valor se resuelve en tiempo de
 ejecucion; la clave nunca se escribe en `config.json`, en la plantilla, en logs ni en informes.
 
 3. Comprueba el enrutado con `doctor`:
@@ -88,8 +88,8 @@ La salida muestra la seccion `model routing`:
 
 ```text
 model routing:
-  primary: openai (kind=openai_compat, model=gpt-4o-mini, base_url=https://api.openai.com/v1, api_key=present)
-  fallback: ollama (kind=ollama, model=mistral:7b-instruct, base_url=http://localhost:11434, api_key=none)
+  primary: deepseek (kind=openai_compat, model=deepseek-flash, base_url=https://api.deepseek.com, api_key=present)
+  fallback: ollama (kind=ollama, model=mistral:7b-instruct, base_url=http://127.0.0.1:11434, api_key=none)
   local fallback ready: yes
 ```
 
@@ -98,10 +98,53 @@ cloud sigue configurado pero el fallback local no esta disponible. En modo JSON,
 expone `provider_order`, `primary`, `fallbacks` y `local_fallback_ready`, y la clave solo
 aparece como `has_api_key: true/false` (nunca el valor).
 
+Coste: cada respuesta cloud registra sus tokens (`stream_options.include_usage`) y los
+valora con `input_usd_per_million`/`output_usd_per_million` del proveedor. El gasto del dia
+se guarda en `%LOCALAPPDATA%\jarvis\spend.json`; al alcanzar `models.max_daily_usd`
+(por defecto 1.0 USD) Jarvis deja de llamar a la nube hasta medianoche y responde con
+Ollama. Sin tarifas configuradas el tope no puede contar el gasto (`priced: false` en
+`doctor --json`). Cualquier endpoint compatible con OpenAI (p. ej. Qwen en Model Studio)
+sirve: copia su id de modelo y tarifas de la pagina oficial de precios.
+La plantilla de DeepSeek desactiva el razonamiento (`"extra_body": {"thinking": {"type": "disabled"}}`):
+con el razonamiento activo, `deepseek-flash` gastaba el limite de tokens pensando y la voz
+empezaba ~1 s mas tarde y se cortaba.
+
 Reglas:
 - Manten `config.json` y `config.local.example.json` libres de secretos.
 - No subas `config.local.json` al control de versiones (ya esta en `.gitignore`).
 - Sin `config.local.json`, Jarvis usa la configuracion Ollama versionada.
+
+## Voz clonada local (Faster Qwen3-TTS 0.6B, recomendada)
+
+Jarvis habla con tu propia voz clonada en la GPU local (RTX 3070); la muestra de voz
+nunca sale del equipo. Detalles, medidas y arquitectura:
+`docs/engineering/local-voice-clone.md`.
+
+1. Entorno aislado del motor de voz (solo descarga el modelo 0.6B Base, ~2 GB):
+
+```powershell
+scripts\setup_tts_worker.bat
+```
+
+2. Graba tu voz (lee en voz alta el texto que aparece, ~10 s, sitio silencioso):
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m jarvis.voice_profile record
+```
+
+Genera `%LOCALAPPDATA%\jarvis\voice\default\preview.wav`: escuchalo antes de usarlo.
+Tambien puedes importar un WAV de 16 bits:
+`... -m jarvis.voice_profile enroll --audio mi_voz.wav --text "transcripcion exacta"`
+(modo por defecto: huella de voz, el mas rapido; `--icl` usa el audio en contexto, mas lento). Otros comandos: `status`, `prepare`
+(regenera la vista previa), `delete` (borra perfil, grabacion y condicionamiento).
+
+3. `config.win.json` ya usa `"tts": {"provider": "qwen_clone", "chunk_size": 4}`. Mientras el modelo se
+calienta (~20 s), si no hay perfil, o si el motor falla, Jarvis habla con la voz SAPI de
+Windows y `doctor` lo indica (`TTS voice clone: degraded ...`).
+
+Interrupcion por voz (barge-in): desactivada por defecto porque sin cancelacion de eco
+los altavoces interrumpirian a Jarvis; con auriculares activa `"audio": {"barge_in": true}`.
 
 ## Voz en la nube (Alibaba Model Studio / Qwen, opcional)
 

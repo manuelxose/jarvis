@@ -60,21 +60,82 @@ class TTSProviderDependencyTests(unittest.TestCase):
         self.assertEqual("tts", raised.exception.provider)
 
     def test_pyttsx3_synthesize_raises_typed_error_without_dependency(self):
-        with mock.patch.dict(sys.modules, {"pyttsx3": None}):
+        with mock.patch.dict(sys.modules, {"comtypes": None, "comtypes.client": None}):
             with self.assertRaises(ProviderUnavailable) as raised:
                 asyncio.run(collect_audio(Pyttsx3TTS()))
         self.assertEqual("tts", raised.exception.provider)
 
+    def _fake_sapi(self, threads, speak=None):
+        class Stream:
+            def Open(self, path, mode):
+                self.path = path
+
+            def Close(self):
+                threads.append(("close", threading.get_ident()))
+
+        class Voice:
+            AudioOutputStream = None
+
+            def Speak(self, text, flags):
+                threads.append(("speak", threading.get_ident()))
+                if speak is not None:
+                    speak()
+                Path(self.AudioOutputStream.path).write_bytes(b"RIFF" + text.encode())
+
+        def create(prog_id):
+            threads.append((prog_id, threading.get_ident()))
+            return Voice() if prog_id == "SAPI.SpVoice" else Stream()
+
+        client = types.ModuleType("comtypes.client")
+        client.CreateObject = create
+        package = types.ModuleType("comtypes")
+        package.CoInitialize = lambda: None
+        package.client = client
+        return {"comtypes": package, "comtypes.client": client}
+
+    def test_sapi_voice_is_created_once_and_driven_on_one_thread(self):
+        threads = []
+
+        async def two():
+            yield "uno"
+            yield "dos"
+
+        with mock.patch.dict(sys.modules, self._fake_sapi(threads)):
+            audio = asyncio.run(collect_audio(Pyttsx3TTS(), two()))
+        self.assertEqual([b"RIFFuno", b"RIFFdos"], audio)
+        self.assertEqual(1, sum(1 for kind, _ in threads if kind == "SAPI.SpVoice"))  # reused
+        self.assertEqual(1, len({ident for _, ident in threads}))  # COM apartment: one thread
+        self.assertNotEqual(threading.get_ident(), threads[0][1])  # never on the event loop
+
+    def test_hung_sapi_call_times_out_and_the_next_call_uses_a_fresh_thread(self):
+        threads = []
+        release = threading.Event()
+        calls = []
+
+        def speak():
+            calls.append(1)
+            if len(calls) == 1:
+                release.wait(5)  # first Speak hangs
+
+        tts = Pyttsx3TTS(timeout_seconds=0.2)
+        with mock.patch.dict(sys.modules, self._fake_sapi(threads, speak)):
+            with self.assertRaises(ProviderUnavailable):
+                asyncio.run(collect_audio(tts, one_chunk("uno")))
+            self.assertEqual([b"RIFFdos"], asyncio.run(collect_audio(tts, one_chunk("dos"))))
+        release.set()
+        speakers = [ident for kind, ident in threads if kind == "speak"]
+        self.assertNotEqual(speakers[0], speakers[1])
+
     def test_availability_is_false_when_optional_dependencies_are_absent(self):
         with mock.patch.dict(sys.modules, {"TTS": None}):
             self.assertFalse(local_tts_available())
-        with mock.patch.dict(sys.modules, {"pyttsx3": None}):
+        with mock.patch.dict(sys.modules, {"comtypes": None, "comtypes.client": None}):
             self.assertFalse(pyttsx3_available())
 
     def test_availability_is_true_when_optional_dependencies_are_present(self):
         with mock.patch.dict(sys.modules, {"TTS": types.ModuleType("TTS")}):
             self.assertTrue(local_tts_available())
-        with mock.patch.dict(sys.modules, {"pyttsx3": types.ModuleType("pyttsx3")}):
+        with mock.patch.dict(sys.modules, {"comtypes.client": types.ModuleType("comtypes.client")}):
             self.assertTrue(pyttsx3_available())
 
 
@@ -138,6 +199,47 @@ class TTSProviderResolutionTests(unittest.TestCase):
         self.assertEqual("secret", adapter.api_key)
         self.assertEqual("qwen3-tts-flash-realtime", adapter.model)
         self.assertEqual("alibaba_qwen", tts_provider(configured))
+
+    def test_resolve_qwen_clone_builds_worker_command_without_spawning(self):
+        configured = config("qwen_clone")
+        configured.tts.language = "es"
+        configured.tts.worker_python = "C:/venv-tts/Scripts/python.exe"
+        configured.tts.profile_dir = "C:/voice/default"
+        configured.tts.model = ""
+        configured.tts.chunk_size = 8
+        adapter = resolve_tts(configured)
+        from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
+
+        self.assertIsInstance(adapter, QwenCloneTTS)
+        command = adapter._command
+        self.assertEqual(command[0], "C:/venv-tts/Scripts/python.exe")
+        self.assertTrue(command[1].endswith("qwen_worker.py"))
+        self.assertIn("Spanish", command)
+        self.assertEqual(command[command.index("--profile-dir") + 1], "C:/voice/default")
+        self.assertIsNone(adapter.state()["pid"])
+        self.assertFalse(tts_available(configured))  # venv python does not exist here
+
+    def test_real_runtime_supervises_voice_clone_with_sapi_fallback(self):
+        import tempfile
+        from jarvis.adapters.tts.qwen_clone import QwenCloneTTS
+        from jarvis.application.runtime import build_runtime
+        from jarvis.config import MemorySettings, ProviderSettings, RuntimeConfig, RuntimeSettings, SecuritySettings, TTSSettings
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = build_runtime(
+                RuntimeConfig(
+                    runtime=RuntimeSettings(),
+                    providers=ProviderSettings(),
+                    security=SecuritySettings(),
+                    memory=MemorySettings(db_path=str(Path(tmp) / "m.db")),
+                    tts=TTSSettings(provider="qwen_clone", worker_python=str(Path(tmp) / "none.exe")),
+                ),
+                use_fakes=False,
+            )
+            chain = runtime.components.turn_manager._tts
+            self.assertEqual([type(p).__name__ for p in chain.providers], ["QwenCloneTTS", "Pyttsx3TTS"])
+            self.assertTrue(any(isinstance(c, QwenCloneTTS) for c in runtime.supervisor._components))
+            self.assertEqual(runtime.diagnostics()["tts"]["providers"], ["qwen_clone", "sapi"])
 
     def test_cloud_and_unknown_providers_raise_typed_error(self):
         for provider in ("cloud", "remote"):

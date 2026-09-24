@@ -90,3 +90,17 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# Personal audio: voice references, recordings, cloned samples, conditioning.
+# Voice profiles live in %LOCALAPPDATA%\jarvis\voice (outside the repo).
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.pt
+bench-tts/
+.venv-tts/
+
+# Windows download metadata
+*:Zone.Identifier

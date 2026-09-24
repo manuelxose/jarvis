@@ -46,7 +46,39 @@ _FILE_COMMAND = re.compile(
 # Ordered (pattern, tool, argument extractor, confidence[, defaults]). First match
 # wins. The optional 5th element is a constant-arguments dict merged into the
 # match before the captured group, so `action` can be injected deterministically.
+_ENTORNO = r"(?:mi|el|nuestro)\s+entorno(?:\s+de\s+(?:desarrollo|trabajo))?"
 _COMMAND_PATTERNS: tuple[tuple, ...] = (
+    # M007 workspace / system control (before the generic "abre X")
+    (re.compile(r"\b(?:arranca|inicia|prepara|levanta|enciende|pon en marcha|start)\s+" + _ENTORNO), "workspace", "", 0.95, {"action": "start"}),
+    (re.compile(r"\b(?:apaga|cierra|para|deten|detén|shut down)\s+" + _ENTORNO), "workspace", "", 0.95, {"action": "stop"}),
+    (re.compile(r"\babre\s+mis\s+proyectos\b"), "workspace", "", 0.93, {"action": "start", "profile": "projects"}),
+    (re.compile(r"\breinicia(?:r)?\s+(?:a\s+|el\s+|la\s+)?(hermes|ollama|backend|frontend|docker)\b"), "service_restart", "name", 0.94),
+    (
+        re.compile(r"\b(?:que|quien)\s+(?:esta\s+)?(?:consume|consumiendo|usa|usando|ocupa|ocupando|gasta)\b.*\b(?:gpu|grafica|vram)\b|\bmemoria\s+de\s+(?:la\s+)?(?:gpu|grafica)\b"),
+        "gpu_processes", "", 0.93,
+    ),
+    (re.compile(r"\b(?:que|quien)\s+(?:esta\s+)?(?:consume|consumiendo|usa|usando|gasta)\b.*\b(?:cpu|procesador)\b"), "process_list", "", 0.9, {"sort": "cpu"}),
+    (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:cpu|memoria|recursos)\b|\bcomo\s+va\s+el\s+(?:sistema|ordenador|equipo)\b"), "system_stats", "", 0.92),
+    (re.compile(r"\bcancela\s+(?:la\s+)?(?:operacion|tarea|ejecucion|orden)\b"), "cancel_operations", "", 0.96),
+    (re.compile(r"\b(?:haz|toma)\s+(?:una\s+)?captura(?:\s+de\s+pantalla)?\b"), "screenshot", "", 0.93),
+    (re.compile(r"^\s*(?:a\s+dormir|duermete|descansa|modo\s+reposo|vete\s+a\s+dormir)\s*$"), "sleep", "", 0.96),
+    # Startup music and the assistant itself
+    (re.compile(r"\b(?:para|pare|parar|quita|quitar|apaga|apagar|deten|detener|corta|silencia|stop)\s+(?:la\s+|esa\s+|el\s+)?(?:musica|cancion)\b|\bstop\s+the\s+music\b"), "music", "", 0.95, {"action": "stop"}),
+    (re.compile(r"\bbaja\s+(?:la\s+|un\s+poco\s+la\s+)?musica\b|\bmusica\s+mas\s+baja\b"), "music", "", 0.94, {"action": "lower"}),
+    (re.compile(r"\bsube\s+(?:la\s+|un\s+poco\s+la\s+)?musica\b|\bmusica\s+mas\s+alta\b"), "music", "", 0.94, {"action": "raise"}),
+    (re.compile(r"^\s*(?:reiniciate|reinicia(?:te)?\s+(?:el\s+)?asistente|reinicia\s+jarvis|restart\s+yourself)\s*$"), "assistant_restart", "", 0.95),
+    (re.compile(r"^\s*(?:apagate(?:\s+del\s+todo)?|apaga\s+(?:el\s+)?asistente|apaga\s+jarvis|desconectate|shut\s+down)\s*$"), "assistant_shutdown", "", 0.95),
+    # M009 local desktop commands (no LLM round trip)
+    (re.compile(r"\b(?:actividad|uso|trafico|consumo)\s+de\s+(?:la\s+)?red\b|\bnetwork\s+(?:activity|usage|traffic)\b|\bcuanto\s+(?:estoy\s+)?(?:descargando|subiendo)\b"), "network_stats", "", 0.93),
+    (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:la\s+)?(?:cpu|memoria|ram|gpu|grafica|procesador)\b|\b(?:cpu|ram|gpu|memory)\s+usage\b|\bcomo\s+va\s+la\s+grafica\b|\bcuanta\s+(?:ram|memoria)\b"), "system_stats", "", 0.92),
+    (re.compile(r"\b(?:minimiza|minimize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "minimize"}),
+    (re.compile(r"\b(?:maximiza|maximize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "maximize"}),
+    (re.compile(r"\b(?:restaura|restore)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.9, {"action": "restore"}),
+    (re.compile(r"\b(?:enfoca|focus|cambia\s+a|switch\s+to|trae)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30}?)(?:\s+al\s+frente)?$"), "window_focus", "target", 0.9),
+    # Graceful close (WM_CLOSE; apps still ask to save). Vague objects go to the model.
+    (re.compile(r"\b(?:cierra|close)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(?!todo\b|esto\b|eso\b|la\s+sesion\b|sesion\b|mi\s+entorno\b)(\w[\w\s]{0,30})$"), "app_close", "target", 0.88),
+    (re.compile(r"\b(?:abre|abrir|open)\s+(?:una\s+|la\s+|un\s+|a\s+)?(?:terminal|consola)\b"), "terminal_open", "", 0.93),
+    (re.compile(r"\b(?:abre|abrir|open)\s+(?:el\s+|mi\s+)?(?:proyecto|repositorio|repo|project|repository)\s+(?!en\b|que\b|donde\b|anterior\b|ultimo\b)(\w[\w\s-]{0,40})$"), "project_open", "name", 0.9),
     # clipboard read / copy (read-path only; file write stays Hermes-only, D012)
     (
         re.compile(
@@ -70,6 +102,17 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
         "open_application",
         "application",
         0.92,
+    ),
+    # Whisper often hears "abre X" as "a ver X", "abres X" or "averespotify".
+    # Accepted only before a known app so "a ver si llueve" stays conversational.
+    (
+        re.compile(
+            r"\b(?:abres|a\s?ver(?:es|e)?)\s*"
+            r"(spotify|chrome|crome|notepad|bloc de notas|calculadora|explorador|explorer|powershell|cmd|navegador)\b"
+        ),
+        "open_application",
+        "application",
+        0.9,
     ),
     # volume up
     (re.compile(r"\b(?:sube|subir|aumenta|más alto|mas alto)\s+(?:el\s+)?(?:volumen)\b"), "volume_up", "", 0.95),
@@ -196,7 +239,7 @@ class Router:
         "revisa mis proyectos", "revisa el repositorio", "revisa mis", "analiza este repositorio",
         "analiza el repositorio", "repositorio", "prepara un informe", "informe",
         "termina la tarea", "arregla el error", "arregla este", "por que falla",
-        "dime que quedo pendiente",
+        "dime que quedo pendiente", "arreglalo", "este error", "ese error", "corrige el error",
     )
 
     def __init__(
@@ -207,7 +250,21 @@ class Router:
         self._classifier = classifier or FastCommandClassifier()
         self._intent_classifier = intent_classifier
 
+    # Multi-action or referential desktop requests go to the desktop planner
+    # (the TurnManager falls back to the model when no planner is wired).
+    DESKTOP_MULTI = re.compile(
+        r"\b(?:abre|abrir|cierra|arranca|inicia|reinicia|ejecuta|lanza|mueve|borra|crea|busca|minimiza|maximiza|pon)\b"
+        r".*\sy\s+(?:luego\s+|despues\s+)?(?:abre|abrir|cierra|arranca|inicia|reinicia|ejecuta|lanza|mueve|borra|crea|busca|minimiza|maximiza|pon)\b"
+    )
+    DESKTOP_REFERENCE = re.compile(
+        r"\b(?:abre|cierra|reinicia)\b.*\b(?:proyecto|carpeta)\b.*\b(?:estaba|trabajando|ultimo|ese|eso|anterior)\b"
+        r"|\bcierra\s+todo\s+lo\s+(?:relacionado|de)\b"
+    )
+
     async def route(self, text: str, context: TurnContext) -> RouteDecision:
+        normalized_text = normalize(text)
+        if self.DESKTOP_MULTI.search(normalized_text) or self.DESKTOP_REFERENCE.search(normalized_text):
+            return RouteDecision(route="desktop", confidence=0.8, reason="multi-step or referential desktop request")
         command = self._classifier.match(text)
         if command is not None:
             return RouteDecision(

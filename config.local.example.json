@@ -1,14 +1,22 @@
 {
   "models": {
+    "max_daily_usd": 1.0,
     "providers": [
       {
-        "name": "openai",
+        "name": "deepseek",
         "kind": "openai_compat",
-        "base_url": "https://api.openai.com/v1",
-        "api_key": "${OPENAI_API_KEY}",
-        "model": "gpt-4o-mini",
-        "timeout_seconds": 30,
-        "temperature": 0.7
+        "base_url": "https://api.deepseek.com",
+        "api_key": "${DEEPSEEK_API_KEY}",
+        "model": "deepseek-flash",
+        "timeout_seconds": 20,
+        "temperature": 0.7,
+        "input_usd_per_million": 0.3,
+        "output_usd_per_million": 1.2,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
       }
     ]
   }

@@ -7,6 +7,16 @@ Commands::
     jarvis demo      -- headless end-to-end acceptance demo (fake adapters)
     jarvis accept    -- scripted real-hardware acceptance run (fake adapters)
     jarvis benchmark -- offline latency benchmark (fake adapters)
+
+M007 (see jarvis.apps.m007_cli)::
+
+    jarvis daemon               -- background sentinel (claps, Ctrl+Alt+J, control socket)
+    jarvis activate|sleep|status|quit|restart -- talk to the running daemon
+    jarvis claps test|calibrate  -- live detector / owner calibration
+    jarvis workspace start|stop|status [profile] [--force]
+    jarvis autostart install|remove|status
+    jarvis tools                 -- registered tools and their risk class
+    jarvis welcome record        -- record the startup welcomes in the cloned voice
 """
 
 from __future__ import annotations
@@ -23,6 +33,7 @@ from pathlib import Path
 from typing import Sequence, TextIO
 
 from jarvis.application.runtime import JarvisRuntime, build_runtime
+from jarvis.apps import m007_cli
 from jarvis.config import load_config
 from jarvis.core.contracts import HealthStatus
 from jarvis.core.state import RuntimeState
@@ -63,9 +74,13 @@ def _parser(stdout: TextIO, stderr: TextIO) -> _Parser:
     )
     parser.add_argument(
         "command",
-        choices=("run", "doctor", "demo", "accept", "benchmark"),
+        choices=("run", "doctor", "demo", "accept", "benchmark", *m007_cli.COMMANDS),
         help="command to execute",
     )
+    parser.add_argument("args", nargs="*", help="subcommand arguments (claps/workspace/autostart)")
+    parser.add_argument("--seconds", type=float, help="with claps test: listening time")
+    parser.add_argument("--profile", help="with workspace: profile name")
+    parser.add_argument("--force", action="store_true", help="with workspace stop: also close apps Jarvis did not open")
     parser.add_argument("--config", default="config.json", help="path to JSON configuration")
     parser.add_argument(
         "--check-only", action="store_true", help="run health checks without entering the runtime"
@@ -301,6 +316,8 @@ def main(
         return _run_accept_command(config, output, args.json)
     if args.command == "benchmark":
         return _run_benchmark_command(config, output, args.json)
+    if args.command in m007_cli.COMMANDS:
+        return m007_cli.run(args.command, args, config, output, errors)
 
     configure_logging(logging.getLogger("jarvis.cli"), stream=errors)
     configure_logging(logging.getLogger("jarvis.voice_loop"), stream=errors)

@@ -37,6 +37,7 @@ def resolve_stt(config: RuntimeConfig) -> SpeechToText:
         language=config.stt.language,
         device=config.stt.device,
         sample_rate=config.audio.sample_rate,
+        hotwords=config.activation.wake_word,
     )
 
 
