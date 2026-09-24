@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from jarvis.adapters.fakes import EchoTTS
 from jarvis.adapters.tts.fallback import TTSChain
 from jarvis.core.circuit_breaker import CircuitBreaker
 from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
@@ -141,6 +142,21 @@ class TTSChainTests(unittest.IsolatedAsyncioTestCase):
         audio = await _collect(chain, context, "uno", "dos")
 
         self.assertEqual([b"uno", b"dos"], audio)
+
+    async def test_last_usage_record_comes_from_the_fallback_when_primary_fails(self):
+        primary = TransientFailTTS(fail_times=99)
+        fallback = EchoTTS()
+        chain = TTSChain([primary, fallback], retries=0)
+        context = TurnContext.fresh("t")
+
+        await _collect(chain, context, "hola")
+
+        self.assertIsNotNone(chain.last_usage_record)
+        self.assertEqual("echo_tts", chain.last_usage_record.provider)
+
+    async def test_last_usage_record_is_none_before_any_call(self):
+        chain = TTSChain([EchoTTS()])
+        self.assertIsNone(chain.last_usage_record)
 
 
 if __name__ == "__main__":

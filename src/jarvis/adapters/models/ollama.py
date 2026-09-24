@@ -7,6 +7,7 @@ from typing import AsyncIterator
 
 from jarvis.core.contracts import TurnContext
 from jarvis.core.errors import ProviderConfigError
+from jarvis.observability.cost import UsageRecord
 
 from ._transport import MAX_RESPONSE_TOKENS, stream_lines, voice_messages
 
@@ -39,6 +40,7 @@ class OllamaProvider:
         self.temperature = temperature
         self.name = name
         self.keep_alive = keep_alive
+        self.last_usage_record: UsageRecord | None = None
 
     def warm_up(self, timeout_seconds: float = 120.0) -> bool:
         """Load the model into memory now so the first turn skips the cold load."""
@@ -59,6 +61,7 @@ class OllamaProvider:
             return False
 
     async def generate(self, prompt: str, context: TurnContext) -> AsyncIterator[str]:
+        self.last_usage_record = None
         if not self.base_url:
             raise ProviderConfigError(
                 f"{self.name} has no base URL configured", provider=self.name
@@ -83,4 +86,11 @@ class OllamaProvider:
             if token:
                 yield token
             if obj.get("done"):
+                self.last_usage_record = UsageRecord(
+                    provider=self.name,
+                    kind="llm",
+                    model=self.model,
+                    input_tokens=int(obj.get("prompt_eval_count") or 0),
+                    output_tokens=int(obj.get("eval_count") or 0),
+                )
                 break

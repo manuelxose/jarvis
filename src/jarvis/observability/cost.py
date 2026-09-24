@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Mapping, Optional
+from typing import Iterable, Mapping, Optional
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,54 @@ def estimate_cost(usage: UsageRecord, rate: Optional[ProviderRate]) -> Optional[
         + usage.audio_seconds * rate.audio_second
         + usage.characters * rate.character
     )
+
+
+@dataclass(frozen=True)
+class TurnCost:
+    """One turn's aggregated provider usage and estimated cost, ready to publish."""
+
+    trace_id: str
+    route: str
+    entries: tuple[tuple[UsageRecord, Optional[float]], ...]
+
+    @property
+    def total_usd(self) -> float:
+        return sum(usd for _, usd in self.entries if usd is not None)
+
+    def to_dict(self) -> dict:
+        """Plain-JSON view: names and counts only, never bytes or config objects."""
+        return {
+            "trace_id": self.trace_id,
+            "route": self.route,
+            "entries": [
+                {
+                    "provider": usage.provider,
+                    "kind": usage.kind,
+                    "model": usage.model,
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "characters": usage.characters,
+                    "audio_seconds": usage.audio_seconds,
+                    "usd": round(usd, 6) if usd is not None else None,
+                }
+                for usage, usd in self.entries
+            ],
+            "total_usd": round(self.total_usd, 6),
+        }
+
+
+def build_turn_cost(
+    trace_id: str,
+    route: str,
+    usages: Iterable[UsageRecord],
+    pricing: Optional[Mapping[str, ProviderRate]],
+) -> TurnCost:
+    """Estimate cost for each usage against *pricing* and build a TurnCost."""
+    pricing = pricing or {}
+    entries = tuple(
+        (usage, estimate_cost(usage, pricing.get(usage.provider))) for usage in usages
+    )
+    return TurnCost(trace_id=trace_id, route=route, entries=entries)
 
 
 class CostTracker:

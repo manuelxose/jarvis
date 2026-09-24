@@ -4,7 +4,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from jarvis.observability.cost import CostTracker, ProviderRate, UsageRecord, estimate_cost
+from jarvis.observability.cost import (
+    CostTracker,
+    ProviderRate,
+    TurnCost,
+    UsageRecord,
+    build_turn_cost,
+    estimate_cost,
+)
 
 
 class EstimateCostTests(unittest.TestCase):
@@ -82,6 +89,88 @@ class CostTrackerTests(unittest.TestCase):
         tracker.record(UsageRecord(provider="p", kind="tts", characters=1, timestamp=0.0))
         summary = tracker.summary()
         self.assertEqual(0.0, summary["avg_cost_per_conversational_minute_usd"])
+
+
+class TurnCostTests(unittest.TestCase):
+    def test_total_usd_sums_only_priced_entries(self):
+        cost = TurnCost(
+            trace_id="t1",
+            route="fast_model",
+            entries=(
+                (UsageRecord(provider="p", kind="llm", input_tokens=1), 0.5),
+                (UsageRecord(provider="mystery", kind="tts", characters=1), None),
+            ),
+        )
+        self.assertAlmostEqual(0.5, cost.total_usd)
+
+    def test_unpriced_entry_gives_usd_none_in_to_dict(self):
+        cost = TurnCost(
+            trace_id="t1",
+            route="fast_model",
+            entries=((UsageRecord(provider="mystery", kind="llm", input_tokens=1), None),),
+        )
+        entry = cost.to_dict()["entries"][0]
+        self.assertIsNone(entry["usd"])
+        self.assertEqual(0.0, cost.to_dict()["total_usd"])
+
+    def test_to_dict_has_only_plain_json_types_no_bytes_or_secrets(self):
+        cost = TurnCost(
+            trace_id="t1",
+            route="fast_model",
+            entries=(
+                (
+                    UsageRecord(
+                        provider="p",
+                        kind="llm",
+                        model="m",
+                        input_tokens=10,
+                        output_tokens=5,
+                        characters=0,
+                        audio_seconds=0.0,
+                    ),
+                    0.001,
+                ),
+            ),
+        )
+        payload = cost.to_dict()
+        import json
+
+        encoded = json.dumps(payload)
+        self.assertNotIn("api_key", encoded)
+        self.assertNotIn("authorization", encoded.lower())
+
+        def _walk(value):
+            if isinstance(value, bytes):
+                self.fail("to_dict() must never contain bytes")
+            if isinstance(value, dict):
+                for v in value.values():
+                    _walk(v)
+            elif isinstance(value, list):
+                for v in value:
+                    _walk(v)
+
+        _walk(payload)
+        self.assertEqual(
+            {"provider", "kind", "model", "input_tokens", "output_tokens", "characters", "audio_seconds", "usd"},
+            set(payload["entries"][0].keys()),
+        )
+
+    def test_build_turn_cost_estimates_each_usage_against_pricing(self):
+        usages = [
+            UsageRecord(provider="p", kind="llm", input_tokens=1_000_000, output_tokens=0),
+            UsageRecord(provider="mystery", kind="tts", characters=100),
+        ]
+        cost = build_turn_cost("t1", "fast_model", usages, {"p": ProviderRate(input_token_per_million=2.0)})
+        self.assertEqual(2, len(cost.entries))
+        self.assertAlmostEqual(2.0, cost.entries[0][1])
+        self.assertIsNone(cost.entries[1][1])
+        self.assertAlmostEqual(2.0, cost.total_usd)
+
+    def test_build_turn_cost_without_pricing_leaves_all_entries_unpriced(self):
+        usages = [UsageRecord(provider="p", kind="llm", input_tokens=100)]
+        cost = build_turn_cost("t1", "fast_model", usages, None)
+        self.assertIsNone(cost.entries[0][1])
+        self.assertEqual(0.0, cost.total_usd)
 
 
 if __name__ == "__main__":

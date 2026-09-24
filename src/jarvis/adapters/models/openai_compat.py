@@ -37,10 +37,12 @@ class OpenAICompatProvider:
         self.rate = rate
         self.ledger = ledger
         self.last_usage: dict | None = None
+        self.last_usage_record: UsageRecord | None = None
         # Provider-specific request fields, e.g. DeepSeek {"thinking": {"type": "disabled"}}
         self.extra_body = dict(extra_body or {})
 
     async def generate(self, prompt: str, context: TurnContext) -> AsyncIterator[str]:
+        self.last_usage_record = None
         if not self.api_key:
             raise ProviderConfigError(
                 f"{self.name} has no API key configured", provider=self.name
@@ -94,6 +96,7 @@ class OpenAICompatProvider:
             output_tokens=int(usage.get("completion_tokens") or 0),
         )
         usd = estimate_cost(record, self.rate)
+        self.last_usage_record = record
         self.last_usage = {
             "input_tokens": record.input_tokens,
             "output_tokens": record.output_tokens,
