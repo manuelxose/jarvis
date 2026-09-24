@@ -39,7 +39,7 @@ class FakeMixer:
             raise self._load_error
         self.calls.append(("load", path))
 
-    def play_music(self, volume, fade):
+    def play_music(self, volume, fade, start_seconds=0.0):
         self.music_playing = True
         self.calls.append(("music", volume))
 
@@ -339,6 +339,32 @@ class MixerRenderTests(unittest.TestCase):
             path.unlink()  # a cached track no longer needs the file
             mixer.load(path)
         self.assertEqual(mixer._music.shape, (44100, 2))
+
+    def test_stop_wins_over_later_ducking(self):
+        mixer = self._mixer_with_music(2.0)
+        mixer.ramp(0.5, 0.0)
+        mixer.render(10)
+        mixer.fade_out(0.05)
+        mixer.ramp(0.10, 0.1)  # the ducker restoring the background level after Jarvis speaks
+        mixer.render(int(mixer.rate * 0.1))
+        self.assertFalse(mixer.music_playing)  # "para la música" really stopped it
+
+    def test_auto_start_skips_a_quiet_intro(self):
+        from jarvis.adapters.audio.mixer import find_loud_start
+
+        rate = 1000
+        rng = np.random.default_rng(1)
+        quiet = rng.standard_normal(rate * 9) * 0.01  # soft intro
+        loud = rng.standard_normal(rate * 30) * 0.2
+        track = np.concatenate([quiet, loud]).astype(np.float32)
+        self.assertAlmostEqual(find_loud_start(track, rate), 8.75, delta=0.5)
+        self.assertEqual(find_loud_start(loud.astype(np.float32), rate), 0.0)
+        mixer = Mixer()
+        mixer.rate = rate
+        mixer._music = np.repeat(track[:, None], 2, axis=1)
+        mixer._ensure_stream = lambda: None
+        mixer.play_music(1.0, 0.1, "auto")
+        self.assertAlmostEqual(mixer._pos / rate, 8.75, delta=0.5)
 
     def test_missing_file_raises_file_not_found(self):
         with self.assertRaises(FileNotFoundError):

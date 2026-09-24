@@ -133,6 +133,7 @@ class Sentinel:
         self.voice = VoiceModelManager(self._clone_factory, VoicePolicy.from_config(policy))
         self._tasks: set[asyncio.Task[Any]] = set()
         self._after_session = ""  # "restart" | "shutdown": requested by voice
+        self._voice_gate: Optional[asyncio.Event] = None
         self.restart_requested = False
         self._claps_enabled = bool(config.claps.get("enabled", True))
         self._wake = self._make_wake_detector()
@@ -182,6 +183,14 @@ class Sentinel:
         self.state = "candidate"
         hub.publish("activation.started", source="first_clap")
         self._spawn(self.voice.speculate("first clap"))
+        self._spawn(self._prime_output())
+
+    async def _prime_output(self) -> None:
+        """Open the speaker stream on the first clap: the chime is instant on the second."""
+        try:
+            await asyncio.to_thread(self._get_mixer().prime)
+        except Exception as error:  # noqa: BLE001 - activation still works, just slower
+            logger.debug("output not primed: %s", error)
 
     def _on_candidate_expired(self, reason: str) -> None:
         if self.state != "candidate":
@@ -354,9 +363,10 @@ class Sentinel:
     async def _session(self, source: str, gesture_at: float) -> None:
         self.state = "starting"
         hub.publish("activation.confirmed", source=source, confidence=self._last_gesture.get("confidence") if source == "claps" else None)
-        # Pin the shared voice for the whole session (loads it if still cold);
-        # in the background so it never delays the chime.
-        acquire = asyncio.create_task(self.voice.acquire("session"))
+        # Pin the shared voice for the whole session (loads it if still cold). Started
+        # once the music plays: spawning the worker must never delay chime or music.
+        self._voice_gate = asyncio.Event()
+        acquire = asyncio.create_task(self._acquire_voice_after(self._voice_gate))
         mixer = None
         try:
             mixer = self._get_mixer()
@@ -478,8 +488,17 @@ class Sentinel:
             self.restart_requested = True
             self._stop.set()
 
+    async def _acquire_voice_after(self, gate: asyncio.Event) -> None:
+        try:
+            await asyncio.wait_for(gate.wait(), 5.0)
+        except asyncio.TimeoutError:
+            pass
+        await self.voice.acquire("session")
+
     def _on_startup_phase(self, phase: Any, detail: dict[str, Any]) -> None:
         hub.publish("startup.progress", phase=phase.value)
+        if phase.value != "acknowledged" and self._voice_gate is not None:
+            self._voice_gate.set()  # chime and music are out: now load the voice
         issues = detail.get("issues")
         if issues and phase.value in ("announcing", "failed"):
             # Visible even if no voice ever speaks: published and logged before the warning.

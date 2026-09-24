@@ -34,6 +34,28 @@ def synth_chime(rate: int = DEFAULT_RATE, channels: int = 2) -> Any:
     return np.repeat(tone.astype(np.float32)[:, None], channels, axis=1)
 
 
+def find_loud_start(data: Any, rate: int, *, search_seconds: float = 60.0, margin_db: float = 6.0) -> float:
+    """Seconds into the track where it first gets within *margin_db* of its typical level.
+
+    Many songs open with a quiet intro; the startup cue wants the part that hits.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    window = max(1, int(rate * 0.5))
+    mono = np.asarray(data, dtype=np.float32)
+    mono = mono.mean(axis=1) if mono.ndim > 1 else mono
+    usable = mono[: mono.size - mono.size % window].reshape(-1, window)
+    if not len(usable):
+        return 0.0
+    levels = 20 * np.log10(np.sqrt((usable * usable).mean(axis=1)) + 1e-9)
+    target = float(np.median(levels)) - margin_db
+    limit = min(len(levels), int(search_seconds / 0.5))
+    for index in range(limit):
+        if levels[index] >= target:
+            return max(0.0, index * 0.5 - 0.25)  # a quarter second of lead-in
+    return 0.0
+
+
 class Mixer:
     """Two voices (music, one-shot sound effects) with ramped music gain."""
 
@@ -99,26 +121,41 @@ class Mixer:
             self._sfx.append([samples if samples is not None else synth_chime(self.rate), 0])
         self._ensure_stream()
 
-    def play_music(self, volume: float, fade_seconds: float = 1.5) -> None:
+    def prime(self) -> None:
+        """Open the output stream now (silent) so the next sound starts instantly."""
+        self._ensure_stream()
+
+    def play_music(self, volume: float, fade_seconds: float = 1.5, start_seconds: float | str = 0.0) -> None:
+        """Start the loaded track; ``start_seconds="auto"`` skips a quiet intro."""
         if self._music is None:
             raise RuntimeError("no music loaded")
+        if start_seconds == "auto":
+            start_seconds = find_loud_start(self._music, self.rate)
+        start = int(max(0.0, float(start_seconds)) * self.rate)
         with self._lock:
-            self._pos, self._gain, self._stop_at_silence = 0, 0.0, False
+            self._pos = min(start, max(0, len(self._music) - 1))
+            self._gain, self._stop_at_silence = 0.0, False
         self.ramp(volume, fade_seconds)
         self._ensure_stream()
 
     def ramp(self, volume: float, seconds: float) -> None:
-        """Move the music gain linearly to *volume* over *seconds*."""
+        """Move the music gain linearly to *volume* over *seconds*.
+
+        Ignored once a fade-out is under way: "para la música" must win over
+        the automatic ducking that follows Jarvis's reply.
+        """
         volume = min(max(float(volume), 0.0), 1.0)
         with self._lock:
+            if self._stop_at_silence and volume > 0.0:
+                return
             self._target = volume
             frames = max(1.0, seconds * self.rate)
             self._step = (volume - self._gain) / frames
 
     def fade_out(self, seconds: float = 2.0) -> None:
-        self.ramp(0.0, seconds)
         with self._lock:
             self._stop_at_silence = True
+        self.ramp(0.0, seconds)
 
     def stop(self) -> None:
         with self._lock:
