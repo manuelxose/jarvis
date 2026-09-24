@@ -157,7 +157,8 @@ class VoiceModelManager:
         try:
             info = await self.tts.wait_ready()
         except Exception as error:  # noqa: BLE001 - the chain falls back to SAPI
-            logger.warning("voice model failed to load: %s", error)
+            if self._started:  # not a load we cancelled ourselves (e.g. a stray clap)
+                logger.warning("voice model failed to load: %s", error)
             return
         hub.publish("voice.ready", load_ms=info.get("load_ms", round((self._clock() - started) * 1000)))
 
