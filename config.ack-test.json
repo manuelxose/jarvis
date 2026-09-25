@@ -1,0 +1,10 @@
+{
+  "runtime": {},
+  "tts": {
+    "provider": "sapi"
+  },
+  "memory": {
+    "db_path": "C:\\Users\\Admin\\AppData\\Local\\Temp\\jarvis-m005-test.db",
+    "max_recall": 6
+  }
+}
