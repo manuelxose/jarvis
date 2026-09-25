@@ -20,7 +20,7 @@ from jarvis.core.contracts import (
     VoiceActivityDetector,
 )
 from jarvis.adapters.audio.vad import rms_int16
-from jarvis.core.errors import ProviderUnavailable
+from jarvis.core.errors import ProviderError, ProviderUnavailable
 
 from .turn_manager import TurnManager, TurnResult
 
@@ -86,7 +86,14 @@ class VoiceLoop:
         logger.info("voice loop running — listening")
         try:
             while not self._stop_event.is_set():
-                text = await self._capture_utterance(context)
+                try:
+                    text = await self._capture_utterance(context)
+                except ProviderError as error:
+                    # No actionable transcript exists when both STT providers fail.
+                    # Keep listening, but expose the outage without routing a tool.
+                    self._last_error = str(error)
+                    logger.warning("STT failed; skipping utterance: %s", error)
+                    continue
                 if text is None:
                     break
                 if self._activation.wake_word_required():
