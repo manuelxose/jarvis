@@ -6,6 +6,9 @@ built-in mic array (Intel Smart Sound) and speakers. Raw data:
 `python scripts\perf_bench.py --config config.win.json` (silent: device timings
 use zero-amplitude audio).
 
+For a before/after comparison against pre-M005 latency, see the
+[latency report](latency-report.md).
+
 ## Benchmarks (p50 / p95)
 
 | Metric | Result | Note |
