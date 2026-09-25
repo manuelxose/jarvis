@@ -14,8 +14,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = REPO_ROOT / "docs"
 LATENCY_REPORT = DOCS_DIR / "latency-report.md"
 LATEST_JSON = DOCS_DIR / "bench" / "latest.json"
+CONFIGURATION = DOCS_DIR / "configuration.md"
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+ENV_VAR_RE = re.compile(r"\bJARVIS_[A-Z_]+\b")
 
 
 def _markdown_files():
@@ -87,6 +89,27 @@ class TestLatencyReportMatchesBench(unittest.TestCase):
         report_text = LATENCY_REPORT.read_text(encoding="utf-8")
         self.assertIn("Not measured yet", report_text)
         self.assertIn("stt-bakeoff.md", report_text)
+
+
+class TestEnvVarsDocumented(unittest.TestCase):
+    def test_env_vars_documented(self):
+        found: set[str] = set()
+        for base in (REPO_ROOT / "src", REPO_ROOT / "scripts"):
+            for py_file in base.rglob("*.py"):
+                if "__pycache__" in py_file.parts:
+                    continue
+                found.update(ENV_VAR_RE.findall(py_file.read_text(encoding="utf-8")))
+
+        self.assertTrue(found, "expected at least one JARVIS_* env var reference in src/ or scripts/")
+
+        config_text = CONFIGURATION.read_text(encoding="utf-8")
+        for name in sorted(found):
+            self.assertIn(
+                name, config_text,
+                f"docs/configuration.md does not document env var {name!r}",
+            )
+        self.assertIn("DEEPSEEK_API_KEY", config_text)
+        self.assertIn("DASHSCOPE_API_KEY", config_text)
 
 
 if __name__ == "__main__":

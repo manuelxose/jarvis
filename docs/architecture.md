@@ -64,6 +64,35 @@ stage. Barge-in or "para" stops the *speech*; mutating tools run on their own
 execution token, so an interrupted reply never leaves a half-done operation. Only
 "cancela la operación" stops running operations.
 
+Fast commands normally speak their result through the TTS chain, but a stable
+success phrase (e.g. "He subido el volumen.") is served from the local
+ack-audio cache (`adapters/tts/ack_cache.py`, files generated offline by
+`scripts/generate_ack_cache.py`) with no TTS provider call at all; a cache miss
+falls through to live synthesis unchanged, and a live clone reply is cached
+opportunistically for next time. Failures and values (times, percentages) are
+never cached, so a cached "done" can never lie.
+
+`fast_model` turns call `model.generate()` exactly once per turn — the spoken
+text and the logged text are the same generation, not a separate summarization
+pass (`tests/test_turn_manager.py::test_generates_the_model_response_exactly_once`).
+
+`TurnManager` attaches a `TurnResult.cost` built from this turn's model and TTS
+usage only (`_build_turn_cost`) and publishes exactly one `turn.cost` hub event
+per turn, win or cancel. Only the `fast_model` route's model usage is costed
+(desktop/hermes routes may call the model internally but aren't attributed);
+STT is never costed. Entries without a configured price report `usd: null`
+rather than a guessed number. See [Diagnostics](configuration.md#diagnostics)
+for the event shape.
+
+**Offline degraded mode.** When STT is a cloud provider (`alibaba_qwen`), a
+per-utterance failure falls back to local Whisper through `STTChain` before a
+transcript is produced (same before-first-transcript rule as above); the user
+sees no gap beyond the retry. If *all* configured STT providers fail for an
+utterance, `VoiceLoop` logs a WARNING, records the error in
+`loop.state()['last_error']`, and keeps listening rather than crashing the
+loop. Cached fast commands keep working even with the model and TTS both
+down, since they never call either.
+
 ## Providers and fallbacks
 
 | Stage | Primary | Fallback |
@@ -71,6 +100,37 @@ execution token, so an interrupted reply never leaves a half-done operation. Onl
 | LLM | First entry of `models.providers` (e.g. DeepSeek, OpenAI-compatible) | Next entries, typically local Ollama. Fallback happens only before the first token, so a reply is never duplicated. A daily USD cap (`models.max_daily_usd`) switches to local models until midnight. |
 | STT | `faster-whisper` (CUDA when available) | CPU Whisper; optional Alibaba Qwen cloud ASR |
 | TTS | Cloned owner voice (Faster Qwen3-TTS worker) | Windows SAPI; optional Alibaba Qwen cloud TTS or Coqui XTTS |
+
+`TTSChain` (`adapters/tts/fallback.py`) and `STTChain` (`adapters/stt/fallback.py`)
+wrap a `CircuitBreaker` (`core/circuit_breaker.py`, 3 failures opens it, 30 s
+cooldown then one half-open probe). `runtime._build_tts_chain` /
+`_build_stt_chain` only build a chain — and only add the local fallback (SAPI /
+Whisper) — when the configured primary is a cloud provider (`alibaba_qwen`, or
+`qwen_clone` for TTS); any other primary runs unwrapped, with no fallback.
+Within a chain, fallback can only happen before the first audio byte or the
+first transcript: a transient provider error is retried with bounded backoff, a
+config error skips straight to the next provider without retrying, and an open
+circuit is skipped without a call. A failure after the first byte/transcript is
+raised rather than silently restarting mid-stream. Known gap: the breaker logs
+nothing when it opens or closes; `jarvis doctor` reports current provider
+health but there is no transition log line to audit past trips.
+
+## TTS routing profiles
+
+`tts.profile` (`auto` | `fast` | `cheap` | `quality`) reorders only the
+providers the chain actually resolved (`order_tts_candidates`,
+`adapters/tts/fallback.py`), using operator-supplied `tts.routing_evidence`
+rows keyed by provider name. `fast` picks by `first_audio_ms`, `cheap` by
+`usd_per_character`, `quality` by the evidence `quality` score; `auto` blends
+all evidence fields into one score. If the evidence is missing, incomplete for
+any resolved provider, mixes more than one `run_id`, or is simply absent, `auto`
+falls back to the configured order and logs the reason; the other three
+profiles raise a config error instead, since a scored order was explicitly
+requested but cannot be computed. No comparative measurement ships in this
+repository yet — see
+[Operator-gated TTS routing](alibaba-qwen.md#operator-gated-tts-routing-no-measured-winner-yet)
+for the evidence schema and the "no winner claimed" caveat, and
+[latency-report.md](latency-report.md) for what has and hasn't been measured.
 
 Each cloud adapter sits behind a circuit breaker; its health is reported by
 `jarvis doctor`.

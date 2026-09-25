@@ -25,7 +25,7 @@ from the environment variable `NAME` at load time, and secrets never appear in
 | `audio` | `sample_rate` (16000), `channels` (1), `input_device` / `output_device` (null = system default), `barge_in` (false: enable only with a headset, there is no echo cancellation). |
 | `activation` | `mode` (`wake_word` \| `push_to_talk` \| `manual` \| `continuous`), `wake_word` (`jarvis`), `cooldown_seconds` (1.2), `conversation_timeout_seconds` (8: follow-up window without the wake word). |
 | `stt` | `provider` (`whisper` \| `sapi` \| `alibaba_qwen`), `model`, `language` (`es`), `device` (`cpu` \| `cuda`), `api_key`. |
-| `tts` | `provider` (`qwen_clone` \| `sapi` \| `alibaba_qwen` \| `local` = Coqui XTTS), `voice`, `language`, `api_key`; for `qwen_clone`: `worker_python`, `profile_dir`, `model`, `chunk_size` (4), `warmup_wait_seconds` (0: how long a reply waits for a still-loading clone before using SAPI). |
+| `tts` | `provider` (`qwen_clone` \| `sapi` \| `alibaba_qwen` \| `local` = Coqui XTTS), `voice`, `language`, `api_key`; for `qwen_clone`: `worker_python`, `profile_dir`, `model`, `chunk_size` (4), `warmup_wait_seconds` (0: how long a reply waits for a still-loading clone before using SAPI); `profile` (`auto` \| `fast` \| `cheap` \| `quality`, default `auto`) and `routing_evidence` (operator-supplied per-provider measurements used to reorder fallback candidates — see [Operator-gated TTS routing](alibaba-qwen.md#operator-gated-tts-routing-no-measured-winner-yet) for the schema and an example; one evidence row's `usd_per_character` also feeds the cost telemetry pricing table for that provider). |
 | `alibaba` | `region` (`singapore` \| `beijing`), `workspace_id`, `stt_model`, `tts_model`. See [alibaba-qwen.md](alibaba-qwen.md). |
 | `models` | `providers`: ordered list, the first is primary; `max_daily_usd` (1.0): cloud spend cap per day. |
 | `hermes` | `command` (default: bundled Ollama agent child), `timeout_seconds` (300), `restart_max` (3). |
@@ -135,3 +135,46 @@ are accepted). `trusted_operations`: tools that never ask at MEDIUM risk.
 ```
 
 Task fields are described in [desktop-control.md](desktop-control.md#workspaces).
+
+## Environment variables
+
+None of these are read from `config.json`; they are read directly with
+`os.environ` (or, for `JARVIS_TTS_VENV`, only by a setup script). Never put
+secret values in `config.json` — use the `"${NAME}"` substitution described
+above instead.
+
+| Variable | Default | Read by | Purpose |
+|---|---|---|---|
+| `DEEPSEEK_API_KEY` | none (required if referenced) | `${DEEPSEEK_API_KEY}` substitution in a `models.providers[].api_key` | Secret for the DeepSeek (or any `${}`-templated) LLM provider. |
+| `DASHSCOPE_API_KEY` | none (required if referenced) | `${DASHSCOPE_API_KEY}` substitution in `alibaba`/`stt`/`tts` `api_key`; read directly by `scripts/alibaba_voice_clone.py` | Secret for Alibaba Qwen cloud STT/TTS and voice-clone setup. |
+| `JARVIS_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | `adapters/hermes/agent_child.py` | Ollama endpoint for the bundled Hermes agent child (`hermes.command` default), not the main model chain's Ollama fallback (that one is configured via `models.providers[].base_url`). |
+| `JARVIS_OLLAMA_MODEL` | `mistral:7b-instruct` | `adapters/hermes/agent_child.py` | Model tag for the same Hermes agent child. |
+| `JARVIS_TTS_VENV` | `%LOCALAPPDATA%\jarvis\venv-tts` | `scripts/setup_tts_worker.bat` | Where the isolated cloned-voice worker venv is created. Setup-time only; the runtime resolves the worker interpreter from `tts.worker_python` or the same default path via `LOCALAPPDATA` (`adapters/tts/qwen_clone.py::default_worker_python`), not from this variable. |
+| `JARVIS_VOICE_PROFILE` | `""` | `adapters/tts/qwen_worker.py` (`--profile-dir` default) | Default voice profile directory when the worker script is invoked directly rather than through `tts.profile_dir`. |
+| `JARVIS_WSL_DISTRO` | `Ubuntu` | `adapters/tools/desktop.py` | WSL distribution name used to translate WSL paths for desktop tools. |
+
+## Diagnostics
+
+- **`jarvis doctor`** runs every health check without entering the runtime and
+  prints a human-readable report; `--json` emits the same data as JSON,
+  including the resolved model chain (`provider_order`, per-provider `kind`,
+  `model`, `base_url`, `has_api_key`, and, for priced providers, `priced`,
+  `spent_today_usd`, `max_daily_usd` from the spend ledger). Credential values
+  are never included, only whether one is present.
+- **`turn.cost` hub event** — published once per turn (success or cancel) with
+  `trace_id`, `route`, `total_usd`, and `entries`: one row per priced call this
+  turn (`fast_model`'s LLM usage and any TTS usage; STT is never costed), each
+  with `provider`, `kind` (`llm` \| `tts`), `input_tokens`, `output_tokens`,
+  `characters`, `audio_seconds`, and `usd` (`null` when the provider has no
+  configured price).
+- **Voice-loop "turn completed" log** — one line per turn:
+  `route=... total=... ms cost_usd=... trace=...`, using the same `cost` the
+  `turn.cost` event carries.
+- **TTS profile ordering log** — logged once when the TTS chain is built:
+  `TTS routing profile=<profile> providers=<ordered names> reason=<why>`. The
+  reason is always a diagnostic string ("measured evidence", "configured order
+  retained", etc.), never a raw measurement.
+- **`perf_bench.py`** (`python scripts\perf_bench.py --config config.win.json`)
+  produces `docs/bench/latest.json`; see [performance.md](performance.md) for
+  the current numbers and [latency-report.md](latency-report.md) for the
+  before/after comparison and what has not been measured yet.
