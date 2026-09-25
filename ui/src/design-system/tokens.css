@@ -1,0 +1,138 @@
+/*
+ * Jarvis design tokens — semantic layer.
+ *
+ * Phase 2: real values from the selected visual direction ("Adaptive
+ * Command" — see docs/design/visual-directions.md). Components reference
+ * roles (--surface-panel, --text-primary), never raw hex/px, so a future
+ * re-theme only touches this file.
+ */
+
+:root {
+  /* Surfaces */
+  --surface-app: #0e1013;
+  --surface-app-gradient: linear-gradient(160deg, #0e1013 0%, #12151a 60%, #0e1013 100%);
+  --surface-panel: #181b21;
+  --surface-panel-soft: #1d2128;
+  --surface-floating: #20242c;
+  --surface-interactive-hover: rgb(255 255 255 / 0.04);
+  --surface-interactive-active: rgb(255 255 255 / 0.07);
+  --surface-selected: rgb(79 209 255 / 0.12);
+  --surface-scrim: rgb(0 0 0 / 0.5);
+
+  /* Text */
+  --text-primary: #eceef2;
+  --text-secondary: #8a8f9a;
+  --text-disabled: #52565f;
+  --text-on-accent: #06090c;
+
+  /* Accent (state-driven, from the selected direction) */
+  --accent-listening: #4fd1ff;
+  --accent-speaking: #a78bfa;
+  --accent-processing: #ffb86b;
+  --accent-primary: var(--accent-listening);
+
+  /* Semantic state colors (never used as the only signal — always paired with icon/label) */
+  --state-success: #4fd18f;
+  --state-warning: #ffb86b;
+  --state-danger: #ff6b81;
+  --state-info: #4fd1ff;
+  --state-offline: #52565f;
+
+  /* Borders */
+  --border-subtle: rgb(255 255 255 / 0.06);
+  --border-strong: rgb(255 255 255 / 0.12);
+  --border-accent: rgb(79 209 255 / 0.35);
+  --border-danger: rgb(255 107 129 / 0.4);
+
+  /* Typography */
+  --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.06em;
+  --tracking-widest: 0.14em;
+  /* Data typography rule (borrowed from Direction B): numerics, timestamps,
+     logs, and status labels use --font-mono with tabular figures. Prose
+     (message bodies, descriptions) stays --font-sans. */
+  --font-feature-numeric: "tnum" 1;
+
+  /* Geometry — 4px base spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+  --border-width-hairline: 1px;
+
+  --panel-min-width: 280px;
+  --window-padding: var(--space-5);
+  --layout-grid-columns: 224px 1fr 300px;
+  --layout-topbar-height: 56px;
+
+  /* Depth */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --elevation-2: 0 8px 24px rgb(0 0 0 / 0.4);
+  --elevation-3: 0 20px 50px rgb(0 0 0 / 0.5);
+  /* Glow is reserved for the visual-core placeholder and active-state rings
+     only — never applied to general chrome (fatigue risk, see
+     visual-directions.md's rejection of Direction A's glow-everywhere chrome). */
+  --glow-core: 0 0 40px rgb(79 209 255 / 0.25);
+  --glow-core-inset: inset 0 0 24px rgb(167 139 250 / 0.15);
+
+  /* Interaction */
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--accent-listening);
+  --focus-ring-offset: 2px;
+  --disabled-opacity: 0.5;
+  --pressed-scale: 0.98;
+
+  /* Motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 320ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --motion-ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-panel: 10;
+  --z-floating: 20;
+  --z-overlay: 30;
+  --z-toast: 40;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0ms;
+    --motion-duration-base: 0ms;
+    --motion-duration-slow: 0ms;
+  }
+}
+
+/* Shared focus-visible treatment — never color-only, always a visible outline. */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}

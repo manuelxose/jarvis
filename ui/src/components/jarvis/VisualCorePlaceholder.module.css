@@ -1,0 +1,19 @@
+.core {
+  border-radius: 38% 62% 55% 45% / 45% 40% 60% 55%;
+  background: radial-gradient(circle at 40% 35%, var(--core-color, var(--accent-listening)), rgb(167 139 250 / 0.2) 70%, transparent 90%);
+  box-shadow: var(--glow-core), var(--glow-core-inset);
+  transition: background var(--motion-duration-slow) var(--motion-ease-standard);
+}
+
+.pulse {
+  animation: pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+}

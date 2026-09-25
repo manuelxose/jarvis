@@ -1,0 +1,46 @@
+.popup {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 560px;
+  max-width: calc(100vw - var(--space-8));
+  background: var(--surface-floating);
+  border: var(--border-width-hairline) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-3);
+  z-index: var(--z-overlay);
+  overflow: hidden;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: var(--border-width-hairline) solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--text-md);
+  outline: none;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.option[aria-selected='true'] {
+  background: var(--surface-selected);
+  color: var(--accent-primary);
+}

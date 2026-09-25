@@ -1,0 +1,53 @@
+.desktop {
+  min-height: 100vh;
+  background: var(--surface-app);
+  background-image: var(--surface-app-gradient);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: var(--space-6);
+  gap: var(--space-4);
+}
+
+.compact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  width: fit-content;
+}
+
+.expanded {
+  width: 360px;
+}
+
+.caption {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  margin-top: var(--space-2);
+}
+
+.controls {
+  position: fixed;
+  bottom: var(--space-5);
+  left: var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: 640px;
+}
+
+/* Production desktop shell (desktop/src/main.js sets this via the preload
+   bridge): the window itself is transparent, so the browser-only design
+   review background and the demo mode-switcher strip must not render. */
+:global(html[data-desktop-shell='electron']) .desktop {
+  min-height: 100vh;
+  background: transparent;
+  background-image: none;
+}
+
+:global(html[data-desktop-shell='electron']) .controls {
+  display: none;
+}

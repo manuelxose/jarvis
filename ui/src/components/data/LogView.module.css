@@ -1,0 +1,28 @@
+.log {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  overflow-y: auto;
+}
+
+.line {
+  display: flex;
+  gap: var(--space-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.timestamp {
+  color: var(--text-disabled);
+  flex-shrink: 0;
+  width: 68px;
+}
+
+.source {
+  flex-shrink: 0;
+  width: 72px;
+  color: var(--text-secondary);
+}
+
+.source[data-role='you'] { color: var(--accent-processing); }
+.source[data-role='jarvis'] { color: var(--accent-listening); }

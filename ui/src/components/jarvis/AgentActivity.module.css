@@ -1,0 +1,24 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width-hairline) solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.name {
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.detail {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

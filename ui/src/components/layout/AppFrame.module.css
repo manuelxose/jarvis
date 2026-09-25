@@ -1,0 +1,50 @@
+.frame {
+  display: grid;
+  grid-template-columns: var(--layout-grid-columns);
+  grid-template-rows: var(--layout-topbar-height) 1fr;
+  height: 100vh;
+  width: 100%;
+  background: var(--surface-app);
+  background-image: var(--surface-app-gradient);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.topbar {
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-5);
+  border-bottom: var(--border-width-hairline) solid var(--border-subtle);
+}
+
+.sidebar {
+  border-right: var(--border-width-hairline) solid var(--border-subtle);
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+}
+
+.center {
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.right {
+  border-left: var(--border-width-hairline) solid var(--border-subtle);
+  padding: var(--space-4);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Narrow desktop window: collapse the right rail before content clips (section 9 "narrow desktop windows"). */
+@media (max-width: 1280px) {
+  .frame {
+    grid-template-columns: 200px 1fr;
+  }
+  .right {
+    display: none;
+  }
+}
