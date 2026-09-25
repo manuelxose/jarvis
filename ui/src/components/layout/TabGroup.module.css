@@ -1,0 +1,21 @@
+.list {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: var(--border-width-hairline) solid var(--border-subtle);
+  margin-bottom: var(--space-4);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tab[data-selected] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-primary);
+}

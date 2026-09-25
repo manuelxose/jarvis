@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Direction B — Precision Workstation</title>
+<style>
+  :root{
+    --bg:#0a0b0c; --panel:#101214; --panel-alt:#0d0f11; --floating:#141618;
+    --border: #22262b; --border-strong:#33393f;
+    --text-primary:#e4e6e9; --text-secondary:#7c8288; --text-disabled:#454b51;
+    --accent:#2dd4bf; --accent-2:#f0b429;
+    --success:#2dd4bf; --warning:#f0b429; --danger:#f0555b;
+    --radius:3px; --font: -apple-system, "Segoe UI", system-ui, sans-serif; --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text-primary); font-family:var(--font); min-height:100vh; font-size:13px;}
+  .shell{display:grid; grid-template-columns:200px 1fr 320px; grid-template-rows:40px 1fr; height:1080px; width:1920px;}
+  .topbar{grid-column:1/4; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid var(--border); background:var(--panel-alt); font-family:var(--mono); font-size:12px;}
+  .brand{font-weight:600; letter-spacing:.02em;}
+  .status-pill{color:var(--accent); border:1px solid var(--border-strong); padding:2px 10px; border-radius:var(--radius);}
+  .sidebar{border-right:1px solid var(--border); padding:10px 0; display:flex; flex-direction:column;}
+  .nav-item{padding:8px 16px; font-size:12px; color:var(--text-secondary); border-left:2px solid transparent; font-family:var(--mono);}
+  .nav-item.active{color:var(--text-primary); border-left-color:var(--accent); background:var(--panel);}
+  .center{display:flex; flex-direction:column; padding:0;}
+  .center-header{display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:11px; color:var(--text-secondary);}
+  .core-mini{width:14px; height:14px; border-radius:50%; border:2px solid var(--accent); display:inline-block; vertical-align:middle; margin-right:6px;}
+  .log{flex:1; padding:12px 16px; font-family:var(--mono); font-size:12px; line-height:1.7; overflow:auto;}
+  .log .ln{display:flex; gap:10px;}
+  .log .ts{color:var(--text-disabled); width:64px; flex-shrink:0;}
+  .log .role{width:64px; flex-shrink:0; color:var(--text-secondary);}
+  .log .role.you{color:var(--accent-2);}
+  .log .role.jarvis{color:var(--accent);}
+  .right{border-left:1px solid var(--border); padding:0; display:flex; flex-direction:column; overflow:auto;}
+  .panel{border-bottom:1px solid var(--border); padding:12px 16px;}
+  .panel h3{margin:0 0 8px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-secondary); font-weight:600; font-family:var(--mono);}
+  .metric-row{display:flex; justify-content:space-between; font-size:11px; padding:3px 0; font-family:var(--mono);}
+  .metric-row span:last-child{color:var(--text-primary);}
+  .bar{height:3px; background:var(--panel-alt); overflow:hidden; margin:2px 0 6px;}
+  .bar i{display:block; height:100%; background:var(--accent);}
+  .table-row{display:grid; grid-template-columns:1fr auto; font-size:11px; padding:3px 0; font-family:var(--mono); color:var(--text-secondary);}
+  .table-row b{color:var(--text-primary); font-weight:400;}
+  .overlay-mock{position:absolute; top:20px; right:20px; display:flex; flex-direction:column; gap:10px;}
+  .overlay-card{width:300px; background:var(--floating); border:1px solid var(--border-strong); border-radius:var(--radius); padding:10px 12px; font-family:var(--mono); font-size:11px;}
+  .overlay-compact{width:160px; display:flex; align-items:center; gap:8px;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="brand">JARVIS // COMMAND CENTER</div>
+    <div class="status-pill">LISTENING</div>
+  </div>
+  <div class="sidebar">
+    <div class="nav-item active">01 OVERVIEW</div>
+    <div class="nav-item">02 CONVERSATION</div>
+    <div class="nav-item">03 MEMORY</div>
+    <div class="nav-item">04 SYSTEM</div>
+    <div class="nav-item">05 AGENTS</div>
+    <div class="nav-item">06 DEVELOPMENT</div>
+    <div class="nav-item">07 MEDIA</div>
+  </div>
+  <div class="center">
+    <div class="center-header"><span><span class="core-mini"></span>VISUAL CORE — LISTENING</span><span>trace 8f21c0</span></div>
+    <div class="log">
+      <div class="ln"><span class="ts">14:02:11</span><span class="role you">YOU</span><span>run the phase 2 build and tell me if oxlint is clean on jarvis/ui/src/design-system</span></div>
+      <div class="ln"><span class="ts">14:02:12</span><span class="role jarvis">JARVIS</span><span>oxlint finished in 340ms — zero warnings across 14 files (src/design-system/, src/components/).</span></div>
+      <div class="ln"><span class="ts">14:02:13</span><span class="role jarvis">JARVIS</span><span>want me to also re-run the Playwright visual regression suite for the design-system tokens?</span></div>
+      <div class="ln"><span class="ts">14:03:01</span><span class="role you">YOU</span><span>yes, and check the milestone/M008-futuristic-voice-interface worktree for uncommitted changes first</span></div>
+      <div class="ln"><span class="ts">14:03:02</span><span class="role jarvis">JARVIS</span><span>worktree clean. running playwright test --project=desktop-1080p,desktop-1440p…</span></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="panel"><h3>System</h3>
+      <div class="metric-row"><span>CPU</span><span>34%</span></div><div class="bar"><i style="width:34%"></i></div>
+      <div class="metric-row"><span>RAM</span><span>61%</span></div><div class="bar"><i style="width:61%"></i></div>
+      <div class="metric-row"><span>GPU</span><span>12%</span></div><div class="bar"><i style="width:12%"></i></div>
+      <div class="metric-row"><span>NET</span><span>2.1 MB/s</span></div><div class="bar"><i style="width:8%"></i></div>
+    </div>
+    <div class="panel"><h3>Agents</h3>
+      <div class="table-row"><span>gsd-exec</span><b>T04 replan-slice</b></div>
+      <div class="table-row"><span>hermes-child</span><b>degraded fallback</b></div>
+      <div class="table-row"><span>playwright</span><b>visual regression</b></div>
+    </div>
+    <div class="panel"><h3>Development</h3>
+      <div class="table-row"><span>milestone</span><b>M008 · S02</b></div>
+      <div class="table-row"><span>worktree</span><b>clean</b></div>
+      <div class="table-row"><span>branch</span><b>main</b></div>
+      <div class="table-row"><span>vscode</span><b>2 windows</b></div>
+    </div>
+    <div class="panel"><h3>Memory</h3>
+      <div class="table-row"><span>facts</span><b>128</b></div>
+      <div class="table-row"><span>last write</span><b>3m ago</b></div>
+    </div>
+  </div>
+</div>
+<div class="overlay-mock">
+  <div class="overlay-card">SPEAKING — "oxlint is clean, zero warnings. starting the visual regression run now."</div>
+  <div class="overlay-card overlay-compact"><span class="core-mini"></span>IDLE</div>
+</div>
+</body>
+</html>

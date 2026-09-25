@@ -1,0 +1,38 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.shape {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  background: currentColor;
+  position: relative;
+}
+
+/* Shape differs per state, not just color — accessible to colorblind users. */
+.idle { border-radius: 50%; background: transparent; border: 2px solid currentColor; }
+.listening { border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 25%, transparent); }
+.speaking { border-radius: 3px; }
+.processing { border-radius: 50%; border: 2px solid transparent; border-top-color: currentColor; border-right-color: currentColor; background: transparent; animation: spin 900ms linear infinite; }
+.executing { border-radius: 2px; transform: rotate(45deg); }
+.error { width: 0; height: 0; background: transparent; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid currentColor; }
+.offline { border-radius: 50%; opacity: 0.5; }
+.offline::after { content: ''; position: absolute; inset: -1px; border-top: 2px solid currentColor; transform: rotate(45deg); top: 4px; }
+.notification { border-radius: 50%; }
+.notification::after { content: ''; position: absolute; top: -3px; right: -3px; width: 5px; height: 5px; border-radius: 50%; background: var(--state-danger); }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .processing { animation: none; }
+}

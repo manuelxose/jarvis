@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Direction A — Cinematic Command</title>
+<style>
+  :root{
+    --bg:#05070a; --bg-glow: radial-gradient(circle at 50% 32%, rgba(58,214,255,0.14), transparent 45%);
+    --panel:#0b0e13cc; --panel-solid:#0c0f14; --floating:#121620;
+    --border: rgba(122,180,255,0.18); --border-strong: rgba(122,180,255,0.35);
+    --text-primary:#eaf2ff; --text-secondary:#8fa3bf; --text-disabled:#4a5568;
+    --accent:#3ad6ff; --accent-2:#7c5cff;
+    --success:#39e0a0; --warning:#f5c451; --danger:#ff5d6c;
+    --radius:10px; --font: -apple-system, "Segoe UI", system-ui, sans-serif; --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); background-image:var(--bg-glow); color:var(--text-primary); font-family:var(--font); min-height:100vh;}
+  .label{ text-transform:uppercase; letter-spacing:.14em; font-size:11px; color:var(--text-secondary); font-weight:600;}
+  .shell{display:grid; grid-template-columns:220px 1fr 300px; grid-template-rows:56px 1fr; height:1080px; width:1920px;}
+  .topbar{grid-column:1/4; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid var(--border); background:linear-gradient(180deg, rgba(58,214,255,0.05), transparent);}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.18em; font-size:13px;}
+  .brand .dot{width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 12px var(--accent);}
+  .status-pill{display:flex; align-items:center; gap:8px; padding:6px 14px; border:1px solid var(--border-strong); border-radius:999px; background:var(--panel); font-size:12px; color:var(--accent);}
+  .sidebar{border-right:1px solid var(--border); padding:20px 12px; display:flex; flex-direction:column; gap:4px;}
+  .nav-item{padding:10px 12px; border-radius:8px; font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:10px; cursor:default;}
+  .nav-item.active{background:rgba(58,214,255,0.1); color:var(--text-primary); border:1px solid var(--border-strong);}
+  .nav-icon{width:16px;height:16px;border-radius:4px;background:var(--text-disabled);}
+  .nav-item.active .nav-icon{background:var(--accent); box-shadow:0 0 8px var(--accent);}
+  .center{position:relative; display:flex; flex-direction:column; align-items:center; padding:28px 24px; overflow:hidden;}
+  .core{width:220px;height:220px;border-radius:50%; margin-top:18px; position:relative;
+    background:radial-gradient(circle at 50% 50%, rgba(58,214,255,0.25), rgba(124,92,255,0.08) 60%, transparent 72%);
+    border:1px solid var(--border-strong); box-shadow:0 0 60px rgba(58,214,255,0.25), inset 0 0 40px rgba(124,92,255,0.2);}
+  .core::after{content:""; position:absolute; inset:24px; border-radius:50%; border:1px solid rgba(122,180,255,0.4);}
+  .core-label{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;}
+  .core-label .state{font-size:12px; letter-spacing:.18em; color:var(--accent); text-transform:uppercase;}
+  .convo{width:100%; max-width:680px; margin-top:26px; display:flex; flex-direction:column; gap:12px;}
+  .msg{padding:12px 16px; border-radius:var(--radius); background:var(--panel); border:1px solid var(--border); font-size:13px; line-height:1.5;}
+  .msg.user{align-self:flex-end; background:rgba(124,92,255,0.12); border-color:rgba(124,92,255,0.3);}
+  .msg .meta{font-size:10px; color:var(--text-secondary); margin-bottom:4px; letter-spacing:.08em; text-transform:uppercase;}
+  .right{border-left:1px solid var(--border); padding:18px; display:flex; flex-direction:column; gap:18px; overflow:auto;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:14px;}
+  .panel h3{margin:0 0 10px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-secondary); font-weight:600;}
+  .metric-row{display:flex; justify-content:space-between; font-size:12px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-family:var(--mono);}
+  .metric-row span:last-child{color:var(--accent);}
+  .bar{height:4px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; margin-top:6px;}
+  .bar i{display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-2));}
+  .agent-row{display:flex; align-items:center; gap:8px; font-size:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04);}
+  .agent-row .badge{width:6px;height:6px;border-radius:50%; background:var(--success);}
+  .agent-row .badge.warn{background:var(--warning);}
+  .overlay-mock{position:absolute; top:40px; right:40px; display:flex; flex-direction:column; gap:16px; z-index:5;}
+  .overlay-card{width:340px; border-radius:14px; background:var(--floating); border:1px solid var(--border-strong); box-shadow:0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(58,214,255,0.12); padding:16px;}
+  .overlay-compact{width:200px; display:flex; align-items:center; gap:10px; padding:10px 14px;}
+  .overlay-compact .ring{width:28px;height:28px;border-radius:50%; background:radial-gradient(circle,var(--accent),transparent 70%); box-shadow:0 0 14px var(--accent);}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span>JARVIS COMMAND CENTER</div>
+    <div class="status-pill">● Listening</div>
+  </div>
+  <div class="sidebar">
+    <div class="nav-item active"><span class="nav-icon"></span>Overview</div>
+    <div class="nav-item"><span class="nav-icon"></span>Conversation</div>
+    <div class="nav-item"><span class="nav-icon"></span>Memory</div>
+    <div class="nav-item"><span class="nav-icon"></span>System</div>
+    <div class="nav-item"><span class="nav-icon"></span>Agents</div>
+    <div class="nav-item"><span class="nav-icon"></span>Development</div>
+    <div class="nav-item"><span class="nav-icon"></span>Media</div>
+  </div>
+  <div class="center">
+    <div class="core"><div class="core-label"><div class="state">Listening</div></div></div>
+    <div class="convo">
+      <div class="msg user"><div class="meta">You · 14:02</div>run the phase 2 build and tell me if oxlint is clean on jarvis/ui/src/design-system</div>
+      <div class="msg"><div class="meta">Jarvis · 14:02</div>oxlint finished in 340ms — zero warnings across 14 files. Want me to also re-run the Playwright visual regression suite for the design-system tokens?</div>
+      <div class="msg user"><div class="meta">You · 14:03</div>yes, and check the milestone/M008-futuristic-voice-interface worktree for uncommitted changes first</div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="panel"><h3>System</h3>
+      <div class="metric-row"><span>CPU</span><span>34%</span></div><div class="bar"><i style="width:34%"></i></div>
+      <div class="metric-row"><span>RAM</span><span>61%</span></div><div class="bar"><i style="width:61%"></i></div>
+      <div class="metric-row"><span>GPU</span><span>12%</span></div><div class="bar"><i style="width:12%"></i></div>
+    </div>
+    <div class="panel"><h3>Agents</h3>
+      <div class="agent-row"><span class="badge"></span>gsd-exec · T04 replan-slice</div>
+      <div class="agent-row"><span class="badge warn"></span>hermes-child · degraded fallback</div>
+      <div class="agent-row"><span class="badge"></span>playwright · visual regression</div>
+    </div>
+    <div class="panel"><h3>Development</h3>
+      <div class="metric-row"><span>milestone/M008</span><span>S02</span></div>
+      <div class="metric-row"><span>worktree</span><span>clean</span></div>
+      <div class="metric-row"><span>branch</span><span>main</span></div>
+    </div>
+  </div>
+</div>
+<div class="overlay-mock">
+  <div class="overlay-card">
+    <div class="label" style="margin-bottom:8px;">Speaking</div>
+    <div style="font-size:13px; line-height:1.5;">Oxlint is clean — zero warnings. Starting the visual regression run now.</div>
+  </div>
+  <div class="overlay-card overlay-compact"><span class="ring"></span><span class="label">Idle</span></div>
+</div>
+</body>
+</html>

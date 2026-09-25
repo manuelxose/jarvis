@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Direction C — Adaptive Operating Environment</title>
+<style>
+  :root{
+    --bg:#0e1013; --bg-grad: linear-gradient(160deg, #0e1013 0%, #12151a 60%, #0e1013 100%);
+    --panel:#181b21; --panel-soft:#1d2128; --floating:#20242c;
+    --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.12);
+    --text-primary:#eceef2; --text-secondary:#8a8f9a; --text-disabled:#52565f;
+    --accent-listen:#4fd1ff; --accent-speak:#a78bfa; --accent-process:#ffb86b; --accent-error:#ff6b81;
+    --success:#4fd18f; --warning:#ffb86b; --danger:#ff6b81;
+    --radius:14px; --radius-sm:8px; --font: -apple-system, "Segoe UI", system-ui, sans-serif; --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg-grad); color:var(--text-primary); font-family:var(--font); min-height:100vh;}
+  .shell{display:grid; grid-template-columns:224px 1fr 300px; grid-template-rows:60px 1fr; gap:1px; height:1080px; width:1920px; background:var(--border);}
+  .shell > div{background:var(--bg);}
+  .topbar{grid-column:1/4; display:flex; align-items:center; justify-content:space-between; padding:0 22px;}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:600; font-size:14px;}
+  .brand .core-dot{width:10px;height:10px;border-radius:50%; background:var(--accent-listen); box-shadow:0 0 10px var(--accent-listen);}
+  .status-chip{display:flex; align-items:center; gap:6px; padding:7px 16px; border-radius:999px; background:var(--panel-soft); font-size:12px; border:1px solid var(--border-strong);}
+  .sidebar{padding:18px 14px; display:flex; flex-direction:column; gap:6px;}
+  .nav-card{padding:11px 14px; border-radius:var(--radius-sm); font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:10px;}
+  .nav-card.active{background:var(--panel-soft); color:var(--text-primary); box-shadow:inset 0 0 0 1px var(--border-strong);}
+  .nav-dot{width:6px;height:6px;border-radius:50%; background:var(--text-disabled);}
+  .nav-card.active .nav-dot{background:var(--accent-listen);}
+  .center{padding:20px; display:flex; flex-direction:column; gap:16px; overflow:auto;}
+  .hero-card{border-radius:var(--radius); background:var(--panel); border:1px solid var(--border); padding:22px; display:flex; gap:20px; align-items:center;}
+  .core-blob{width:120px;height:120px;border-radius:38% 62% 55% 45% / 45% 40% 60% 55%; background:radial-gradient(circle at 40% 35%, var(--accent-listen), rgba(167,139,250,0.25) 70%, transparent 90%); flex-shrink:0; box-shadow:0 0 40px rgba(79,209,255,0.25);}
+  .hero-text .state{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-listen); font-weight:600;}
+  .hero-text h2{margin:6px 0 4px; font-size:20px;}
+  .hero-text p{margin:0; color:var(--text-secondary); font-size:13px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .card{border-radius:var(--radius); background:var(--panel); border:1px solid var(--border); padding:16px;}
+  .card h3{margin:0 0 10px; font-size:12px; color:var(--text-secondary); font-weight:600;}
+  .msg{padding:10px 14px; border-radius:var(--radius-sm); background:var(--panel-soft); font-size:12.5px; margin-bottom:8px; line-height:1.5;}
+  .msg .meta{font-size:10px; color:var(--text-secondary); margin-bottom:3px;}
+  .right{padding:18px; display:flex; flex-direction:column; gap:14px; overflow:auto;}
+  .panel{border-radius:var(--radius); background:var(--panel); border:1px solid var(--border); padding:14px;}
+  .panel h3{margin:0 0 10px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-secondary); font-weight:600;}
+  .metric-row{display:flex; justify-content:space-between; font-size:12px; padding:5px 0;}
+  .metric-row span:last-child{color:var(--accent-listen); font-family:var(--mono);}
+  .bar{height:5px; border-radius:3px; background:var(--panel-soft); overflow:hidden; margin-top:5px;}
+  .bar i{display:block; height:100%; border-radius:3px; background:var(--accent-listen);}
+  .agent-chip{display:flex; align-items:center; gap:8px; font-size:12px; padding:7px 0;}
+  .agent-chip .dot{width:6px;height:6px;border-radius:50%; background:var(--success);}
+  .agent-chip .dot.warn{background:var(--warning);}
+  .overlay-mock{position:absolute; top:36px; right:36px; display:flex; flex-direction:column; gap:14px;}
+  .overlay-card{width:320px; border-radius:var(--radius); background:var(--floating); border:1px solid var(--border-strong); box-shadow:0 20px 50px rgba(0,0,0,0.5); padding:16px 18px;}
+  .overlay-compact{width:180px; display:flex; align-items:center; gap:10px; border-radius:999px; padding:10px 16px;}
+  .overlay-compact .blob{width:22px;height:22px;border-radius:38% 62% 55% 45% / 45% 40% 60% 55%; background:var(--accent-listen);}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="brand"><span class="core-dot"></span>Jarvis Command Center</div>
+    <div class="status-chip">Listening · confidence 0.92</div>
+  </div>
+  <div class="sidebar">
+    <div class="nav-card active"><span class="nav-dot"></span>Overview</div>
+    <div class="nav-card"><span class="nav-dot"></span>Conversation</div>
+    <div class="nav-card"><span class="nav-dot"></span>Memory</div>
+    <div class="nav-card"><span class="nav-dot"></span>System</div>
+    <div class="nav-card"><span class="nav-dot"></span>Agents</div>
+    <div class="nav-card"><span class="nav-dot"></span>Development</div>
+    <div class="nav-card"><span class="nav-dot"></span>Media</div>
+  </div>
+  <div class="center">
+    <div class="hero-card">
+      <div class="core-blob"></div>
+      <div class="hero-text"><div class="state">Listening</div><h2>Ready for the next command</h2><p>Two-clap activation confirmed 40ms ago · confidence 0.92</p></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><h3>Conversation</h3>
+        <div class="msg"><div class="meta">You · 14:02</div>run the phase 2 build and tell me if oxlint is clean on jarvis/ui/src/design-system</div>
+        <div class="msg"><div class="meta">Jarvis · 14:02</div>oxlint finished in 340ms — zero warnings across 14 files. Re-running the Playwright visual regression suite now.</div>
+      </div>
+      <div class="card"><h3>Development</h3>
+        <div class="metric-row"><span>Milestone</span><span>M008 · S02</span></div>
+        <div class="metric-row"><span>Worktree</span><span>clean</span></div>
+        <div class="metric-row"><span>Branch</span><span>main</span></div>
+        <div class="metric-row"><span>VS Code</span><span>2 windows</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="panel"><h3>System</h3>
+      <div class="metric-row"><span>CPU</span><span>34%</span></div><div class="bar"><i style="width:34%"></i></div>
+      <div class="metric-row"><span>RAM</span><span>61%</span></div><div class="bar"><i style="width:61%"></i></div>
+      <div class="metric-row"><span>GPU</span><span>12%</span></div><div class="bar"><i style="width:12%"></i></div>
+    </div>
+    <div class="panel"><h3>Agents</h3>
+      <div class="agent-chip"><span class="dot"></span>gsd-exec · T04 replan-slice</div>
+      <div class="agent-chip"><span class="dot warn"></span>hermes-child · degraded fallback</div>
+      <div class="agent-chip"><span class="dot"></span>playwright · visual regression</div>
+    </div>
+  </div>
+</div>
+<div class="overlay-mock">
+  <div class="overlay-card"><div style="font-size:11px; color:var(--accent-speak); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">Speaking</div>Oxlint is clean — zero warnings. Starting the visual regression run now.</div>
+  <div class="overlay-card overlay-compact"><span class="blob"></span>Idle</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "jarvis-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jarvis native Windows desktop shell (overlay + Command Center), Electron host for the existing ui/ frontend.",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test src"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  }
+}
