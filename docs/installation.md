@@ -103,6 +103,11 @@ silencioso, a un palmo del micrófono):
 Escucha `%LOCALAPPDATA%\jarvis\voice\default\preview.wav`. Si no te convence, repite la
 grabación. Para usar un audio que ya tengas:
 `... -m jarvis.voice_profile enroll --audio voice_samples\mi_voz.wav --text "lo que dices en el audio"`.
+Añade `--icl` para clonación en contexto (identidad más fiel, arranque algo más lento;
+necesita `--text` exacto). `... -m jarvis.voice_profile status` muestra si hay perfil y si
+está preparado; `... -m jarvis.voice_profile delete --yes` lo borra. `record` y `enroll`
+ya preparan el perfil (`prompt.pt` + preview) automáticamente; usa
+`... -m jarvis.voice_profile prepare` solo para reconstruirlo sin volver a grabar.
 
 Por último, graba los saludos con tu voz (así el arranque no espera a que cargue el modelo):
 

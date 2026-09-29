@@ -28,7 +28,12 @@
         "name": "ollama",
         "kind": "ollama",
         "base_url": "http://127.0.0.1:11434",
-        "model": "mistral:7b-instruct"
+        "model": "qwen2.5:3b-instruct",
+        "extra_body": {
+          "options": {
+            "num_gpu": 0
+          }
+        }
       }
     ]
   },

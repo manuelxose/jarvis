@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 import sys
+import importlib.util
 import unittest
 from pathlib import Path
 
@@ -290,6 +291,11 @@ class SequenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("mi voz clonada", spoken[0])
 
 
+requires_soundfile = unittest.skipUnless(
+    importlib.util.find_spec("soundfile"), "soundfile not installed"
+)
+
+
 class MixerRenderTests(unittest.TestCase):
     def _mixer_with_music(self, seconds=1.0):
         mixer = Mixer()
@@ -315,6 +321,7 @@ class MixerRenderTests(unittest.TestCase):
         mixer.render(int(mixer.rate * 0.06))
         self.assertFalse(mixer.music_playing)
 
+    @requires_soundfile
     def test_next_session_plays_music_after_a_fade_out_ended_the_last_one(self):
         import tempfile
 
@@ -345,6 +352,7 @@ class MixerRenderTests(unittest.TestCase):
         self.assertLessEqual(float(np.abs(out).max()), 1.0)
         self.assertGreater(mixer.level, 0.0)
 
+    @requires_soundfile
     def test_other_sample_rates_are_resampled_not_reopened(self):
         import tempfile
 
@@ -388,6 +396,7 @@ class MixerRenderTests(unittest.TestCase):
         mixer.play_music(1.0, 0.1, "auto")
         self.assertAlmostEqual(mixer._pos / rate, 8.75, delta=0.5)
 
+    @requires_soundfile
     def test_missing_file_raises_file_not_found(self):
         with self.assertRaises(FileNotFoundError):
             Mixer().load("/definitely/missing.mp3")

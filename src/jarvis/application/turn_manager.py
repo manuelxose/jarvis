@@ -274,13 +274,22 @@ class TurnManager:
             )
         finally:
             if cost_dict is None:
-                cost_dict = {"trace_id": context.trace_id, "route": route, "entries": [], "total_usd": 0.0}
+                cost_dict = {
+                    "trace_id": context.trace_id,
+                    "route": route,
+                    "entries": [],
+                    "total_usd": 0.0,
+                    "provider": None,
+                    "fallback": [],
+                }
             hub.publish(
                 "turn.cost",
                 trace_id=context.trace_id,
                 route=route,
                 total_usd=cost_dict["total_usd"],
                 entries=cost_dict["entries"],
+                provider=cost_dict.get("provider"),
+                fallback=cost_dict.get("fallback", []),
             )
             hub.publish("agent.completed", trace_id=context.trace_id, route=route, ok=ok, elapsed_ms=round((time.monotonic() - started) * 1000, 1))
             async with self._lock:
@@ -294,9 +303,19 @@ class TurnManager:
         model_before: Optional[UsageRecord],
         tts_before: Optional[UsageRecord],
     ) -> dict[str, Any]:
-        """Usage this turn only, never raising into the turn on failure."""
+        """Usage this turn only, never raising into the turn on failure.
+
+        ``provider`` and ``fallback`` are the actual selection provenance:
+        they come from ProviderChain's own bookkeeping (set on every
+        successful stream), not from billable usage. A cloud provider that
+        streams a real answer but never emits a usage payload must still be
+        reported as the selected provider rather than silently falling back
+        to the ``route`` label, which is a routing decision, not a provider.
+        """
         try:
             usages: list[UsageRecord] = []
+            provider: Optional[str] = None
+            fallback: list[dict[str, Any]] = []
             # Model usage is attributed only to the fast_model route: desktop and
             # hermes routes may also call the model internally, but this slice's
             # cost record covers only the route it can attribute unambiguously.
@@ -304,13 +323,31 @@ class TurnManager:
                 model_after = getattr(self._model, "last_usage_record", None)
                 if model_after is not None and model_after is not model_before:
                     usages.append(model_after)
+                provider = getattr(self._model, "last_selected_provider", None) or getattr(
+                    self._model, "name", None
+                )
+                fallback = [
+                    attempt.as_dict()
+                    for attempt in getattr(self._model, "last_attempts", [])
+                    if not attempt.selected
+                ]
             tts_after = self._tts_usage_record
             if tts_after is not None and tts_after is not tts_before:
                 usages.append(tts_after)
-            return build_turn_cost(context.trace_id, route, usages, self._pricing).to_dict()
+            cost = build_turn_cost(context.trace_id, route, usages, self._pricing).to_dict()
+            cost["provider"] = provider
+            cost["fallback"] = fallback
+            return cost
         except Exception:
             logger.debug("failed to build turn cost", exc_info=True)
-            return {"trace_id": context.trace_id, "route": route, "entries": [], "total_usd": 0.0}
+            return {
+                "trace_id": context.trace_id,
+                "route": route,
+                "entries": [],
+                "total_usd": 0.0,
+                "provider": None,
+                "fallback": [],
+            }
 
     async def _handle_fast_command(
         self, decision: RouteDecision, text: str, context: TurnContext

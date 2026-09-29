@@ -281,6 +281,33 @@ class TurnManagerFastModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(model.calls))
         self.assertEqual("Hola mundo.", result.response)
 
+    async def test_model_speech_starts_before_the_model_finishes(self):
+        spoken_at = []
+        finished = asyncio.Event()
+
+        class SlowStreamingModel:
+            async def generate(self, prompt, context):
+                yield "Hola señor. "
+                await finished.wait()
+                yield "Todo listo."
+
+        class RecordingTTS:
+            async def synthesize(self, text, context):
+                async for chunk in text:
+                    spoken_at.append((chunk, finished.is_set()))
+                    yield chunk.encode()
+
+        manager = _make_manager(model=SlowStreamingModel(), tts=RecordingTTS())
+        task = asyncio.create_task(manager.handle("cual es la capital de francia"))
+        await asyncio.sleep(0.05)
+
+        self.assertEqual(spoken_at[0], ("Hola señor.", False))
+
+        finished.set()
+        result = await task
+
+        self.assertEqual(result.response, "Hola señor. Todo listo.")
+
 
 class TurnManagerHermesTests(unittest.IsolatedAsyncioTestCase):
     async def test_hermes_collects_tokens_and_handles_tools(self):

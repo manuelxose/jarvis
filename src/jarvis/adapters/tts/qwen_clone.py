@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 from typing import Any, AsyncIterator, Optional
 import uuid
 import wave
@@ -180,6 +181,7 @@ class QwenCloneTTS:
 
     def state(self) -> dict[str, Any]:
         ttfa = sorted(t["ttfa_ms"] for t in self._timings if t.get("ttfa_ms"))
+        client_ttfa = sorted(t["client_ttfa_ms"] for t in self._timings if t.get("client_ttfa_ms") is not None)
         return {
             "pid": self._process.pid if self._process is not None and self._process.returncode is None else None,
             "ready": bool(self._ready is not None and self._ready.done() and self._ready.result()),
@@ -189,6 +191,7 @@ class QwenCloneTTS:
             "segments": len(self._timings),
             "ttfa_p50_ms": ttfa[len(ttfa) // 2] if ttfa else None,
             "ttfa_p95_ms": ttfa[min(len(ttfa) - 1, int(len(ttfa) * 0.95))] if ttfa else None,
+            "client_ttfa_p50_ms": client_ttfa[len(client_ttfa) // 2] if client_ttfa else None,
         }
 
     async def _spawn(self) -> None:
@@ -297,16 +300,27 @@ class QwenCloneTTS:
         queue: asyncio.Queue = asyncio.Queue()
         self._queues[request_id] = queue
         finished = False
+        # Client-observed cost of one segment: send -> first audio event dequeued.
+        # Distinct from the worker's own ttfa_ms so a full-pipeline gap can be
+        # attributed to the worker, IPC, or the caller's handoff separately.
+        sent_at = time.perf_counter()
+        first_audio_at: Optional[float] = None
         try:
             await self._send(process, {"op": "synth", "id": request_id, "text": segment})
             while True:
                 event = await self._next_event(queue, context, process)
                 kind = event["type"]
                 if kind == "audio":
+                    if first_audio_at is None:
+                        first_audio_at = time.perf_counter()
                     yield pcm_to_wav(base64.b64decode(event["pcm"]), int(event.get("rate", 24000)))
                 elif kind == "done":
                     finished = True
-                    self._timings.append(event)
+                    timing = dict(event)
+                    timing["sent_at"] = sent_at
+                    if first_audio_at is not None:
+                        timing["client_ttfa_ms"] = round((first_audio_at - sent_at) * 1000, 1)
+                    self._timings.append(timing)
                     return
                 elif kind == "error":
                     finished = True

@@ -14,9 +14,11 @@ from ._transport import MAX_RESPONSE_TOKENS, stream_lines, voice_messages
 # Keep the model resident between turns; Ollama's 5 min default unloads it and
 # the next turn pays a multi-second cold load.
 KEEP_ALIVE = "30m"
-# As a cloud fallback, free the GPU soon after an offline burst ends so the
-# resident voice-clone TTS model keeps its VRAM (8 GB laptop GPU).
-FALLBACK_KEEP_ALIVE = "2m"
+# D043: as a cloud fallback, unload immediately after each request completes
+# so the resident voice-clone TTS model never has to share VRAM with a 7B
+# model on an 8 GB laptop GPU. "2m" previously left the fallback resident long
+# enough to still collide with the clone worker during a fallback burst.
+FALLBACK_KEEP_ALIVE = "0"
 
 
 class OllamaProvider:
@@ -31,6 +33,7 @@ class OllamaProvider:
         temperature: float = 0.7,
         name: str = "ollama",
         keep_alive: str = KEEP_ALIVE,
+        extra_body: dict | None = None,
     ) -> None:
         # Windows resolves "localhost" to ::1 first; Ollama listens on IPv4 only,
         # so every request paid a ~2 s IPv6 connect timeout before falling back.
@@ -40,14 +43,34 @@ class OllamaProvider:
         self.temperature = temperature
         self.name = name
         self.keep_alive = keep_alive
+        self.extra_body = dict(extra_body or {})
         self.last_usage_record: UsageRecord | None = None
+
+    def is_cpu_only(self) -> bool:
+        """True when the config pins this model to system RAM (``num_gpu: 0``)."""
+        return (self.extra_body.get("options") or {}).get("num_gpu") == 0
+
+    def _merged_body(self, base: dict, options: dict) -> dict:
+        """Overlay ``extra_body`` on ``base``; ``options`` is dict-merged, not replaced."""
+        extra = dict(self.extra_body)
+        extra_options = extra.pop("options", None)
+        body = {**base, **extra}
+        merged = dict(options)
+        if isinstance(extra_options, dict):
+            merged.update(extra_options)
+        if merged:
+            body["options"] = merged
+        return body
 
     def warm_up(self, timeout_seconds: float = 120.0) -> bool:
         """Load the model into memory now so the first turn skips the cold load."""
         import urllib.error  # noqa: PLC0415
         import urllib.request  # noqa: PLC0415
 
-        payload = json.dumps({"model": self.model, "keep_alive": self.keep_alive}).encode("utf-8")
+        # Same options as generate(): Ollama reloads a model whose num_gpu differs.
+        payload = json.dumps(
+            self._merged_body({"model": self.model, "keep_alive": self.keep_alive}, {})
+        ).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/api/generate",
             data=payload,
@@ -67,13 +90,15 @@ class OllamaProvider:
                 f"{self.name} has no base URL configured", provider=self.name
             )
         url = f"{self.base_url}/api/chat"
-        payload = {
-            "model": self.model,
-            "messages": voice_messages(prompt),
-            "stream": True,
-            "keep_alive": self.keep_alive,
-            "options": {"temperature": self.temperature, "num_predict": MAX_RESPONSE_TOKENS},
-        }
+        payload = self._merged_body(
+            {
+                "model": self.model,
+                "messages": voice_messages(prompt),
+                "stream": True,
+                "keep_alive": self.keep_alive,
+            },
+            {"temperature": self.temperature, "num_predict": MAX_RESPONSE_TOKENS},
+        )
         headers = {"Content-Type": "application/json"}
         async for line in stream_lines(
             url, payload, headers, context, self.timeout_seconds, self.name

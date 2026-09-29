@@ -11,6 +11,7 @@ whichever provider is retried next, then continues reading the live stream.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import AsyncIterator, Callable, Optional, Sequence
 
 from jarvis.config import TTSRoutingEvidence
@@ -19,6 +20,8 @@ from jarvis.core.circuit_breaker import CircuitBreaker
 from jarvis.core.contracts import TextToSpeech, TurnContext
 from jarvis.core.errors import ProviderConfigError, ProviderError, ProviderUnavailable
 from jarvis.core.turn import TurnCancelled
+
+logger = logging.getLogger(__name__)
 
 
 def order_tts_candidates(
@@ -129,9 +132,14 @@ class TTSChain:
             raise ProviderUnavailable("no TTS providers configured")
         buffered = _BufferedText(text)
         last_error: Optional[Exception] = None
+        primary = self._providers[0]
+        primary_name = self._name(primary)
+        primary_failure: Optional[str] = None
         for provider in self._providers:
             name = self._name(provider)
             if not self._breaker.allow(name):
+                if name == primary_name and primary_failure is None:
+                    primary_failure = "circuit open"
                 continue
             attempts = 0
             while True:
@@ -145,9 +153,16 @@ class TTSChain:
                         yield audio
                     self._breaker.record_success(name)
                     self.last_provider = provider
+                    if provider is not primary:
+                        logger.warning(
+                            "TTS fallback: served by %s after %s",
+                            name, primary_failure or "unknown",
+                        )
                     return
                 except ProviderConfigError as error:
                     last_error = error
+                    if name == primary_name and primary_failure is None:
+                        primary_failure = f"{type(error).__name__}: {error}"
                     self._breaker.record_failure(name)
                     break  # misconfigured: skip, do not retry
                 except ProviderError as error:
@@ -155,6 +170,8 @@ class TTSChain:
                     if got_first:
                         # Mid-stream failure after partial audio cannot restart cleanly.
                         raise
+                    if name == primary_name and primary_failure is None:
+                        primary_failure = f"{type(error).__name__}: {error}"
                     self._breaker.record_failure(name)
                     if not error.transient:
                         break

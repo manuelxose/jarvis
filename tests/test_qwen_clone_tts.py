@@ -63,6 +63,16 @@ def _pcm(chunk: bytes) -> bytes:
     return decode_wav(chunk)[0]
 
 
+class _Sapi:
+    """Fallback TTS double standing in for pyttsx3/SAPI in chain tests."""
+
+    name = "sapi"
+
+    async def synthesize(self, text, context):
+        async for chunk in text:
+            yield b"sapi:" + chunk.encode()
+
+
 class QwenCloneTTSTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -128,15 +138,8 @@ class QwenCloneTTSTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(health.status, HealthStatus.DEGRADED)
         self.assertIn("profile", health.detail)
 
-        class Sapi:
-            name = "sapi"
-
-            async def synthesize(self, text, context):
-                async for chunk in text:
-                    yield b"sapi:" + chunk.encode()
-
         selected = []
-        chain = TTSChain([tts, Sapi()], on_select=selected.append)
+        chain = TTSChain([tts, _Sapi()], on_select=selected.append)
         out = [c async for c in chain.synthesize(_text("hola"), TurnContext.fresh("t"))]
         self.assertEqual(out, [b"sapi:hola"])
 
@@ -168,6 +171,89 @@ class QwenCloneTTSTest(unittest.IsolatedAsyncioTestCase):
         health = await tts.health()
         self.assertEqual(health.status, HealthStatus.DEGRADED)
         self.assertIn("low_vram", health.detail)
+
+    async def test_missing_venv_worker_cannot_spawn_and_chain_falls_back(self):
+        tts = QwenCloneTTS(
+            [str(self.tmp / "no-venv" / "python.exe"), str(self.script), "ok", str(self.tmp / "marker")]
+        )
+        self.addAsyncCleanup(tts.stop)
+        await tts.start()  # must not raise even though the interpreter does not exist
+        with self.assertRaises(ProviderUnavailable):
+            await asyncio.wait_for(tts.wait_ready(), 10)
+        health = await tts.health()
+        self.assertEqual(health.status, HealthStatus.DEGRADED)
+        self.assertFalse(health.required)
+        self.assertIn("cannot start worker", health.detail)
+
+        chain = TTSChain([tts, _Sapi()])
+        out = [c async for c in chain.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(out, [b"sapi:hola"])
+
+    async def test_chain_falls_back_to_sapi_when_worker_is_fatal(self):
+        tts = self._tts("fatal", restart_max=0)
+        await tts.start()
+        chain = TTSChain([tts, _Sapi()])
+        started = asyncio.get_running_loop().time()
+        out = [c async for c in chain.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(out, [b"sapi:hola"])
+        self.assertLess(asyncio.get_running_loop().time() - started, 1.0)
+
+    async def test_low_vram_worker_degrades_turn_to_labeled_fallback(self):
+        tts = self._tts("fatal", restart_max=0)
+        await tts.start()
+        with self.assertRaises(ProviderUnavailable):
+            await asyncio.wait_for(tts.wait_ready(), 10)
+        chain = TTSChain([tts, _Sapi()])
+        out = [c async for c in chain.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(out, [b"sapi:hola"])
+        self.assertEqual(chain.last_provider.name, "sapi")
+        health = await tts.health()
+        self.assertEqual(health.status, HealthStatus.DEGRADED)
+        self.assertIn("low_vram", health.detail)
+
+    async def test_chain_without_fallback_surfaces_low_vram_error(self):
+        tts = self._tts("fatal", restart_max=0)
+        await tts.start()
+        with self.assertRaises(ProviderUnavailable):
+            await asyncio.wait_for(tts.wait_ready(), 10)
+        with self.assertRaises(ProviderError):
+            [c async for c in TTSChain([tts]).synthesize(_text("hola"), TurnContext.fresh("t"))]
+
+    async def test_chain_falls_back_to_sapi_while_worker_is_warming(self):
+        tts = self._tts("slow_start", warmup_wait_seconds=0)
+        await tts.start()
+        chain = TTSChain([tts, _Sapi()])
+        started = asyncio.get_running_loop().time()
+        out = [c async for c in chain.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(out, [b"sapi:hola"])
+        self.assertLess(asyncio.get_running_loop().time() - started, 1.0)
+
+    async def test_chain_falls_back_on_crash_then_worker_restarts_for_next_turn(self):
+        tts = self._tts("crash_once", restart_backoff_seconds=0.01)
+        await self._ready(tts)
+        # retries=0: the worker's own restart (0.01s) is faster than the chain's
+        # default retry backoff (0.25s), so a mid-chain retry would race the
+        # restart and mask the fallback this test is pinning down.
+        chain = TTSChain([tts, _Sapi()], retries=0)
+        out = [c async for c in chain.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(out, [b"sapi:hola"])
+
+        await asyncio.wait_for(tts.wait_ready(), 10)
+        chunks = [c async for c in tts.synthesize(_text("hola"), TurnContext.fresh("t"))]
+        self.assertEqual(len(chunks), 4)
+        self.assertEqual(_pcm(chunks[0]), b"hola____")
+
+    async def test_timing_entry_carries_client_ttfa_and_preserves_worker_ttfa(self):
+        tts = self._tts("ok")
+        await self._ready(tts)
+        ctx = TurnContext.fresh("t")
+        [c async for c in tts.synthesize(_text("hola"), ctx)]
+        timing = tts._timings[-1]
+        self.assertEqual(1, timing["ttfa_ms"])  # worker's own value (fake worker's done event), untouched
+        self.assertIn("client_ttfa_ms", timing)
+        self.assertGreaterEqual(timing["client_ttfa_ms"], 0)
+        self.assertIn("sent_at", timing)
+        self.assertEqual(tts.state()["client_ttfa_p50_ms"], timing["client_ttfa_ms"])
 
     async def test_repeated_start_stop(self):
         tts = self._tts("ok")

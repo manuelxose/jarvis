@@ -1,0 +1,321 @@
+{
+  "status": "measured",
+  "meta": {
+    "date": "2026-09-29T08:04:31.363423+00:00",
+    "host_label": "rtx3070-laptop",
+    "python_version": "3.11.9",
+    "turns": 20,
+    "command": "python scripts/e2e_turns.py --config config.win.json --turns 20 --host-label rtx3070-laptop --output docs\\bench\\e2e-segment-audio-remote.json",
+    "condition": "scripted-remote-llm",
+    "token_delay_ms": 30.0
+  },
+  "stages": {
+    "routing_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "llm_first_token_ms": {
+      "p50": 1,
+      "p95": 1
+    },
+    "first_segment_ms": {
+      "p50": 1,
+      "p95": 1
+    },
+    "tts_first_audio_ms": {
+      "p50": 492,
+      "p95": 915
+    },
+    "total_request_ms": {
+      "p50": 16273,
+      "p95": 25534
+    },
+    "segment_to_first_audio_ms": {
+      "p50": 491,
+      "p95": 914
+    },
+    "worker_ttfa_ms": {
+      "p50": 500,
+      "p95": 906
+    },
+    "client_ttfa_ms": {
+      "p50": 491,
+      "p95": 914
+    },
+    "ipc_ms": {
+      "p50": 3,
+      "p95": 13
+    },
+    "handoff_ms": {
+      "p50": 0,
+      "p95": 0
+    }
+  },
+  "turns": [
+    {
+      "route": "fast_model",
+      "first_segment_ms": 5.989,
+      "tts_first_audio_ms": 409.061,
+      "segment_to_first_audio_ms": 403.072,
+      "total_request_ms": 9161.483,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 406.0,
+      "client_ttfa_ms": 403.0,
+      "ipc_ms": -3.0,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.777,
+      "tts_first_audio_ms": 509.543,
+      "segment_to_first_audio_ms": 508.766,
+      "total_request_ms": 8061.025,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 500.0,
+      "client_ttfa_ms": 508.7,
+      "ipc_ms": 8.7,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.768,
+      "tts_first_audio_ms": 443.747,
+      "segment_to_first_audio_ms": 442.979,
+      "total_request_ms": 9405.847,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 437.0,
+      "client_ttfa_ms": 442.9,
+      "ipc_ms": 5.9,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.782,
+      "tts_first_audio_ms": 422.688,
+      "segment_to_first_audio_ms": 421.906,
+      "total_request_ms": 9994.464,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 422.0,
+      "client_ttfa_ms": 421.8,
+      "ipc_ms": -0.2,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.638,
+      "tts_first_audio_ms": 404.902,
+      "segment_to_first_audio_ms": 404.264,
+      "total_request_ms": 8897.018,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 406.0,
+      "client_ttfa_ms": 404.2,
+      "ipc_ms": -1.8,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.614,
+      "tts_first_audio_ms": 490.029,
+      "segment_to_first_audio_ms": 489.415,
+      "total_request_ms": 9041.392,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 500.0,
+      "client_ttfa_ms": 489.3,
+      "ipc_ms": -10.7,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.709,
+      "tts_first_audio_ms": 415.547,
+      "segment_to_first_audio_ms": 414.838,
+      "total_request_ms": 9467.79,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 406.0,
+      "client_ttfa_ms": 414.7,
+      "ipc_ms": 8.7,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.584,
+      "tts_first_audio_ms": 347.858,
+      "segment_to_first_audio_ms": 347.274,
+      "total_request_ms": 9639.961,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 344.0,
+      "client_ttfa_ms": 347.2,
+      "ipc_ms": 3.2,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.628,
+      "tts_first_audio_ms": 488.327,
+      "segment_to_first_audio_ms": 487.699,
+      "total_request_ms": 9226.47,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 484.0,
+      "client_ttfa_ms": 487.6,
+      "ipc_ms": 3.6,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.874,
+      "tts_first_audio_ms": 492.255,
+      "segment_to_first_audio_ms": 491.381,
+      "total_request_ms": 13380.976,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 484.0,
+      "client_ttfa_ms": 491.3,
+      "ipc_ms": 7.3,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 1.009,
+      "tts_first_audio_ms": 543.97,
+      "segment_to_first_audio_ms": 542.961,
+      "total_request_ms": 16273.072,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 531.0,
+      "client_ttfa_ms": 542.9,
+      "ipc_ms": 11.9,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.707,
+      "tts_first_audio_ms": 467.797,
+      "segment_to_first_audio_ms": 467.09,
+      "total_request_ms": 18615.422,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 453.0,
+      "client_ttfa_ms": 467.0,
+      "ipc_ms": 14.0,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.623,
+      "tts_first_audio_ms": 435.736,
+      "segment_to_first_audio_ms": 435.113,
+      "total_request_ms": 20715.635,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 422.0,
+      "client_ttfa_ms": 435.0,
+      "ipc_ms": 13.0,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.738,
+      "tts_first_audio_ms": 500.908,
+      "segment_to_first_audio_ms": 500.17,
+      "total_request_ms": 25903.081,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 500.0,
+      "client_ttfa_ms": 500.1,
+      "ipc_ms": 0.1,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.822,
+      "tts_first_audio_ms": 566.349,
+      "segment_to_first_audio_ms": 565.527,
+      "total_request_ms": 25534.252,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 562.0,
+      "client_ttfa_ms": 565.4,
+      "ipc_ms": 3.4,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.736,
+      "tts_first_audio_ms": 597.029,
+      "segment_to_first_audio_ms": 596.293,
+      "total_request_ms": 23466.29,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 593.0,
+      "client_ttfa_ms": 596.1,
+      "ipc_ms": 3.1,
+      "handoff_ms": 0.2
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.719,
+      "tts_first_audio_ms": 1093.368,
+      "segment_to_first_audio_ms": 1092.649,
+      "total_request_ms": 24436.001,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 1094.0,
+      "client_ttfa_ms": 1092.5,
+      "ipc_ms": -1.5,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.825,
+      "tts_first_audio_ms": 887.23,
+      "segment_to_first_audio_ms": 886.405,
+      "total_request_ms": 22095.811,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 890.0,
+      "client_ttfa_ms": 886.3,
+      "ipc_ms": -3.7,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.553,
+      "tts_first_audio_ms": 914.901,
+      "segment_to_first_audio_ms": 914.348,
+      "total_request_ms": 21695.796,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 906.0,
+      "client_ttfa_ms": 914.3,
+      "ipc_ms": 8.3,
+      "handoff_ms": 0.0
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 0.716,
+      "tts_first_audio_ms": 882.345,
+      "segment_to_first_audio_ms": 881.629,
+      "total_request_ms": 22826.271,
+      "provider": "scripted",
+      "fallback": [],
+      "worker_ttfa_ms": 891.0,
+      "client_ttfa_ms": 881.5,
+      "ipc_ms": -9.5,
+      "handoff_ms": 0.1
+    }
+  ],
+  "provider_counts": {
+    "scripted": 20
+  },
+  "spend_today_usd": 0,
+  "first_phrase_before_completion_ratio": 1.0
+}

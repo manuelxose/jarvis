@@ -1,0 +1,175 @@
+{
+  "meta": {
+    "date": "2026-09-27T23:15:00.250732+00:00",
+    "host_label": "rtx3070-laptop",
+    "python_version": "3.11.9",
+    "turns": 20,
+    "command": "python scripts/e2e_turns.py --config config.win.json --turns 20 --host-label rtx3070-laptop --output docs\\bench\\e2e-streaming.json"
+  },
+  "stages": {
+    "routing_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "llm_first_token_ms": {
+      "p50": 7439,
+      "p95": 39435
+    },
+    "first_segment_ms": {
+      "p50": 9455,
+      "p95": 40629
+    },
+    "tts_first_audio_ms": {
+      "p50": 10167,
+      "p95": 50854
+    },
+    "total_request_ms": {
+      "p50": 29724,
+      "p95": 76449
+    }
+  },
+  "turns": [
+    {
+      "route": "fast_model",
+      "first_segment_ms": 33675.13,
+      "tts_first_audio_ms": 50854.434,
+      "total_request_ms": 76448.888,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 40629.404,
+      "tts_first_audio_ms": 40694.772,
+      "total_request_ms": 50282.305,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 12613.367,
+      "tts_first_audio_ms": 28394.867,
+      "total_request_ms": 40733.575,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 35375.435,
+      "tts_first_audio_ms": 35437.992,
+      "total_request_ms": 57423.3,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 14569.539,
+      "tts_first_audio_ms": 27765.307,
+      "total_request_ms": 41703.269,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 6060.887,
+      "tts_first_audio_ms": 21810.914,
+      "total_request_ms": 58417.463,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 52908.981,
+      "tts_first_audio_ms": 53080.799,
+      "total_request_ms": 119258.753,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 9746.391,
+      "tts_first_audio_ms": 25513.917,
+      "total_request_ms": 37415.599,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 9454.536,
+      "tts_first_audio_ms": 9485.416,
+      "total_request_ms": 29723.852,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 8656.4,
+      "tts_first_audio_ms": 8680.711,
+      "total_request_ms": 15250.444,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 10414.139,
+      "tts_first_audio_ms": 10440.404,
+      "total_request_ms": 22881.238,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 8405.08,
+      "tts_first_audio_ms": 8431.542,
+      "total_request_ms": 23105.391,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 8568.26,
+      "tts_first_audio_ms": 8589.436,
+      "total_request_ms": 19989.753,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 7917.833,
+      "tts_first_audio_ms": 7944.379,
+      "total_request_ms": 29115.03,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 8230.889,
+      "tts_first_audio_ms": 8249.693,
+      "total_request_ms": 15830.009,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 10133.441,
+      "tts_first_audio_ms": 10167.483,
+      "total_request_ms": 31723.032,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 8561.492,
+      "tts_first_audio_ms": 8590.53,
+      "total_request_ms": 22990.589,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 8434.385,
+      "tts_first_audio_ms": 8465.579,
+      "total_request_ms": 19848.727,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 7982.424,
+      "tts_first_audio_ms": 8009.047,
+      "total_request_ms": 29159.829,
+      "provider": "ollama"
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 7970.091,
+      "tts_first_audio_ms": 7998.601,
+      "total_request_ms": 14971.973,
+      "provider": "ollama"
+    }
+  ],
+  "spend_today_usd": 0.0,
+  "first_phrase_before_completion_ratio": 1.0
+}

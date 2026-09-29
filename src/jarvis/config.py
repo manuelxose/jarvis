@@ -140,7 +140,8 @@ class ModelProviderConfig:
     # USD per million tokens, for cost telemetry and the daily cap (0 = unpriced)
     input_usd_per_million: float = 0.0
     output_usd_per_million: float = 0.0
-    # Extra top-level request fields for openai_compat providers
+    # Extra top-level request fields for openai_compat providers; for ollama,
+    # extra_body.options is dict-merged over the built-in options (e.g. num_gpu 0).
     extra_body: Mapping[str, Any] = field(default_factory=dict)
 
 
