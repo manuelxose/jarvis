@@ -1,0 +1,178 @@
+{
+  "meta": {
+    "date": "2026-09-25",
+    "host": "LAPTOP",
+    "gpu_temp_c_before": 59,
+    "gpu_temp_c_after": 74,
+    "command": "\"%LOCALAPPDATA%\\jarvis\\venv-tts\\Scripts\\python.exe\" \"%TEMP%\\jarvis_qwen_worker.py\" bench --profile-dir \"%LOCALAPPDATA%\\jarvis\\voice\\default\" --chunk-size 4 --pause 3 --trials 20 --out \"%TEMP%\\jarvis-bench-tts\"",
+    "note": "qwen_worker.py was copied from the repo to %TEMP% before running because the worker failed to load the script from the \\\\wsl.localhost UNC path; the script does not import jarvis so this does not change behavior."
+  },
+  "model": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+  "mode": "xvec",
+  "chunk_size": 4,
+  "pause_s": 3.0,
+  "gpu": "NVIDIA GeForce RTX 3070 Laptop GPU",
+  "torch": "2.7.1+cu118",
+  "cuda": "11.8",
+  "vram_free_before_mb": 7131,
+  "cold_load_ms": 36031,
+  "prompt_ms": 31,
+  "warmup_ms": 7422,
+  "first_synth_ttfa_ms": 6391,
+  "ttfa_ms": {
+    "p50": 406.0,
+    "p95": 437.0,
+    "max": 438.0,
+    "min": 328.0
+  },
+  "rtf": {
+    "p50": 1.836,
+    "min": 1.6
+  },
+  "trials": [
+    {
+      "text": 0,
+      "ttfa_ms": 391.0,
+      "wall_s": 1.25,
+      "audio_s": 2.0,
+      "rtf": 1.6
+    },
+    {
+      "text": 1,
+      "ttfa_ms": 344.0,
+      "wall_s": 3.156,
+      "audio_s": 6.08,
+      "rtf": 1.926
+    },
+    {
+      "text": 2,
+      "ttfa_ms": 375.0,
+      "wall_s": 2.485,
+      "audio_s": 4.64,
+      "rtf": 1.867
+    },
+    {
+      "text": 3,
+      "ttfa_ms": 421.0,
+      "wall_s": 2.578,
+      "audio_s": 4.8,
+      "rtf": 1.862
+    },
+    {
+      "text": 4,
+      "ttfa_ms": 437.0,
+      "wall_s": 2.234,
+      "audio_s": 3.92,
+      "rtf": 1.755
+    },
+    {
+      "text": 0,
+      "ttfa_ms": 422.0,
+      "wall_s": 1.765,
+      "audio_s": 3.12,
+      "rtf": 1.768
+    },
+    {
+      "text": 1,
+      "ttfa_ms": 422.0,
+      "wall_s": 3.032,
+      "audio_s": 5.68,
+      "rtf": 1.873
+    },
+    {
+      "text": 2,
+      "ttfa_ms": 406.0,
+      "wall_s": 2.218,
+      "audio_s": 4.08,
+      "rtf": 1.839
+    },
+    {
+      "text": 3,
+      "ttfa_ms": 406.0,
+      "wall_s": 2.484,
+      "audio_s": 4.56,
+      "rtf": 1.836
+    },
+    {
+      "text": 4,
+      "ttfa_ms": 344.0,
+      "wall_s": 2.407,
+      "audio_s": 4.56,
+      "rtf": 1.894
+    },
+    {
+      "text": 0,
+      "ttfa_ms": 328.0,
+      "wall_s": 1.218,
+      "audio_s": 2.16,
+      "rtf": 1.773
+    },
+    {
+      "text": 1,
+      "ttfa_ms": 438.0,
+      "wall_s": 2.703,
+      "audio_s": 4.96,
+      "rtf": 1.835
+    },
+    {
+      "text": 2,
+      "ttfa_ms": 391.0,
+      "wall_s": 2.313,
+      "audio_s": 4.24,
+      "rtf": 1.833
+    },
+    {
+      "text": 3,
+      "ttfa_ms": 406.0,
+      "wall_s": 2.406,
+      "audio_s": 4.4,
+      "rtf": 1.829
+    },
+    {
+      "text": 4,
+      "ttfa_ms": 406.0,
+      "wall_s": 3.11,
+      "audio_s": 5.84,
+      "rtf": 1.878
+    },
+    {
+      "text": 0,
+      "ttfa_ms": 375.0,
+      "wall_s": 1.375,
+      "audio_s": 2.4,
+      "rtf": 1.745
+    },
+    {
+      "text": 1,
+      "ttfa_ms": 390.0,
+      "wall_s": 3.093,
+      "audio_s": 5.84,
+      "rtf": 1.888
+    },
+    {
+      "text": 2,
+      "ttfa_ms": 422.0,
+      "wall_s": 2.516,
+      "audio_s": 4.56,
+      "rtf": 1.812
+    },
+    {
+      "text": 3,
+      "ttfa_ms": 375.0,
+      "wall_s": 2.516,
+      "audio_s": 4.64,
+      "rtf": 1.844
+    },
+    {
+      "text": 4,
+      "ttfa_ms": 406.0,
+      "wall_s": 2.437,
+      "audio_s": 4.4,
+      "rtf": 1.805
+    }
+  ],
+  "vram_free_mb": 2981,
+  "vram_total_mb": 8191,
+  "vram_peak_alloc_mb": 2406,
+  "vram_reserved_mb": 2502
+}

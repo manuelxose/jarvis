@@ -320,6 +320,33 @@ class VramGuardTests(unittest.TestCase):
             rt._warm_up(SimpleNamespace(providers=[provider]), None, None, free_vram=lambda: 10)
             self.assertEqual(warm.call_count, 2)  # no clone configured: no guard
 
+    def test_cpu_only_fallback_is_preloaded_even_when_vram_is_low(self):
+        from jarvis.adapters.models.ollama import OllamaProvider
+        from jarvis.application import runtime as rt
+
+        primary = OllamaProvider(base_url="http://127.0.0.1:1", model="big")
+        cpu = OllamaProvider(base_url="http://127.0.0.1:1", model="small", extra_body={"options": {"num_gpu": 0}})
+        gpu = OllamaProvider(base_url="http://127.0.0.1:1", model="mid", extra_body={"options": {"num_gpu": 20}})
+        cloud = SimpleNamespace(name="cloud")
+        warmed = []
+        with mock.patch.object(OllamaProvider, "warm_up", autospec=True, side_effect=lambda self, *a, **k: warmed.append(self.model) or True):
+            rt._warm_up(SimpleNamespace(providers=[cloud, cpu, gpu]), None, 5000, free_vram=lambda: 100)
+        self.assertEqual(["small"], warmed)
+        warmed.clear()
+        with mock.patch.object(OllamaProvider, "warm_up", autospec=True, side_effect=lambda self, *a, **k: warmed.append(self.model) or True):
+            rt._warm_up(SimpleNamespace(providers=[primary, cpu]), None, 5000, free_vram=lambda: 100)
+        self.assertEqual(["small"], warmed)  # primary skipped by the VRAM gate, CPU fallback is not gated
+
+    def test_failed_cpu_fallback_preload_only_logs_a_warning(self):
+        from jarvis.adapters.models.ollama import OllamaProvider
+        from jarvis.application import runtime as rt
+
+        cpu = OllamaProvider(base_url="http://127.0.0.1:1", model="small", extra_body={"options": {"num_gpu": 0}})
+        with mock.patch.object(OllamaProvider, "warm_up", return_value=False):
+            with self.assertLogs("jarvis.runtime", level="WARNING") as logs:
+                rt._warm_up(SimpleNamespace(providers=[SimpleNamespace(name="cloud"), cpu]), None)
+        self.assertTrue(any("CPU-resident fallback preload failed" in line for line in logs.output))
+
 
 if __name__ == "__main__":
     unittest.main()

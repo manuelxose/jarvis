@@ -1,0 +1,480 @@
+{
+  "status": "measured",
+  "meta": {
+    "date": "2026-09-29T19:11:58.494164+00:00",
+    "host_label": "rtx3070-laptop",
+    "python_version": "3.11.9",
+    "turns": 20,
+    "command": "python scripts/e2e_turns.py --config config.win.json --turns 20 --host-label rtx3070-laptop --output docs\\bench\\e2e-segment-audio-local.json",
+    "condition": "configured-llm",
+    "token_delay_ms": 30.0,
+    "local_llm": {
+      "model": "qwen2.5:3b-instruct",
+      "options": {
+        "num_gpu": 0
+      },
+      "keep_alive": "30m"
+    }
+  },
+  "stages": {
+    "routing_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "llm_first_token_ms": {
+      "p50": 3449,
+      "p95": 3679
+    },
+    "first_segment_ms": {
+      "p50": 4585,
+      "p95": 4886
+    },
+    "tts_first_audio_ms": {
+      "p50": 5860,
+      "p95": 6494
+    },
+    "total_request_ms": {
+      "p50": 19902,
+      "p95": 25802
+    },
+    "segment_to_first_audio_ms": {
+      "p50": 1311,
+      "p95": 1527
+    },
+    "worker_ttfa_ms": {
+      "p50": 1297,
+      "p95": 1531
+    },
+    "client_ttfa_ms": {
+      "p50": 1310,
+      "p95": 1526
+    },
+    "ipc_ms": {
+      "p50": 9,
+      "p95": 20
+    },
+    "handoff_ms": {
+      "p50": 0,
+      "p95": 0
+    }
+  },
+  "turns": [
+    {
+      "route": "fast_model",
+      "first_segment_ms": 7896.445,
+      "tts_first_audio_ms": 9231.914,
+      "segment_to_first_audio_ms": 1335.469,
+      "total_request_ms": 22395.399,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 0306c135-c34f-4f60-83a1-a345b2553356)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1250.0,
+      "client_ttfa_ms": 1335.1,
+      "ipc_ms": 85.1,
+      "handoff_ms": 0.4
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4544.819,
+      "tts_first_audio_ms": 5526.864,
+      "segment_to_first_audio_ms": 982.045,
+      "total_request_ms": 11172.516,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 89d9c070-d426-405f-b3d1-02aeda2b0c08)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 968.0,
+      "client_ttfa_ms": 981.9,
+      "ipc_ms": 13.9,
+      "handoff_ms": 0.1
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4595.531,
+      "tts_first_audio_ms": 5849.075,
+      "segment_to_first_audio_ms": 1253.544,
+      "total_request_ms": 34525.266,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: f68e29ab-83bc-4452-9d13-81874a79a993)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1250.0,
+      "client_ttfa_ms": 1253.1,
+      "ipc_ms": 3.1,
+      "handoff_ms": 0.4
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4317.123,
+      "tts_first_audio_ms": 5238.867,
+      "segment_to_first_audio_ms": 921.744,
+      "total_request_ms": 9405.751,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 10511496-f9a0-4dba-be22-d55c116e6b45)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 906.0,
+      "client_ttfa_ms": 921.4,
+      "ipc_ms": 15.4,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4585.335,
+      "tts_first_audio_ms": 5670.306,
+      "segment_to_first_audio_ms": 1084.971,
+      "total_request_ms": 14887.243,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 1bf27e8a-a5cb-47e1-b4f9-36c9039b9ad0)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1078.0,
+      "client_ttfa_ms": 1084.7,
+      "ipc_ms": 6.7,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4528.887,
+      "tts_first_audio_ms": 5983.941,
+      "segment_to_first_audio_ms": 1455.054,
+      "total_request_ms": 19902.467,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 86d6f4bb-2e28-4435-992b-16be7103a36d)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1453.0,
+      "client_ttfa_ms": 1454.6,
+      "ipc_ms": 1.6,
+      "handoff_ms": 0.5
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4714.849,
+      "tts_first_audio_ms": 6030.92,
+      "segment_to_first_audio_ms": 1316.071,
+      "total_request_ms": 16722.787,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 8e467036-4789-474b-a4c0-c001be99eefb)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1297.0,
+      "client_ttfa_ms": 1315.8,
+      "ipc_ms": 18.8,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4634.605,
+      "tts_first_audio_ms": 5934.747,
+      "segment_to_first_audio_ms": 1300.142,
+      "total_request_ms": 24518.412,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 89f619ea-8a1e-4ccd-9e75-b57be11e949b)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1297.0,
+      "client_ttfa_ms": 1299.7,
+      "ipc_ms": 2.7,
+      "handoff_ms": 0.4
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4557.965,
+      "tts_first_audio_ms": 5828.108,
+      "segment_to_first_audio_ms": 1270.143,
+      "total_request_ms": 15082.644,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: c2135078-e3c3-4d7c-bcc6-e41ede378bcc)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1250.0,
+      "client_ttfa_ms": 1269.9,
+      "ipc_ms": 19.9,
+      "handoff_ms": 0.2
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4359.359,
+      "tts_first_audio_ms": 5482.477,
+      "segment_to_first_audio_ms": 1123.118,
+      "total_request_ms": 11635.415,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: a1d0988c-63b0-4fb0-991e-0cc495ef4ee8)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1109.0,
+      "client_ttfa_ms": 1122.9,
+      "ipc_ms": 13.9,
+      "handoff_ms": 0.2
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4570.742,
+      "tts_first_audio_ms": 6097.368,
+      "segment_to_first_audio_ms": 1526.626,
+      "total_request_ms": 25802.047,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: f7f9fc7c-d826-4065-b8a6-45bd5759b1b6)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1531.0,
+      "client_ttfa_ms": 1526.3,
+      "ipc_ms": -4.7,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4768.459,
+      "tts_first_audio_ms": 6494.37,
+      "segment_to_first_audio_ms": 1725.911,
+      "total_request_ms": 18826.732,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: a79bf098-953c-4e41-9085-1ec446e3b271)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1718.0,
+      "client_ttfa_ms": 1725.7,
+      "ipc_ms": 7.7,
+      "handoff_ms": 0.2
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4702.878,
+      "tts_first_audio_ms": 6062.309,
+      "segment_to_first_audio_ms": 1359.431,
+      "total_request_ms": 23830.028,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: b3140847-a133-4403-924a-89d53f86ca00)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1360.0,
+      "client_ttfa_ms": 1358.9,
+      "ipc_ms": -1.1,
+      "handoff_ms": 0.5
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4613.331,
+      "tts_first_audio_ms": 5859.844,
+      "segment_to_first_audio_ms": 1246.513,
+      "total_request_ms": 14680.377,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: ec16ab61-f84f-4a56-86f3-d0d4ef9cfe86)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1235.0,
+      "client_ttfa_ms": 1246.3,
+      "ipc_ms": 11.3,
+      "handoff_ms": 0.2
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4105.051,
+      "tts_first_audio_ms": 5187.761,
+      "segment_to_first_audio_ms": 1082.71,
+      "total_request_ms": 12422.239,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 8faca97f-f413-47ed-8c7f-7bc61b25eff3)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1078.0,
+      "client_ttfa_ms": 1082.5,
+      "ipc_ms": 4.5,
+      "handoff_ms": 0.2
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4486.75,
+      "tts_first_audio_ms": 5840.051,
+      "segment_to_first_audio_ms": 1353.301,
+      "total_request_ms": 20251.398,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: bcfd2660-ba18-4e01-8e55-896d6e7828b2)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1344.0,
+      "client_ttfa_ms": 1353.0,
+      "ipc_ms": 9.0,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4685.657,
+      "tts_first_audio_ms": 6040.834,
+      "segment_to_first_audio_ms": 1355.177,
+      "total_request_ms": 22183.157,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 553db87f-bd4e-4c2e-9953-097d981867ab)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1359.0,
+      "client_ttfa_ms": 1354.9,
+      "ipc_ms": -4.1,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4885.902,
+      "tts_first_audio_ms": 6234.162,
+      "segment_to_first_audio_ms": 1348.26,
+      "total_request_ms": 22541.552,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: e07d7f0a-62dc-4fbb-b217-76765ce5e2fd)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1328.0,
+      "client_ttfa_ms": 1347.7,
+      "ipc_ms": 19.7,
+      "handoff_ms": 0.6
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4520.37,
+      "tts_first_audio_ms": 5831.153,
+      "segment_to_first_audio_ms": 1310.783,
+      "total_request_ms": 23436.23,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: 74bfb184-33ae-4ee5-84ee-0edd6ddf2ab9)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1297.0,
+      "client_ttfa_ms": 1310.5,
+      "ipc_ms": 13.5,
+      "handoff_ms": 0.3
+    },
+    {
+      "route": "fast_model",
+      "first_segment_ms": 4140.343,
+      "tts_first_audio_ms": 5179.982,
+      "segment_to_first_audio_ms": 1039.639,
+      "total_request_ms": 12388.165,
+      "provider": "ollama",
+      "fallback": [
+        {
+          "provider": "deepseek",
+          "selected": false,
+          "reason": "deepseek returned 402: {\"error\":{\"message\":\"Insufficient Balance (request_id: e56aa44e-d9db-47c2-b754-4fc95ef8937f)\",\"type\":\"unknown_error\",\"pa",
+          "transient": true
+        }
+      ],
+      "worker_ttfa_ms": 1031.0,
+      "client_ttfa_ms": 1039.4,
+      "ipc_ms": 8.4,
+      "handoff_ms": 0.2
+    }
+  ],
+  "provider_counts": {
+    "ollama": 20
+  },
+  "spend_today_usd": 0.0,
+  "first_phrase_before_completion_ratio": 1.0,
+  "cloud_route": {
+    "cloud_served": 0,
+    "fallback_turns": 20,
+    "fallback_causes": {
+      "insufficient_balance": 20
+    },
+    "unexplained_fallbacks": 0,
+    "spend_today_usd": 0.0,
+    "max_daily_usd": 1.0,
+    "within_cap": true,
+    "verdict": "external_blocker"
+  }
+}

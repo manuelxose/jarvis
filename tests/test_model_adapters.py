@@ -162,6 +162,32 @@ class ModelAdapterTests(unittest.IsolatedAsyncioTestCase):
             OllamaProvider(base_url="http://127.0.0.1:9", model="test").warm_up(timeout_seconds=1)
         )
 
+    async def test_ollama_extra_body_options_merge_over_builtin_options(self):
+        provider = OllamaProvider(
+            base_url=self.base_url, model="test", extra_body={"options": {"num_gpu": 0}}
+        )
+        self.assertTrue(provider.is_cpu_only())
+        [t async for t in provider.generate("hi", TurnContext.fresh("c"))]
+        options = self.server.requests["/api/chat"]["options"]
+        self.assertEqual(0, options["num_gpu"])
+        self.assertEqual(0.7, options["temperature"])
+        self.assertEqual(150, options["num_predict"])
+
+    def test_ollama_warm_up_sends_the_same_placement_options(self):
+        provider = OllamaProvider(
+            base_url=self.base_url, model="test", extra_body={"options": {"num_gpu": 0}}
+        )
+        self.assertTrue(provider.warm_up())
+        self.assertEqual(
+            {"model": "test", "keep_alive": "30m", "options": {"num_gpu": 0}},
+            self.server.requests["/api/generate"],
+        )
+
+    def test_is_cpu_only_is_false_without_num_gpu_zero(self):
+        self.assertFalse(OllamaProvider(model="m").is_cpu_only())
+        self.assertFalse(OllamaProvider(model="m", extra_body={"options": {"num_gpu": 20}}).is_cpu_only())
+        self.assertFalse(OllamaProvider(model="m", extra_body={"options": None}).is_cpu_only())
+
     async def test_cancelled_turn_does_not_open_a_provider_request(self):
         provider = OllamaProvider(base_url=self.base_url, model="test")
         context = TurnContext.fresh("c")
@@ -201,12 +227,14 @@ if __name__ == "__main__":
 
 
 class LocalFallbackPolicyTests(unittest.TestCase):
-    def _chain(self, kinds):
+    def _chain(self, kinds, extra_bodies=None):
         from jarvis.application.runtime import _build_model_chain
         from jarvis.config import ModelProviderConfig, ModelSettings
         from types import SimpleNamespace
 
-        specs = tuple(ModelProviderConfig(name=f"p{i}", kind=k, base_url="http://127.0.0.1:9", model="m", api_key="k")
+        extra_bodies = extra_bodies or {}
+        specs = tuple(ModelProviderConfig(name=f"p{i}", kind=k, base_url="http://127.0.0.1:9", model="m", api_key="k",
+                                          extra_body=extra_bodies.get(i, {}))
                       for i, k in enumerate(kinds))
         return _build_model_chain(SimpleNamespace(models=ModelSettings(providers=specs)))
 
@@ -215,10 +243,21 @@ class LocalFallbackPolicyTests(unittest.TestCase):
         from jarvis.application.runtime import _warm_up
 
         chain = self._chain(["openai_compat", "ollama"])
-        self.assertEqual(chain.providers[1].keep_alive, "2m")
+        # D043: the fallback path unloads immediately after each request
+        # ("0"), not "2m" -- the residency window previously still collided
+        # with a resident voice-clone TTS model on an 8 GB laptop GPU.
+        self.assertEqual(chain.providers[1].keep_alive, "0")
         with mock.patch.object(OllamaProvider, "warm_up") as warm:
             _warm_up(chain, None)
         warm.assert_not_called()
+
+    def test_cpu_only_fallback_stays_resident_but_gpu_fallback_still_unloads(self):
+        cpu = self._chain(["openai_compat", "ollama"], {1: {"options": {"num_gpu": 0}}})
+        self.assertEqual("30m", cpu.providers[1].keep_alive)
+        self.assertTrue(cpu.providers[1].is_cpu_only())
+        gpu = self._chain(["openai_compat", "ollama"], {1: {"options": {"num_gpu": 20}}})
+        self.assertEqual("0", gpu.providers[1].keep_alive)
+        self.assertFalse(gpu.providers[1].is_cpu_only())
 
     def test_ollama_as_primary_stays_resident_and_is_prewarmed(self):
         from unittest import mock

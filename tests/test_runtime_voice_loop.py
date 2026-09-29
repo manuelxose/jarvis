@@ -37,6 +37,17 @@ class RuntimeVoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("fast_model", runtime.voice_loop.turns[0].route)
         self.assertEqual("hola", runtime.voice_loop.turns[0].transcript)
 
+    def test_real_runtime_wires_echo_guard_without_barge_in(self):
+        # use_fakes=True builds VoiceLoop with its bare defaults (no echo tail,
+        # barge-in on) rather than runtime.py's audio.barge_in-derived wiring,
+        # so only the real build path proves the echo guard is actually wired.
+        config = load_committed_config()
+        runtime = build_runtime(config, use_fakes=False)
+
+        self.assertFalse(config.audio.barge_in)
+        self.assertGreater(runtime.voice_loop.echo_tail_frames, 0)
+        self.assertEqual(0, runtime.voice_loop.barge_in_frames)
+
 
 if __name__ == "__main__":
     unittest.main()

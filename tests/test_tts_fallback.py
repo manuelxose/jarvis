@@ -1,11 +1,13 @@
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.fakes import EchoTTS
 from jarvis.adapters.tts.fallback import TTSChain
+from jarvis.application.runtime import _tts_diagnostics
 from jarvis.core.circuit_breaker import CircuitBreaker
 from jarvis.core.errors import ProviderConfigError, ProviderUnavailable
 from jarvis.core.turn import TurnContext
@@ -157,6 +159,54 @@ class TTSChainTests(unittest.IsolatedAsyncioTestCase):
     async def test_last_usage_record_is_none_before_any_call(self):
         chain = TTSChain([EchoTTS()])
         self.assertIsNone(chain.last_usage_record)
+
+    async def test_fallback_logs_warning_naming_serving_provider_and_primary_failure(self):
+        primary = TransientFailTTS(fail_times=99)
+        fallback = ImmediateTTS()
+        chain = TTSChain([primary, fallback], retries=0)
+        context = TurnContext.fresh("t")
+
+        with self.assertLogs("jarvis.adapters.tts.fallback", "WARNING") as logs:
+            audio = await _collect(chain, context, "hola")
+
+        self.assertEqual([b"hola"], audio)
+        self.assertEqual(1, len(logs.records))
+        message = logs.records[0].getMessage()
+        self.assertIn("immediate", message)
+        self.assertIn("ProviderUnavailable", message)
+        self.assertNotIn("hola", message)
+
+    async def test_fallback_logs_circuit_open_when_primary_breaker_is_open(self):
+        breaker = CircuitBreaker(failure_threshold=1)
+        breaker.record_failure("immediate")
+        fallback = ImmediateTTS()
+        fallback.name = "fallback"
+        chain = TTSChain([ImmediateTTS(), fallback], breaker=breaker)
+        context = TurnContext.fresh("t")
+
+        with self.assertLogs("jarvis.adapters.tts.fallback", "WARNING") as logs:
+            await _collect(chain, context, "hola")
+
+        message = logs.records[0].getMessage()
+        self.assertIn("fallback", message)
+        self.assertIn("circuit open", message)
+
+    async def test_primary_success_does_not_log_fallback_warning(self):
+        chain = TTSChain([ImmediateTTS()])
+        context = TurnContext.fresh("t")
+
+        with self.assertNoLogs("jarvis.adapters.tts.fallback", "WARNING"):
+            await _collect(chain, context, "hola")
+
+    async def test_tts_diagnostics_exposes_last_provider(self):
+        chain = TTSChain([ImmediateTTS()])
+        context = TurnContext.fresh("t")
+        await _collect(chain, context, "hola")
+
+        turn_manager = SimpleNamespace(_tts=chain)
+        diagnostics = _tts_diagnostics(turn_manager)
+
+        self.assertEqual("immediate", diagnostics["last_provider"])
 
 
 if __name__ == "__main__":

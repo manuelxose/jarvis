@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import json
 import logging
 import os
 import time
@@ -172,7 +173,10 @@ class JarvisRuntime:
 def _tts_diagnostics(turn_manager: Any) -> dict[str, Any]:
     tts = getattr(turn_manager, "_tts", None)
     providers = getattr(tts, "providers", (tts,))
-    result: dict[str, Any] = {"providers": [getattr(p, "name", type(p).__name__) for p in providers]}
+    result: dict[str, Any] = {
+        "providers": [getattr(p, "name", type(p).__name__) for p in providers],
+        "last_provider": getattr(getattr(tts, "last_provider", None), "name", None),
+    }
     for provider in providers:
         if isinstance(provider, QwenCloneTTS):
             result["voice_clone"] = provider.state()
@@ -205,6 +209,7 @@ def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> Jarvi
         list(config.hermes.command) if config.hermes.command else None,
         timeout_seconds=config.hermes.timeout_seconds,
         restart_max=config.hermes.restart_max,
+        env=_hermes_env(config),
     )
     desktop = DesktopContext(_data_dir() / "desktop_context.json")
     workspace = build_workspace(config)
@@ -377,7 +382,8 @@ def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
                     timeout_seconds=spec.timeout_seconds,
                     temperature=spec.temperature,
                     name=spec.name or "ollama",
-                    keep_alive=KEEP_ALIVE if not providers else FALLBACK_KEEP_ALIVE,
+                    keep_alive=_ollama_keep_alive(spec, is_primary=not providers),
+                    extra_body=dict(spec.extra_body),
                 )
             )
         else:
@@ -395,6 +401,43 @@ def _build_model_chain(config: RuntimeConfig) -> ModelProvider:
                 )
             )
     return ProviderChain(providers)
+
+
+def _ollama_options(spec: Any) -> dict[str, Any]:
+    options = (spec.extra_body or {}).get("options")
+    return dict(options) if isinstance(options, dict) else {}
+
+
+def _ollama_keep_alive(spec: Any, is_primary: bool) -> str:
+    """Primary stays resident (D024). A fallback unloads at once (D043) unless it
+    is pinned CPU-only (num_gpu 0): it then uses no VRAM and stays warm in RAM."""
+    if is_primary or _ollama_options(spec).get("num_gpu") == 0:
+        return KEEP_ALIVE
+    return FALLBACK_KEEP_ALIVE
+
+
+def _hermes_env(config: RuntimeConfig) -> dict[str, str]:
+    """Non-secret Ollama env for the Hermes child, so it follows D024's VRAM policy.
+
+    The child gets the resident 30m keep-alive only when Ollama is the model
+    chain's primary provider; when it sits behind a cloud provider, the child
+    uses the short fallback keep-alive so the resident voice-clone TTS keeps
+    its VRAM. Never includes api_key or other secret fields.
+    """
+    providers = config.models.providers
+    spec = next((p for p in providers if p.kind == "ollama"), None)
+    if spec is None:
+        return {}
+    keep_alive = _ollama_keep_alive(spec, is_primary=bool(providers) and providers[0] is spec)
+    env = {
+        "JARVIS_OLLAMA_BASE_URL": spec.base_url or "http://127.0.0.1:11434",
+        "JARVIS_OLLAMA_MODEL": spec.model,
+        "JARVIS_OLLAMA_KEEP_ALIVE": keep_alive,
+    }
+    options = _ollama_options(spec)
+    if options:
+        env["JARVIS_OLLAMA_OPTIONS"] = json.dumps(options)
+    return env
 
 
 def _model_pricing(config: RuntimeConfig) -> dict[str, ProviderRate]:
@@ -589,8 +632,9 @@ def _tts_report(config: RuntimeConfig) -> HealthReport:
 
 def _warm_up(model: Any, stt: Any, min_free_vram_mb: Optional[float] = None, free_vram: Callable[[], Optional[float]] = gpu_free_mb) -> None:
     """Best-effort preload of local models so the first turn skips cold loads."""
-    # Only a primary local model is preloaded; a fallback loads on demand.
-    primary = next(iter(getattr(model, "providers", ())), None)
+    # A GPU fallback loads on demand; a CPU-only one is preloaded into RAM below.
+    chain = list(getattr(model, "providers", ()))
+    primary = chain[0] if chain else None
     if isinstance(primary, OllamaProvider):
         free = free_vram() if min_free_vram_mb is not None else None
         if free is not None and free < min_free_vram_mb:
@@ -599,6 +643,10 @@ def _warm_up(model: Any, stt: Any, min_free_vram_mb: Optional[float] = None, fre
             logger.warning("skipping Ollama preload: %.0f MiB VRAM free < %.0f MiB", free, min_free_vram_mb)
         else:
             primary.warm_up()
+    for fallback in chain[1:]:
+        if isinstance(fallback, OllamaProvider) and fallback.is_cpu_only():
+            if not fallback.warm_up():
+                logger.warning("CPU-resident fallback preload failed for %s", fallback.model)
     for provider in getattr(stt, "providers", (stt,)):
         if isinstance(provider, WhisperSTT):
             try:

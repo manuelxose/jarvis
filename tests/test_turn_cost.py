@@ -13,10 +13,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.fakes import EchoTTS, RecordingAudioPlayer, ScriptedModel
+from jarvis.adapters.models.fallback import ProviderChain
 from jarvis.adapters.tools.gateway import Risk, Tool, ToolGateway, ToolResult
 from jarvis.adapters.tts.voice_cache import VoiceCache
 from jarvis.application.routing import Router
 from jarvis.application.turn_manager import TurnManager
+from jarvis.core.errors import ProviderError
 from jarvis.observability.cost import ProviderRate, UsageRecord
 from jarvis.observability.event_hub import hub
 
@@ -76,6 +78,8 @@ class TurnCostFastModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(
             round(model_entry["usd"] + tts_entry["usd"], 6), result.cost["total_usd"]
         )
+        self.assertEqual("scripted", result.cost["provider"])
+        self.assertEqual([], result.cost["fallback"])
 
     async def test_without_pricing_usd_is_none_and_total_is_zero(self):
         manager = TurnManager(
@@ -148,6 +152,74 @@ class TurnCostSecurityTests(unittest.IsolatedAsyncioTestCase):
                     _walk(v)
 
         _walk(result.cost)
+
+
+class _NoUsageCloudModel:
+    """A cloud provider that streams a real answer but never emits usage --
+    reproduces upstreams that ignore stream_options.include_usage."""
+
+    name = "cloud_no_usage"
+
+    def __init__(self) -> None:
+        self.last_usage_record: UsageRecord | None = None
+
+    async def generate(self, prompt, context):
+        yield "respuesta "
+        yield "de la nube"
+
+
+class _FailingCloudModel:
+    name = "cloud"
+
+    async def generate(self, prompt, context):
+        raise ProviderError(
+            "cloud rejected: Authorization: Bearer sk-live-abc123", transient=False, provider=self.name
+        )
+        yield  # pragma: no cover
+
+
+class TurnCostProviderProvenanceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cloud_provider_selected_without_usage_payload_is_still_reported(self):
+        chain = ProviderChain([_NoUsageCloudModel()], retries=0, backoff_seconds=0)
+        manager = TurnManager(
+            router=Router(),
+            tools=_noop_tools,
+            model=chain,
+            tts=EchoTTS(),
+            audio=RecordingAudioPlayer(),
+            pricing=_PRICING,
+        )
+        result = await manager.handle("hola")
+
+        self.assertEqual("cloud_no_usage", result.cost["provider"])
+        self.assertEqual([], result.cost["fallback"])
+        self.assertFalse(any(entry["kind"] == "llm" for entry in result.cost["entries"]))
+
+    async def test_fallback_to_local_after_cloud_failure_reports_sanitized_cause(self):
+        chain = ProviderChain(
+            [_FailingCloudModel(), ScriptedModel(default="respuesta local")],
+            retries=0,
+            backoff_seconds=0,
+        )
+        manager = TurnManager(
+            router=Router(),
+            tools=_noop_tools,
+            model=chain,
+            tts=EchoTTS(),
+            audio=RecordingAudioPlayer(),
+            pricing=_PRICING,
+        )
+        result = await manager.handle("hola")
+
+        self.assertEqual("scripted", result.cost["provider"])
+        self.assertEqual(1, len(result.cost["fallback"]))
+        cause = result.cost["fallback"][0]
+        self.assertEqual("cloud", cause["provider"])
+        self.assertFalse(cause["selected"])
+        self.assertNotIn("sk-live-abc123", cause["reason"])
+        encoded = json.dumps(result.cost)
+        self.assertNotIn("sk-live-abc123", encoded)
+        self.assertNotIn("Authorization", encoded)
 
 
 class TurnCostHubEventTests(unittest.IsolatedAsyncioTestCase):

@@ -30,7 +30,7 @@ def emit(request_id: str, turn_id: str, event_type: str, payload: dict | None = 
     print(json.dumps(message, separators=(",", ":")), flush=True)
 
 
-def _stream_ollama(base_url: str, model: str, text: str):
+def _stream_ollama(base_url: str, model: str, text: str, keep_alive: str, options: dict | None = None):
     """Yield content tokens from a streaming Ollama ``/api/chat`` turn."""
     payload = {
         "model": model,
@@ -39,7 +39,8 @@ def _stream_ollama(base_url: str, model: str, text: str):
             {"role": "user", "content": text},
         ],
         "stream": True,
-        "options": {"temperature": 0.7},
+        "keep_alive": keep_alive,
+        "options": {"temperature": 0.7, **(options or {})},
     }
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}/api/chat",
@@ -62,15 +63,33 @@ def _stream_ollama(base_url: str, model: str, text: str):
                 break
 
 
+def _env_options() -> dict | None:
+    """Optional Ollama ``options`` from JARVIS_OLLAMA_OPTIONS; malformed values are ignored."""
+    raw = os.environ.get("JARVIS_OLLAMA_OPTIONS")
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def handle(request_id: str, turn_id: str, text: str) -> None:
     """Answer one request: stream an Ollama reply as ``partial_response`` events, then ``completed``."""
     if text.strip() == "__CRASH__":
         sys.exit(1)
     base_url = os.environ.get("JARVIS_OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     model = os.environ.get("JARVIS_OLLAMA_MODEL", "mistral:7b-instruct")
+    # "0" matches FALLBACK_KEEP_ALIVE (D043) in jarvis.adapters.models.ollama:
+    # unload immediately so a fallback Hermes child never holds VRAM the
+    # resident voice-clone TTS model needs. Hardcoded rather than imported so
+    # this stdlib-only child stays free of that dependency.
+    keep_alive = os.environ.get("JARVIS_OLLAMA_KEEP_ALIVE") or "0"
+    options = _env_options()
     emit(request_id, turn_id, "started", {})
     try:
-        for token in _stream_ollama(base_url, model, text):
+        for token in _stream_ollama(base_url, model, text, keep_alive, options):
             emit(request_id, turn_id, "partial_response", {"text": token})
         emit(request_id, turn_id, "completed", {"detail": "done"})
     except (urllib.error.URLError, OSError, TimeoutError) as exc:

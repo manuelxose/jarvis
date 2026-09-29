@@ -11,13 +11,14 @@ from unittest.mock import AsyncMock, Mock, call, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.fakes import FailingModel, ScriptedModel
-from jarvis.adapters.models.fallback import ProviderChain
+from jarvis.adapters.models.fallback import ProviderChain, _sanitize_reason
 from jarvis.adapters.models.ollama import OllamaProvider
 from jarvis.adapters.models.openai_compat import OpenAICompatProvider
 from jarvis.application.runtime import _build_model_chain, _model_diagnostics
 from jarvis.config import load_config
 from jarvis.core.errors import ProviderConfigError, ProviderError, ProviderUnavailable
 from jarvis.core.turn import TurnContext
+from jarvis.observability.cost import SpendLedger
 
 
 class ConfigErrorModel:
@@ -77,6 +78,15 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
         )
         tokens = [t async for t in chain.generate("hi", TurnContext.fresh("c"))]
         self.assertEqual(["ok "], tokens)
+        self.assertEqual("scripted", chain.last_selected_provider)
+        self.assertEqual(2, len(chain.last_attempts))
+        bad_config, selected = chain.last_attempts
+        self.assertEqual("bad-config", bad_config.provider)
+        self.assertFalse(bad_config.selected)
+        self.assertFalse(bad_config.transient)
+        self.assertIn("missing key", bad_config.reason)
+        self.assertTrue(selected.selected)
+        self.assertIsNone(selected.reason)
 
     async def test_retries_transient_errors_with_bounded_exponential_backoff(self):
         model = FailingModel(failures=4)
@@ -109,6 +119,28 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ProviderUnavailable):
             async for _ in chain.generate("hi", TurnContext.fresh("c")):
                 pass
+        self.assertIsNone(chain.last_selected_provider)
+        self.assertEqual(1, len(chain.last_attempts))
+        self.assertFalse(chain.last_attempts[0].selected)
+
+    async def test_missing_key_and_secret_shaped_reason_is_sanitized_end_to_end(self):
+        class LeakyConfigErrorModel:
+            name = "leaky"
+
+            async def generate(self, prompt, context):
+                raise ProviderConfigError(
+                    "rejected request: Authorization: Bearer sk-abcdef0123456789 is invalid",
+                    provider=self.name,
+                )
+                yield  # pragma: no cover
+
+        chain = ProviderChain(
+            [LeakyConfigErrorModel(), ScriptedModel(default="ok")], retries=0, backoff_seconds=0
+        )
+        [t async for t in chain.generate("hi", TurnContext.fresh("c"))]
+        reason = chain.last_attempts[0].reason
+        self.assertNotIn("sk-abcdef0123456789", reason)
+        self.assertNotIn("Bearer sk-abcdef0123456789", reason)
 
     async def test_no_providers_raises(self):
         chain = ProviderChain([])
@@ -141,6 +173,21 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
             async for _ in failing_chain.generate("hi", TurnContext.fresh("c")):
                 pass
         self.assertIsNone(failing_chain.last_usage_record)
+
+
+class SanitizeReasonTests(unittest.TestCase):
+    def test_redacts_bearer_token(self):
+        self.assertEqual("rejected: [redacted]", _sanitize_reason("rejected: Bearer sk-live-abc123"))
+
+    def test_redacts_authorization_header(self):
+        text = _sanitize_reason("blocked, Authorization: Bearer xyz789")
+        self.assertNotIn("xyz789", text)
+
+    def test_redacts_bare_api_key_pattern(self):
+        self.assertNotIn("sk-abcdef123456", _sanitize_reason("key sk-abcdef123456 rejected"))
+
+    def test_caps_length(self):
+        self.assertLessEqual(len(_sanitize_reason("x" * 500)), 200)
 
 
 class _CloudFallbackHandler(BaseHTTPRequestHandler):
@@ -241,6 +288,21 @@ class CloudFirstFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["nube", " ok"], tokens)
         self.assertEqual(["openai"], selected)
 
+    async def test_cloud_success_reports_actual_provider_even_without_usage_payload(self):
+        """Regression: the stub cloud handler never emits a usage delta (many
+        OpenAI-compatible upstreams do not honor stream_options.include_usage).
+        Provenance must still say "openai" was selected -- it must not depend
+        on billable usage having been recorded, and zero usage must not be
+        mistaken for "cloud was not selected"."""
+        chain = self._chain()
+        tokens = [t async for t in chain.generate("hi", TurnContext.fresh("c"))]
+        self.assertEqual(["nube", " ok"], tokens)
+        self.assertIsNone(chain.last_usage_record)  # no usage payload from the stub
+        self.assertEqual("openai", chain.last_selected_provider)
+        self.assertEqual([("openai", True, None)], [
+            (a.provider, a.selected, a.reason) for a in chain.last_attempts
+        ])
+
     async def test_transient_http_error_advances_once_to_ollama(self):
         self.server.cloud_mode = "error"
         try:
@@ -251,6 +313,13 @@ class CloudFirstFallbackTests(unittest.IsolatedAsyncioTestCase):
             self.server.cloud_mode = "ok"
         self.assertEqual(["local", " ok"], tokens)
         self.assertEqual(["openai", "ollama"], selected)
+        self.assertEqual("ollama", chain.last_selected_provider)
+        self.assertEqual(2, len(chain.last_attempts))
+        cloud_attempt, local_attempt = chain.last_attempts
+        self.assertEqual("openai", cloud_attempt.provider)
+        self.assertFalse(cloud_attempt.selected)
+        self.assertIn("upstream down", cloud_attempt.reason)
+        self.assertTrue(local_attempt.selected)
 
     async def test_first_token_timeout_advances_once_to_ollama(self):
         self.server.cloud_mode = "slow"
@@ -264,6 +333,73 @@ class CloudFirstFallbackTests(unittest.IsolatedAsyncioTestCase):
             self.server.delay = 0.0
         self.assertEqual(["local", " ok"], tokens)
         self.assertEqual(["openai", "ollama"], selected)
+        self.assertEqual("ollama", chain.last_selected_provider)
+
+
+class _CountingCloudHandler(BaseHTTPRequestHandler):
+    """Records that it was hit; a fail-closed cap must never reach this far."""
+
+    def do_POST(self):
+        self.server.request_count += 1
+        length = int(self.headers.get("Content-Length", 0))
+        self.rfile.read(length)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        self.wfile.write(b'data: {"choices":[{"delta":{"content":"nube"}}]}\n\ndata: [DONE]\n\n')
+
+    def log_message(self, *args):
+        pass
+
+
+class SpendCapFailClosedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_exhausted_daily_cap_fails_closed_to_local(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _CountingCloudHandler)
+        server.request_count = 0
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                ledger_path = Path(tmp) / "spend.json"
+                ledger = SpendLedger(ledger_path, max_daily_usd=0.01)
+                ledger.record("openai", 0.02)
+
+                chain = ProviderChain(
+                    [
+                        OpenAICompatProvider(
+                            base_url=f"http://127.0.0.1:{server.server_address[1]}",
+                            model="cloud-model",
+                            api_key="sk-test",
+                            ledger=ledger,
+                            name="openai",
+                        ),
+                        ScriptedModel(default="respuesta local"),
+                    ],
+                    retries=0,
+                    backoff_seconds=0,
+                )
+
+                tokens = [t async for t in chain.generate("hi", TurnContext.fresh("c"))]
+
+                self.assertIn("respuesta local", "".join(tokens))
+                self.assertEqual(0, server.request_count)
+                self.assertEqual("scripted", chain.last_selected_provider)
+                cap_attempt = chain.last_attempts[0]
+                self.assertEqual("openai", cap_attempt.provider)
+                self.assertFalse(cap_attempt.selected)
+                self.assertIn("budget", cap_attempt.reason)
+
+                reloaded = SpendLedger(ledger_path, max_daily_usd=0.01)
+                self.assertTrue(reloaded.exhausted())
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_zero_max_daily_usd_means_uncapped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = SpendLedger(Path(tmp) / "spend.json", max_daily_usd=0)
+            ledger.record("openai", 100.0)
+            self.assertFalse(ledger.exhausted())
 
 
 class RuntimeWiringTests(unittest.TestCase):
@@ -363,6 +499,39 @@ class RuntimeWiringTests(unittest.TestCase):
 
         unavailable = _model_diagnostics(_chain(), probe=lambda _url: False)
         self.assertFalse(unavailable["local_fallback_ready"])
+
+    def test_windows_base_config_merges_cloud_before_local_ollama(self):
+        """Reproduces the committed real-laptop merge: config.win.json (secret-free,
+        committed base) plus an in-memory, secret-free local override standing in
+        for the gitignored config.local.json. Confirms D026 cloud-first ordering
+        survives the merge -- so a 0/20 cloud run is not an ordering bug."""
+        win_config_source = Path(__file__).resolve().parents[1] / "config.win.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            win_config_path = Path(tmp) / "config.win.json"
+            win_config_path.write_text(win_config_source.read_text(encoding="utf-8"), encoding="utf-8")
+            local_override = {
+                "models": {
+                    "max_daily_usd": 1.0,
+                    "providers": [
+                        {
+                            "name": "cloud",
+                            "kind": "openai_compat",
+                            "base_url": "https://cloud.example.invalid",
+                            "api_key": "${TEST_IN_MEMORY_CLOUD_KEY}",
+                            "model": "cloud-flash",
+                        }
+                    ],
+                }
+            }
+            (Path(tmp) / "config.local.json").write_text(json.dumps(local_override), encoding="utf-8")
+            config = load_config(
+                win_config_path, environ={"TEST_IN_MEMORY_CLOUD_KEY": "sk-test-in-memory-only"}
+            )
+        self.assertEqual(["cloud", "ollama"], [p.name for p in config.models.providers])
+        chain = _build_model_chain(config)
+        self.assertEqual(["cloud", "ollama"], [p.name for p in chain.providers])
+        self.assertIsInstance(chain.providers[0], OpenAICompatProvider)
+        self.assertIsInstance(chain.providers[1], OllamaProvider)
 
     def test_diagnostics_never_probes_cloud_only_chain(self):
         probe = Mock(return_value=True)
