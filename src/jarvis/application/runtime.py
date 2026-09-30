@@ -111,6 +111,7 @@ class JarvisRuntime:
         self.activation = activation
         self.voice_loop = voice_loop
         self.metrics = metrics or LatencyMetrics()
+        self._warm_up_task: asyncio.Task[None] | None = None
 
     @property
     def state(self) -> RuntimeState:
@@ -118,26 +119,32 @@ class JarvisRuntime:
 
     async def start(self) -> None:
         await self.supervisor.start()
+        self._begin_warm_up()  # the daemon's welcome takes ~15 s: load Whisper meanwhile
 
     async def stop(self) -> None:
         self.voice_loop.request_stop()
         await self.supervisor.stop()
 
+    def _begin_warm_up(self) -> None:
+        # Fire-and-forget: listening starts immediately while models load.
+        if self._warm_up_task is None:
+            self._warm_up_task = asyncio.create_task(
+                asyncio.to_thread(
+                    _warm_up,
+                    self.components.model,
+                    getattr(self.voice_loop, "_stt", None),
+                    _min_free_vram_for_ollama(self.config),
+                )
+            )
+
     async def run_until_stopped(self, max_turns: int | None = None) -> None:
         await self.supervisor.start()
-        # Fire-and-forget: listening starts immediately while models load.
-        warm_up = asyncio.create_task(
-            asyncio.to_thread(
-                _warm_up,
-                self.components.model,
-                getattr(self.voice_loop, "_stt", None),
-                _min_free_vram_for_ollama(self.config),
-            )
-        )
+        self._begin_warm_up()
         try:
             await self.voice_loop.run(max_turns=max_turns)
         finally:
-            warm_up.cancel()
+            self._warm_up_task.cancel()
+            self._warm_up_task = None
             await self.supervisor.stop()
 
     async def handle(self, text: str, conversation_id: str = "demo") -> TurnResult:

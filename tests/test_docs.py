@@ -20,8 +20,12 @@ LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 ENV_VAR_RE = re.compile(r"\bJARVIS_[A-Z_]+\b")
 
 
+M007_RECORD = DOCS_DIR / "engineering" / "m007-verification.md"
+M007_EVIDENCE = DOCS_DIR / "bench" / "windows-acceptance-2026-09-30.json"
+
+
 def _markdown_files():
-    files = list(DOCS_DIR.glob("*.md"))
+    files = list(DOCS_DIR.glob("*.md")) + list((DOCS_DIR / "engineering").glob("*.md"))
     readme = REPO_ROOT / "README.md"
     if readme.exists():
         files.append(readme)
@@ -110,6 +114,51 @@ class TestEnvVarsDocumented(unittest.TestCase):
             )
         self.assertIn("DEEPSEEK_API_KEY", config_text)
         self.assertIn("DASHSCOPE_API_KEY", config_text)
+
+
+class TestM007VerificationRecord(unittest.TestCase):
+    def setUp(self):
+        self.assertTrue(M007_RECORD.exists(), f"{M007_RECORD} is missing")
+        self.text = M007_RECORD.read_text(encoding="utf-8")
+        self.evidence = json.loads(M007_EVIDENCE.read_text(encoding="utf-8"))
+
+    def test_lists_the_seven_success_criteria(self):
+        for number in range(1, 8):
+            self.assertRegex(self.text, rf"(?m)^### {number}\. .+: (Met|Partial|Owner UAT pending)$")
+
+    def test_single_owner_uat_checklist_with_items(self):
+        self.assertEqual(self.text.count("## Owner UAT checklist"), 1)
+        checklist = self.text.split("## Owner UAT checklist", 1)[1]
+        # Items are ticked as the owner observes them; the unobserved ones must stay explicit.
+        self.assertGreaterEqual(checklist.count("- [ ] ") + checklist.count("- [x] "), 6)
+        self.assertGreaterEqual(checklist.count("- [ ] "), 1)
+        self.assertIn("## Accepted limitations", self.text)
+        self.assertIn("## Follow-ups", self.text)
+
+    def test_evidence_numbers_match_raw_json(self):
+        startup = _get(self.evidence, "perf_bench_claps_startup", "startup")
+        claps = _get(self.evidence, "perf_bench_claps_startup", "claps")
+        steps = {s["step"]: s for s in self.evidence["daemon_acceptance"]}
+        idle = steps["idle_resources"]["resources"]
+        values = {
+            "chime callback p50": _get(startup, "primed", "gesture_to_chime_callback_ms", "p50"),
+            "confirmation p50": _get(claps, "confirmation_after_last_clap_ms", "p50"),
+            "confirmation p95": _get(claps, "confirmation_after_last_clap_ms", "p95"),
+            "cold p95": _get(startup, "cold", "gesture_to_chime_callback_ms", "p95"),
+            "first_sound": _get(steps["active"], "timings_ms_since_gesture", "first_sound"),
+            "interactive": _get(steps["active"], "timings_ms_since_gesture", "interactive"),
+            "idle cpu mean": _get(idle, "cpu_percent_one_core", "mean"),
+            "idle cpu max": _get(idle, "cpu_percent_one_core", "max"),
+            "idle rss": _get(idle, "rss_mb", "last"),
+            "vram idle": steps["idle_vram"]["vram_mb"],
+            "vram active": steps["active_vram"]["vram_mb"],
+            "vram after sleep": steps["after_sleep_vram"]["vram_mb"],
+            "vram after quit": steps["cleanup"]["vram_mb"],
+            "vram preflight": steps["preflight"]["vram_mb"],
+        }
+        for name, value in values.items():
+            self.assertIn(str(value), self.text, f"m007-verification.md is missing {name} = {value!r}")
+        self.assertIn(str(_get(claps, "detected")), self.text)
 
 
 if __name__ == "__main__":

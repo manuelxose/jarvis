@@ -73,7 +73,13 @@ Also: `window_seconds`, `max_gap_ratio`, `max_decay_seconds`, `min_hf_ratio`,
 `confidence_threshold`. A saved calibration (`clap_calibration.json`) refines
 `min_peak_dbfs` and `sensitivity` unless you pin them here.
 
+Triple-clap mode is `claps_required: 3`; `python scripts/clap_eval.py --synthetic` (or
+`--config config.win.json FILES`) checks false activations and detection latency for
+either mode, and `jarvis claps test --file recording.wav` replays a recording.
+
 ### `welcome`
+
+Run `jarvis startup` to play the whole sequence once and print its timings; see [startup.md](startup.md).
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -86,7 +92,7 @@ Also: `window_seconds`, `max_gap_ratio`, `max_decay_seconds`, `min_hf_ratio`,
 | `welcome_delay_seconds` | 2.0 | Welcome starts this long after the music. |
 | `after_welcome` | `fade` | `fade` or `restore` (music continues at `background_volume`). |
 | `activation_sound` | "" | Empty = synthesized chime. |
-| `voice_ready_timeout_seconds`, `announce_timeout_seconds`, `services_timeout_seconds` | 8, 30, 20 | Degraded-startup deadlines. |
+| `voice_ready_timeout_seconds`, `announce_timeout_seconds`, `services_timeout_seconds` | 20, 30, 20 | Degraded-startup deadlines (a cold clone worker needs ~14-18 s to be ready). |
 | `essential` | configuration, storage, audio in/out, STT, TTS, fast model | Components whose failure makes the welcome report a degraded start. |
 
 ### `voice` (cloned-voice lifecycle)
@@ -134,7 +140,8 @@ are accepted). `trusted_operations`: tools that never ask at MEDIUM risk.
 }
 ```
 
-Task fields are described in [desktop-control.md](desktop-control.md#workspaces).
+Task fields are described in [desktop-control.md](desktop-control.md#workspaces); duplicate
+rules, managed-only shutdown and Windows evidence are in [workspace.md](workspace.md).
 
 ## Environment variables
 

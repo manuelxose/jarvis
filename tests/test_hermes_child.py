@@ -1,11 +1,16 @@
 import asyncio
 import json
+import os
 import sys
 import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+_SRC = str(Path(__file__).resolve().parents[1] / "src")
+sys.path.insert(0, _SRC)  # bare `unittest discover -s tests` runs
+os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [_SRC, os.environ.get("PYTHONPATH")]))  # spawned Hermes child
 
 from jarvis.adapters.hermes import protocol
 from jarvis.adapters.hermes.child import HermesChildAdapter, default_command

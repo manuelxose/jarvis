@@ -42,12 +42,16 @@ _MAX_WAKE_WORD_EDIT_DISTANCE = 1
 _WAKE_GREETINGS = frozenset({"hey", "ey", "hei", "ei", "y", "e", "i", "oye", "eh", "ok", "okay", "hola", "ake", "eik", "hay"})
 
 
-def _fuzzy_matches_wake_word(word: str, wake_word: str) -> bool:
+def _fuzzy_matches_wake_word(word: str, wake_word: str, *, greeted: bool = False) -> bool:
     if word == wake_word:
         return True
     if abs(len(word) - len(wake_word)) > 1:
         return False
-    return _levenshtein(word, wake_word) <= _MAX_WAKE_WORD_EDIT_DISTANCE
+    # ponytail: after a leading greeting ("Hey Harvish") the word is almost surely the
+    # wake word, so allow two edits, but only for words as long as the wake word
+    # minus one ("Javi" still fails). Ceiling: fixed distance, no phonetics.
+    limit = _MAX_WAKE_WORD_EDIT_DISTANCE + (greeted and len(word) >= 6)
+    return _levenshtein(word, wake_word) <= limit
 
 
 class ActivationMode(str, enum.Enum):
@@ -125,13 +129,14 @@ class ActivationManager:
         match = re.match(r"^\W*(\w+)(.*)$", text or "", flags=re.DOTALL)
         if match is None:
             return None
-        if _normalize_word(match.group(1)) in _WAKE_GREETINGS:
+        greeted = _normalize_word(match.group(1)) in _WAKE_GREETINGS
+        if greeted:
             # "¡Hey, Jarvis! ..." — people naturally lead with a greeting.
             match = re.match(r"^\W*(\w+)(.*)$", match.group(2), flags=re.DOTALL)
             if match is None:
                 return None
         candidate = _normalize_word(match.group(1))
-        if not _fuzzy_matches_wake_word(candidate, _normalize_word(self.wake_word)):
+        if not _fuzzy_matches_wake_word(candidate, _normalize_word(self.wake_word), greeted=greeted):
             return None
         return match.group(2).lstrip(" \t,.:;!?¿¡-")
 

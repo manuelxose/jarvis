@@ -120,6 +120,9 @@ jarvis welcome record
 ```powershell
 jarvis claps calibrate          # 4 s de silencio y luego dos tandas de palmadas
 jarvis claps test --seconds 30  # cada detección imprime una línea GESTURE
+jarvis claps test --file grabacion.wav  # reproduce una grabación en vez del micrófono
+python scripts/clap_eval.py --synthetic  # corpus etiquetado: 0 falsas activaciones (habla, música, TTS)
+python scripts/clap_eval.py --config config.win.json grabacion.wav  # tu configuración real sobre archivos
 ```
 
 Da dos palmadas secas, separadas unos 0,3 s. Si no detecta nada, recalibra más cerca del
@@ -143,6 +146,32 @@ jarvis autostart install     # jarvis autostart remove para quitarlo
 
 Desde otra ventana puedes controlarlo con `jarvis status`, `jarvis activate`, `jarvis sleep` y
 `jarvis quit`. Registro: `%LOCALAPPDATA%\jarvis\logs\daemon.log`.
+
+### Comprobar el arranque sin tocar tu carpeta Inicio
+
+Para probar `jarvis autostart` y el centinela sin reiniciar ni modificar tu carpeta Inicio real, usa un `APPDATA`
+temporal, un puerto de control distinto (`daemon.control_port`) y una base de datos local
+(`memory.db_path` en `C:\...`, no en `\\wsl.localhost`; SQLite da `database is locked` sobre ese recurso):
+
+```powershell
+$env:APPDATA = "$env:TEMP\jarvis-t04\appdata"          # solo esta consola
+.\.venv\Scripts\python.exe -m jarvis autostart install --config $cfg   # crea el acceso directo temporal
+.\.venv\Scripts\python.exe -m jarvis autostart status  --config $cfg
+Start-Process .\.venv\Scripts\pythonw.exe -ArgumentList "`"scripts\jarvis_daemon.pyw`" --config `"$cfg`"" -PassThru
+.\.venv\Scripts\python.exe -m jarvis status   --config $cfg   # state: sentinel, output_prime: ready
+.\.venv\Scripts\python.exe -m jarvis activate --config $cfg   # sustituye a las palmadas
+.\.venv\Scripts\python.exe -m jarvis sleep    --config $cfg   # vuelve a sentinel
+.\.venv\Scripts\python.exe -m jarvis quit     --config $cfg
+.\.venv\Scripts\python.exe -m jarvis autostart remove
+```
+
+Una segunda ejecución del mismo comando debe terminar con código 3 (ya hay un centinela en ese puerto). Termina solo los
+procesos que hayas lanzado tú. Resultado medido y huecos conocidos (voz clonada fría en la primera activación, respuesta
+lenta de `sleep` mientras carga Whisper): [startup.md](startup.md#windows-daemon-acceptance-2026-09-30).
+
+**Pendiente del propietario (no automatizable):** inicio de sesión real con el acceso directo de `Inicio`, palmadas con el
+micrófono, chime/música/ducking audibles (la música requiere `welcome.music_path`, vacío por defecto), ventanas del perfil
+`dev` (incluida la terminal) y el saludo con la voz clonada.
 
 ## Problemas frecuentes
 

@@ -57,6 +57,7 @@ def install(config_path: Path) -> Path:
     import win32com.client  # noqa: PLC0415
 
     target = startup_folder() / SHORTCUT_NAME
+    target.parent.mkdir(parents=True, exist_ok=True)  # WshShortcut.Save fails (0x80070003) on a missing folder
     shell = win32com.client.Dispatch("WScript.Shell")
     shortcut = shell.CreateShortCut(str(target))
     shortcut.TargetPath = str(unc(pythonw()))

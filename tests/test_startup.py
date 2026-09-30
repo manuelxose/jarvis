@@ -276,6 +276,38 @@ class SequenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("speech timed out", report.issues)
         self.assertEqual(report.phase, StartupPhase.DEGRADED)  # truthful, and the session still proceeds
 
+    async def test_first_sound_is_immediate_even_with_slow_music_and_services(self):
+        import time
+
+        class SlowMixer(FakeMixer):
+            def load(self, path):
+                time.sleep(0.5)
+                super().load(path)
+
+        seq, _ = make(StartupOptions(music_path="x", welcome_delay_seconds=0.0), mixer=SlowMixer(), services_delay=1.0)
+        report = await seq.trigger()
+        timings = report.timings_ms
+        self.assertLess(timings["first_sound"], 300)
+        self.assertGreaterEqual(timings["music_started"], 500)
+        self.assertGreaterEqual(timings["services_ready"], 1000)
+        self.assertLess(timings["first_sound"], timings["music_started"])
+        self.assertLess(timings["first_sound"], timings["services_ready"])
+
+    def test_required_component_failure_outside_essential_is_never_operational(self):
+        reports = HEALTHY + [HealthReport("Hermes", HealthStatus.FAILED, "down", required=True)]
+        self.assertNotIn("Hermes", StartupOptions().essential)
+        text, issues = compose_welcome(reports, StartupOptions(), NIGHT)
+        self.assertEqual(issues, ["Hermes"])
+        self.assertNotIn("operativos", text)
+        self.assertIn("Hermes no está disponible", text)
+
+    async def test_services_timeout_reports_issue_and_no_operational_claim(self):
+        seq, spoken = make(StartupOptions(services_timeout_seconds=0.05), services_delay=1.0)
+        report = await seq.trigger()
+        self.assertEqual(report.issues, ["la configuración"])
+        self.assertNotIn("operativos", report.welcome)
+        self.assertNotIn("operativos", spoken[0])
+
     def test_welcome_texts_cover_the_three_periods(self):
         texts = welcome_texts(StartupOptions())
         self.assertEqual([t.split(",")[0] for t in texts], ["Buenos días", "Buenas tardes", "Buenas noches"])

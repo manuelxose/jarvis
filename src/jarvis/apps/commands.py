@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any, TextIO
 
-COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "restart", "claps", "workspace", "autostart", "tools", "welcome")
+COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "restart", "claps", "workspace", "autostart", "tools", "welcome", "startup")
 
 
 def run(command: str, args: Any, config: Any, out: TextIO, err: TextIO) -> int:
@@ -67,10 +67,10 @@ def _restart(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
 def _claps(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
     action = (args.args or ["test"])[0]
     if action == "test":
-        return _claps_test(config, args.seconds or 30.0, out)
+        return _claps_test(config, args.seconds or 30.0, out, err, args.file)
     if action == "calibrate":
         return _claps_calibrate(config, out)
-    err.write("usage: jarvis claps test|calibrate [--seconds N]\n")
+    err.write("usage: jarvis claps test [--seconds N | --file PATH] | calibrate\n")
     return 2
 
 
@@ -83,22 +83,23 @@ def _record(config: Any, seconds: float, rate: int) -> Any:
     return audio[:, 0]
 
 
-def _claps_test(config: Any, seconds: float, out: TextIO) -> int:
-    """Live detector with the configured tuning; prints each clap and gesture."""
-    import sounddevice as sd  # noqa: PLC0415
-
-    from jarvis.adapters.audio.claps import ClapDetector  # noqa: PLC0415
+def _claps_test(config: Any, seconds: float, out: TextIO, err: TextIO, file: str | None = None) -> int:
+    """Detector with the configured tuning over the microphone, or a recording with *file*; prints each clap and gesture."""
+    from jarvis.adapters.audio.claps import AUDIO_READ_ERRORS, ClapDetector, load_audio_mono  # noqa: PLC0415
     from jarvis.apps.daemon import clap_tuning  # noqa: PLC0415
+
+    if file is None:
+        import sounddevice as sd  # noqa: PLC0415
 
     detector = ClapDetector(clap_tuning(config))
     events: list[dict[str, Any]] = []
     seen = 0
     cpu = [0.0]
 
-    def _cb(indata: Any, frames: int, time_info: Any, status: Any) -> None:
+    def _feed(block: Any) -> None:
         nonlocal seen
         started = time.perf_counter()
-        gesture = detector.feed(indata[:, 0])
+        gesture = detector.feed(block)
         cpu[0] += time.perf_counter() - started
         for clap in detector.accepted[seen:]:
             events.append({"clap": clap.time, "confidence": clap.confidence, **clap.features})
@@ -106,20 +107,35 @@ def _claps_test(config: Any, seconds: float, out: TextIO) -> int:
         if gesture is not None:
             events.append({"GESTURE": gesture.time, "confidence": gesture.confidence, "latency_ms": round(gesture.latency_seconds * 1000)})
 
-    out.write(f"Escuchando {seconds:.0f} s: da {detector.tuning.claps_required} palmadas...\n")
-    out.flush()
-    device = config.daemon.get("input_device", config.audio.input_device)
-    with sd.InputStream(samplerate=detector.tuning.sample_rate, channels=1, dtype="float32", blocksize=320, device=device, callback=_cb):
-        deadline = time.monotonic() + seconds
+    if file is not None:
+        try:
+            audio = load_audio_mono(file, detector.tuning.sample_rate)
+        except AUDIO_READ_ERRORS as error:
+            err.write(f"error: cannot read {file}: {error}\n")
+            return 1
+        seconds = audio.size / detector.tuning.sample_rate
+        out.write(f"Reproduciendo {Path(file).name} ({seconds:.1f} s): {detector.tuning.claps_required} palmadas activan...\n")
         printed = 0
-        while time.monotonic() < deadline:
-            time.sleep(0.1)
+        for start in range(0, audio.size, 320):
+            _feed(audio[start:start + 320])
             for event in events[printed:]:
                 out.write(json.dumps(event) + "\n")
             printed = len(events)
-            out.flush()
+    else:
+        out.write(f"Escuchando {seconds:.0f} s: da {detector.tuning.claps_required} palmadas...\n")
+        out.flush()
+        device = config.daemon.get("input_device", config.audio.input_device)
+        with sd.InputStream(samplerate=detector.tuning.sample_rate, channels=1, dtype="float32", blocksize=320, device=device, callback=lambda indata, frames, time_info, status: _feed(indata[:, 0])):
+            deadline = time.monotonic() + seconds
+            printed = 0
+            while time.monotonic() < deadline:
+                time.sleep(0.1)
+                for event in events[printed:]:
+                    out.write(json.dumps(event) + "\n")
+                printed = len(events)
+                out.flush()
     _emit(out, {"gestures": sum("GESTURE" in e for e in events), "claps": sum("clap" in e for e in events),
-                "rejected_transients": len(detector.rejected), "detector_cpu_percent_of_one_core": round(100 * cpu[0] / seconds, 3),
+                "rejected_transients": len(detector.rejected), "detector_cpu_percent_of_one_core": round(100 * cpu[0] / max(seconds, 1e-9), 3),
                 "tuning": {"sensitivity": detector.tuning.sensitivity, "min_peak_dbfs": detector.tuning.min_peak_dbfs}})
     return 0
 
@@ -229,6 +245,87 @@ def _welcome(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
         return 1
     _emit(out, {"recorded": recorded})
     return 0
+
+
+def _startup(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
+    """Run the cinematic startup sequence once in the foreground and print its StartupReport."""
+    from jarvis.adapters.tts.ack_cache import bytes_to_stream  # noqa: PLC0415
+    from jarvis.apps.daemon import Sentinel, _wait_voice, startup_options  # noqa: PLC0415
+    from jarvis.application.runtime import build_runtime  # noqa: PLC0415
+    from jarvis.application.startup import StartupPhase, StartupSequence  # noqa: PLC0415
+    from jarvis.core.turn import TurnContext  # noqa: PLC0415
+
+    fakes = bool(getattr(args, "use_fakes", False))
+    if fakes:  # never touch the owner's memory database or an audio device
+        from dataclasses import replace  # noqa: PLC0415
+        import tempfile  # noqa: PLC0415
+
+        config = replace(config, memory=replace(config.memory, db_path=str(Path(tempfile.mkdtemp()) / "jarvis.db")))
+    mixer = None
+    if not fakes:
+        try:
+            from jarvis.adapters.audio.mixer import Mixer  # noqa: PLC0415
+
+            mixer = Mixer(device=config.audio.output_device)
+        except Exception as error:  # noqa: BLE001 - no output device: continue silently, as the daemon does
+            err.write(f"warning: mixer unavailable: {error}\n")
+    holder: dict[str, Any] = {}
+
+    async def start_services() -> list[Any]:
+        runtime = holder["runtime"] = await asyncio.to_thread(build_runtime, config, use_fakes=fakes)
+        await runtime.start()
+        return list(runtime.supervisor.health_snapshot())
+
+    async def speak(text: str) -> None:
+        await holder["runtime"].components.turn_manager.speak_text(text)
+
+    async def wait_voice() -> bool:
+        return await _wait_voice(holder["runtime"])
+
+    async def play_audio(audio: bytes) -> None:
+        await holder["runtime"].components.audio_output.play(bytes_to_stream(audio), TurnContext.fresh("welcome"))
+
+    async def speak_fallback(text: str) -> None:
+        # Same as the daemon: the chain's last provider (SAPI) speaks the truthful warning without waiting for the clone.
+        runtime = holder["runtime"]
+        tts = runtime.components.turn_manager._tts
+        fallback = getattr(tts, "providers", (tts,))[-1]
+
+        async def _one() -> Any:
+            yield text
+
+        await runtime.components.audio_output.play(fallback.synthesize(_one(), TurnContext.fresh("warning")), TurnContext.fresh("warning"))
+
+    sequence = StartupSequence(
+        startup_options(config),
+        mixer=mixer,
+        speak=speak,
+        start_services=start_services,
+        wait_voice=wait_voice,
+        speak_fallback=speak_fallback,
+        cached_welcome=None if fakes else Sentinel.welcome_cache_for(config).get,
+        play_audio=None if fakes else play_audio,
+    )
+
+    async def _run() -> Any:
+        try:
+            report = await sequence.trigger("cli")
+            if mixer is not None and mixer.music_playing:
+                await asyncio.sleep(sequence.options.fade_out_seconds)  # let the fade be heard
+            return report
+        finally:
+            runtime = holder.get("runtime")
+            if runtime is not None:
+                await runtime.stop()
+            if mixer is not None:
+                mixer.stop()
+
+    try:
+        report = asyncio.run(_run())
+    except KeyboardInterrupt:
+        return 130
+    _emit(out, report.as_dict())
+    return 0 if report.phase is StartupPhase.READY else 1
 
 
 def _tools(args: Any, config: Any, out: TextIO, err: TextIO) -> int:

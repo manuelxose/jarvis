@@ -269,6 +269,9 @@ class ToolGateway:
         if origin == "owner" and tool.name in self._trusted:
             return True
         paths = tool.scope_paths(arguments)
+        if not paths:
+            # Preserve direct-owner pathless operations; an agent cannot infer scope from no paths.
+            return origin == "owner"
         return all(within(path, self.scopes) for path in paths)
 
     async def _confirm(self, tool: Tool, arguments: Mapping[str, Any], context: TurnContext, record: dict) -> str:

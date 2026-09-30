@@ -94,7 +94,7 @@ class StartupOptions:
     services_timeout_seconds: float = 20.0
     # A live (degraded) welcome waits this long for the cloned voice, then the
     # truthful warning is spoken in the fallback voice instead.
-    voice_ready_timeout_seconds: float = 8.0
+    voice_ready_timeout_seconds: float = 20.0
     # Hard cap on the whole announcement: speech can never block the session.
     announce_timeout_seconds: float = 30.0
     # Components that must be HEALTHY for the "all systems operational" line.

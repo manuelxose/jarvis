@@ -504,7 +504,8 @@ class FileDeleteTool(_FileTool):
         path = self._path(arguments["path"])
         kind = "la carpeta" if path.is_dir() else "el archivo"
         how = "de forma permanente, sin papelera" if arguments.get("permanent") else "a la papelera"
-        return f"borrar {kind} {path} {how}"
+        # Spoken aloud: a full path is unintelligible (and sounds like another file).
+        return f"borrar {kind} {path.name} de la carpeta {path.parent.name} {how}"
 
     async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
         path = self._path(arguments["path"])

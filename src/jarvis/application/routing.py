@@ -261,9 +261,19 @@ class Router:
         r"|\bcierra\s+todo\s+lo\s+(?:relacionado|de)\b"
     )
 
+    # A lone "borra el archivo X" must reach the risk gateway: the chat model would
+    # only claim it deleted the file (seen live) without any confirmation or tool call.
+    DESKTOP_DESTRUCTIVE = re.compile(
+        r"\b(?:borra|borrar|elimina|eliminar|suprime)\b.*\b(?:archivo|fichero|carpeta|directorio|proyecto)\b"
+    )
+
     async def route(self, text: str, context: TurnContext) -> RouteDecision:
         normalized_text = normalize(text)
-        if self.DESKTOP_MULTI.search(normalized_text) or self.DESKTOP_REFERENCE.search(normalized_text):
+        if (
+            self.DESKTOP_MULTI.search(normalized_text)
+            or self.DESKTOP_REFERENCE.search(normalized_text)
+            or self.DESKTOP_DESTRUCTIVE.search(normalized_text)
+        ):
             return RouteDecision(route="desktop", confidence=0.8, reason="multi-step or referential desktop request")
         command = self._classifier.match(text)
         if command is not None:
