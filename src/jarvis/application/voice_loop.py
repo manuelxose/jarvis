@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import unicodedata
 from collections import deque
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
@@ -28,6 +29,14 @@ if TYPE_CHECKING:
     from jarvis.adapters.audio.activation import ActivationManager
 
 logger = logging.getLogger("jarvis.voice_loop")
+
+# Whisper invents these captions from music/noise (seen live: answered as a command).
+_HALLUCINATIONS = ("jangan lupa", "suscribete", "subscribe", "amara.org", "subtitulos", "gracias por ver")
+
+
+def _is_hallucination(text: str) -> bool:
+    plain = "".join(c for c in unicodedata.normalize("NFKD", text.casefold()) if not unicodedata.combining(c))
+    return len(plain) < 60 and any(marker in plain for marker in _HALLUCINATIONS)
 
 
 class VoiceLoop:
@@ -76,6 +85,9 @@ class VoiceLoop:
         self.turns: list[TurnResult] = []
         self.last_activity = time.monotonic()  # session start / last completed turn
         self._stop_after_turn = False
+        # Called when an utterance is accepted (wake word heard or window open): the daemon
+        # cuts the startup music here so the next words are transcribed cleanly.
+        self.on_speech_accepted: Any = None
 
     async def run(self, max_turns: int | None = None) -> None:
         """Run the loop until stopped, the audio source is exhausted, or *max_turns* turns complete."""
@@ -96,6 +108,9 @@ class VoiceLoop:
                     continue
                 if text is None:
                     break
+                if _is_hallucination(text):
+                    logger.info("ignored: STT caption hallucination %r", text)
+                    continue
                 if self._activation.wake_word_required():
                     heard = text
                     text = self._activation.command_after_wake_word(text)
@@ -110,6 +125,8 @@ class VoiceLoop:
                             break
                 if not text:
                     continue
+                if self.on_speech_accepted is not None:
+                    self.on_speech_accepted()
                 try:
                     result = await self._run_turn_with_barge_in(text, context)
                 except asyncio.CancelledError:

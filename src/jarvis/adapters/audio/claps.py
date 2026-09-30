@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import math
+import wave
 from collections import deque
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -367,6 +368,47 @@ class ClapDetector:
         freqs = np.fft.rfftfreq(frame.size, 1.0 / self.tuning.sample_rate)
         total = float(spectrum[freqs > 80].sum())
         return float(spectrum[freqs >= _HF_CUTOFF_HZ].sum()) / total if total > 0 else 0.0
+
+
+# -- recorded audio ----------------------------------------------------------
+
+AUDIO_READ_ERRORS = (OSError, ValueError, EOFError, RuntimeError, wave.Error)
+
+
+def _read_wav(path: str) -> tuple[Any, int]:
+    import numpy as np  # noqa: PLC0415
+
+    with wave.open(path, "rb") as handle:
+        width, channels, rate = handle.getsampwidth(), handle.getnchannels(), handle.getframerate()
+        if width != 2:
+            raise ValueError(f"{Path(path).name}: only 16-bit PCM WAV is supported without soundfile")
+        raw = handle.readframes(handle.getnframes())
+    data = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+    return data[: data.size - data.size % channels].reshape(-1, channels).mean(axis=1), rate
+
+
+def load_audio_mono(path: str, rate: int) -> Any:
+    """Load *path* as mono float32 at *rate* Hz: any format with ``soundfile``, else 16-bit WAV via stdlib."""
+    import numpy as np  # noqa: PLC0415
+
+    try:
+        import soundfile as sf  # noqa: PLC0415
+    except ImportError:
+        if Path(path).suffix.lower() != ".wav":
+            raise RuntimeError(
+                f"{Path(path).name}: reading {Path(path).suffix or 'this format'} needs the optional 'soundfile' "
+                "package (pip install soundfile); without it only .wav is supported"
+            ) from None
+        mono, source_rate = _read_wav(path)
+    else:
+        data, source_rate = sf.read(path, dtype="float32", always_2d=True)
+        mono = data.mean(axis=1)
+    if source_rate != rate and mono.size:
+        # ponytail: linear-interpolation resampling aliases a little above 8 kHz;
+        # fine for counting transients, use a polyphase filter for anything finer.
+        positions = np.arange(0, mono.size, source_rate / rate)
+        mono = np.interp(positions, np.arange(mono.size), mono).astype(np.float32)
+    return mono
 
 
 # -- calibration -------------------------------------------------------------

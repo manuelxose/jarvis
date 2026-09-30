@@ -26,6 +26,7 @@ class World:
 
     def __init__(self, start_delay=0.05, fail=(), exit_codes=None, launch_delay=0.0):
         self.running = set()
+        self.alive = set()
         self.spawned = []
         self.terminated = []
         self.closed = []
@@ -43,6 +44,7 @@ class World:
             raise OSError("not found")
         time.sleep(self.launch_delay)
         self._pid += 1
+        self.alive.add(self._pid)
         self.spawned.append((task.name, time.monotonic()))
         if task.name not in self.exit_codes:
             loop_delay = self.start_delay
@@ -53,6 +55,10 @@ class World:
                 threading.Timer(loop_delay, lambda: self.running.add(target)).start()
         return FakeProcess(self._pid, self.exit_codes.get(task.name))
 
+    def open_url(self, url):
+        self.spawned.append((url, 0))
+        self.running.add(url)  # an open tab is what an http detect probe finds
+
     def manager(self, profiles, tmp):
         return WorkspaceManager(
             parse_profiles(profiles),
@@ -60,10 +66,11 @@ class World:
             log_dir=Path(tmp) / "logs",
             probes={"process": self.probe, "window_title": self.probe, "http": self.probe},
             spawn=self.spawn,
-            open_url=lambda url: self.spawned.append((url, 0)),
+            open_url=self.open_url,
             terminate=lambda pid, ct: self.terminated.append(pid) or True,
             close_windows=lambda title: self.closed.append(title) or 1,
             identity=lambda pid: 123.0,
+            alive=lambda pid, ct: pid in self.alive,
             poll_seconds=0.01,
         )
 
@@ -136,17 +143,59 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
     async def test_already_running_is_not_duplicated_or_managed(self):
         world = World()
         world.running = {"vscode.exe", "ollama.exe"}
+        dev = {"dev": {"tasks": [
+            *DEV["dev"]["tasks"][:-1],
+            {"name": "docs", "url": "https://example.com/docs", "detect": {"http": "https://example.com/docs"}},
+        ]}}
         with tempfile.TemporaryDirectory() as tmp:
-            manager = world.manager(DEV, tmp)
+            manager = world.manager(dev, tmp)
             results = await manager.start("dev")
             self.assertEqual({r.name: r.status for r in results}["vscode"], "already_running")
             self.assertNotIn("vscode", [n for n, _ in world.spawned])
             self.assertNotIn("vscode", manager.managed("dev"))
-            # a second start launches nothing new
+            # a second start launches nothing at all
             world.spawned.clear()
             again = await manager.start("dev")
-            self.assertEqual([n for n, _ in world.spawned], ["https://example.com/docs"])
-            self.assertTrue(all(r.ok for r in again))
+            self.assertEqual(world.spawned, [])
+            self.assertTrue(all(r.status == "already_running" for r in again))
+
+    async def test_no_detect_task_managed_by_jarvis_is_not_respawned(self):
+        world = World()
+        profiles = {"p": {"tasks": [{"name": "svc", "command": ["svc"]}]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = world.manager(profiles, tmp)
+            (first,) = await manager.start("p")
+            self.assertEqual(first.status, "launched")
+            (second,) = await manager.start("p")
+            self.assertEqual((second.status, second.detail, second.pid), ("already_running", "managed by Jarvis", first.pid))
+            self.assertEqual(len(world.spawned), 1)
+            self.assertIn("svc", manager.managed("p"))  # still owned, so stop can find it
+            self.assertIn("ya estaban en marcha svc", summarize([second]))
+
+    async def test_dead_or_reused_pid_is_relaunched(self):
+        world = World()
+        profiles = {"p": {"tasks": [{"name": "svc", "command": ["svc"]}]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = world.manager(profiles, tmp)
+            (first,) = await manager.start("p")
+            world.alive.clear()
+            (second,) = await manager.start("p")
+            self.assertEqual(second.status, "launched")
+            self.assertNotEqual(second.pid, first.pid)
+            self.assertEqual(len(world.spawned), 2)
+            self.assertEqual(manager.managed("p")["svc"]["pid"], second.pid)
+
+    async def test_url_task_respects_detect_and_opens_without_it(self):
+        world = World()
+        profiles = {"p": {"tasks": [
+            {"name": "seen", "url": "https://example.com/a", "detect": {"http": "https://example.com/a"}},
+            {"name": "plain", "url": "https://example.com/b"},
+        ]}}
+        world.running = {"https://example.com/a"}
+        with tempfile.TemporaryDirectory() as tmp:
+            results = {r.name: r.status for r in await world.manager(profiles, tmp).start("p")}
+        self.assertEqual(results, {"seen": "already_running", "plain": "opened"})
+        self.assertEqual([n for n, _ in world.spawned], ["https://example.com/b"])
 
     async def test_missing_executable_fails_and_skips_dependents(self):
         world = World(fail={"ollama"})

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,9 +11,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.tools.gateway import Risk, Tool, ToolGateway, ToolResult
 from jarvis.application import planner as planner_module
-from jarvis.application.planner import DesktopPlanner, VoiceConfirmer, is_affirmative, parse_plan
+from jarvis.application.planner import DesktopPlanner, _ground_steps, VoiceConfirmer, is_affirmative, parse_plan
 from jarvis.application.routing import FastCommandClassifier, Router
 from jarvis.core.turn import TurnContext
+
+
+class LoneBackslashPlanTests(unittest.TestCase):
+    def test_single_backslash_windows_paths_parse_as_literal(self):
+        raw = r'{"steps":[{"tool":"file_delete","arguments":{"path":"C:\Users\Admin\temp\prueba.txt"}}],"say":"ok","ask":null}'
+        plan = parse_plan(raw, {"file_delete"})
+        self.assertEqual(plan.steps[0][1]["path"], "C:\\Users\\Admin\\temp\\prueba.txt")
+
+
+class GroundStepsTests(unittest.TestCase):
+    def test_named_folder_pins_the_path_and_permanent_needs_to_be_said(self):
+        guessed = [("file_delete", {"path": "\\temp\\prueba.txt", "permanent": True})]
+        said = "borra el archivo prueba.txt de la carpeta temporal"
+        (tool, args), = _ground_steps(said, guessed)
+        self.assertEqual((args["path"], args["permanent"]), (str(Path(tempfile.gettempdir()) / "prueba.txt"), False))
+        (_, args), = _ground_steps(said + " permanentemente", guessed)
+        self.assertTrue(args["permanent"])
+        (_, args), = _ground_steps("borra prueba.txt", guessed)  # no folder named: path untouched
+        self.assertEqual(args["path"], "\\temp\\prueba.txt")
 
 
 class ScriptedModel:
@@ -85,6 +105,7 @@ class PlannerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(spoken, [])  # fast: no progress update
         self.assertIn("C:\\\\dev\\\\jarvis", model.prompts[0])  # context reaches the model
         self.assertIn("workspace(path?:string, action?:start|stop)", model.prompts[0])
+        self.assertIn("temporal=" + tempfile.gettempdir(), model.prompts[0])  # real folders, not invented Linux paths
 
     async def test_one_progress_update_for_slow_steps(self):
         planner_module.PROGRESS_AFTER_SECONDS, saved = 0.02, planner_module.PROGRESS_AFTER_SECONDS
@@ -106,7 +127,54 @@ class PlannerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ambiguous_request_asks_a_targeted_question(self):
         planner, _, _ = self.make(plan_json([], ask="¿Qué proyecto: jarvis o web?"), Recorder("a"))
-        self.assertEqual(await planner.handle("abre el proyecto", TurnContext.fresh("t")), "¿Qué proyecto: jarvis o web?")
+        self.assertEqual(await planner.handle("abre el proyecto", TurnContext.fresh("t")), "¿Qué proyecto quieres abrir?")
+
+    async def test_unrelated_two_step_plan_retries_then_refuses_without_execution(self):
+        workspace, vscode, command = Recorder("workspace"), Recorder("vscode_open"), Recorder("run_command")
+        planner, _, model = self.make(plan_json([("run_command", {"action": "start"})]), workspace, vscode, command)
+        answer = await planner.handle("arranca el backend y abre VS Code", TurnContext.fresh("t"))
+        self.assertIn("No he entendido", answer)
+        self.assertEqual(2, len(model.prompts))
+        self.assertNotIn("run_command(", model.prompts[0])
+        self.assertEqual([], command.calls)
+
+    async def test_explicit_two_step_recovers_from_unrelated_model_only_with_unique_context(self):
+        workspace, vscode, unrelated = Recorder("workspace"), Recorder("vscode_open"), Recorder("run_command")
+        gateway = ToolGateway([workspace, vscode, unrelated])
+        model = ScriptedModel(plan_json([("run_command", {"command": "unexpected"})]))
+        planner = DesktopPlanner(model=model, gateway=gateway,
+                                 context=lambda: {"profiles": ["dev"], "last_project": "C:\\dev\\jarvis"})
+        answer = await planner.handle("arranca el backend y abre VS Code", TurnContext.fresh("t"))
+        self.assertIn("vscode_open hecho", answer)
+        self.assertEqual([{"action": "start", "profile": "dev"}], workspace.calls)
+        self.assertEqual([{"path": "C:\\dev\\jarvis"}], vscode.calls)
+        self.assertEqual([], unrelated.calls)
+        self.assertEqual(2, len(model.prompts))
+
+    async def test_two_step_rejects_forced_or_unrelated_folder_without_execution(self):
+        for workspace_args, folder in (({"action": "start", "force": True}, "C:\\dev\\jarvis"),
+                                       ({"action": "start"}, "C:\\other")):
+            with self.subTest(workspace_args=workspace_args, folder=folder):
+                workspace, vscode = Recorder("workspace"), Recorder("vscode_open")
+                planner, _, model = self.make(plan_json([("workspace", workspace_args),
+                                                         ("vscode_open", {"path": folder})]), workspace, vscode)
+                answer = await planner.handle("arranca el backend y abre VS Code", TurnContext.fresh("t"))
+                self.assertIn("No he entendido", answer)
+                self.assertEqual(2, len(model.prompts))
+                self.assertEqual([], workspace.calls)
+                self.assertEqual([], vscode.calls)
+
+    async def test_malformed_first_plan_recovers_only_after_valid_ordered_reply(self):
+        workspace, vscode = Recorder("workspace"), Recorder("vscode_open")
+        planner, _, model = self.make("{broken", workspace, vscode)
+        valid = plan_json([("workspace", {"action": "start"}), ("vscode_open", {"path": "C:\\dev\\jarvis"})])
+        async def generate(prompt, context):
+            model.prompts.append(prompt)
+            yield "{broken" if len(model.prompts) == 1 else valid
+        model.generate = generate
+        self.assertIn("vscode_open hecho", await planner.handle("arranca el backend y abre VS Code", TurnContext.fresh("t")))
+        self.assertEqual([{"action": "start"}], workspace.calls)
+        self.assertEqual(1, len(vscode.calls))
 
     async def test_planner_steps_still_go_through_risk_policy(self):
         danger = Recorder("danger", risk=Risk.HIGH_RISK)
@@ -114,6 +182,14 @@ class PlannerTests(unittest.IsolatedAsyncioTestCase):
         answer = await planner.handle("borra todo", TurnContext.fresh("t"))
         self.assertIn("No he podido completar danger", answer)  # no confirmer -> denied
         self.assertEqual(danger.calls, [])
+
+    async def test_trusted_medium_without_scopes_is_denied_for_planner(self):
+        medium = Recorder("workspace", risk=Risk.MEDIUM)
+        gateway = ToolGateway([medium], trusted=["workspace"])
+        planner = DesktopPlanner(model=ScriptedModel(plan_json([("workspace", {"action": "start"})])), gateway=gateway, context=dict)
+        answer = await planner.handle("arranca el backend", TurnContext.fresh("t"))
+        self.assertIn("No he podido completar", answer)
+        self.assertEqual([], medium.calls)
 
     async def test_garbage_model_output_is_handled(self):
         planner, _, _ = self.make("lo siento, no puedo", Recorder("a"))
@@ -211,6 +287,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
             "arranca el backend y abre VS Code",
             "abre el proyecto en el que estaba trabajando",
             "cierra todo lo relacionado con ese proyecto",
+            "borra el archivo jarvis-uat-delete.txt de la carpeta temporal",
         ):
             with self.subTest(text=text):
                 self.assertEqual((await router.route(text, TurnContext.fresh("t"))).route, "desktop")

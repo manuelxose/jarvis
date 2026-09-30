@@ -1,6 +1,6 @@
 """Silent, repeatable Jarvis performance benchmark (p50/p95).
 
-    python scripts/perf_bench.py [--config config.win.json] [--only claps,route,...] [--out bench.json]
+    python scripts/perf_bench.py [--config config.win.json] [--only claps,route,...] [--out bench.json] [--pid DAEMON_PID]
 
 Sections: claps, route, command, startup, interrupt, stt, tts, llm, e2e, resources.
 Everything that touches the audio device plays zero-amplitude buffers (or music
@@ -91,6 +91,8 @@ def bench_claps(config: Any, trials: int = 40) -> None:
         if candidate:
             first.append((candidate[0] - onsets[0]) * 1000)
     RESULTS["claps"] = {
+        "method": "offline synthetic audio through ClapDetector with the configured tuning; detector confirmation latency only, "
+                  "not microphone, OS or gesture-to-chime latency",
         "claps_required": required,
         "first_clap_candidate_ms": stats(first),
         "confirmation_after_last_clap_ms": stats(confirm),
@@ -221,8 +223,59 @@ def bench_interrupt(config: Any, trials: int = 8) -> None:
     RESULTS["interrupt"] = {"playback_stop_ms": stats(asyncio.run(run()))}
 
 
-def bench_startup(config: Any, trials: int = 3) -> None:
-    """Real mixer + real output queue, silent buffers; fake healthy services."""
+class ChimeProbe:
+    """First audible mixer callback after ``arm()``; idle (primed) callbacks never count."""
+
+    def __init__(self, clock: Any = time.perf_counter) -> None:
+        self._clock = clock
+        self.armed_at: float | None = None
+        self.audible_at: float | None = None
+        self.idle_callbacks = 0
+
+    def arm(self) -> float:
+        self.armed_at, self.audible_at = self._clock(), None
+        return self.armed_at
+
+    def observe(self, peak: float) -> None:
+        if self.armed_at is None:
+            self.idle_callbacks += 1
+        elif self.audible_at is None and peak > 0.0:
+            self.audible_at = self._clock()
+
+    def latency_ms(self) -> float | None:
+        if self.armed_at is None or self.audible_at is None:
+            return None
+        return (self.audible_at - self.armed_at) * 1000
+
+    def disarm(self) -> None:
+        self.armed_at = self.audible_at = None
+
+
+def startup_trial_row(t0: float, probe: ChimeProbe, welcome_at: float | None, timings_ms: dict[str, float]) -> dict[str, float | None]:
+    """One trial; a mark that never happened stays None (never a zero latency)."""
+    return {
+        "gesture_to_chime_callback_ms": probe.latency_ms(),
+        "report_first_sound_ms": timings_ms.get("first_sound"),
+        "music_started_ms": timings_ms.get("music_started"),
+        "welcome_audio_ms": None if welcome_at is None else (welcome_at - t0) * 1000,
+    }
+
+
+def summarize_startup(rows: list[dict[str, float | None]]) -> dict[str, Any]:
+    keys = ("gesture_to_chime_callback_ms", "report_first_sound_ms", "music_started_ms", "welcome_audio_ms")
+    out: dict[str, Any] = {}
+    for key in keys:
+        values = [row[key] for row in rows if row.get(key) is not None]
+        out[key] = stats(values) | {"values": [round(v, 2) for v in values], "missing": len(rows) - len(values)}
+    return out
+
+
+def bench_startup(config: Any, trials: int = 3, prime_wait_s: float = 2.0) -> None:
+    """Real mixer + real output queue, silent at the device; fake healthy services.
+
+    ``cold`` trials start with the stream closed (the callback path opens it);
+    ``primed`` trials open it first and wait for an idle callback, as the daemon does.
+    """
     from jarvis.adapters.audio.mixer import Mixer
     from jarvis.adapters.audio.output import AudioOutputQueue, make_sounddevice_render
     from jarvis.adapters.tts.ack_cache import bytes_to_stream
@@ -232,12 +285,13 @@ def bench_startup(config: Any, trials: int = 3) -> None:
 
     base = startup_options(config)
     mixer = Mixer(config.audio.output_device)
-    marks: dict[str, float] = {}
+    probe = ChimeProbe()
+    welcome: list[float] = []
     real_render = mixer.render
 
     def render(frames: int) -> Any:
         out = real_render(frames)
-        marks.setdefault("first_callback", time.perf_counter())
+        probe.observe(float(np.max(np.abs(out))) if out.size else 0.0)
         return out * 0.0  # silence at the device, real timing
 
     mixer.render = render
@@ -246,43 +300,66 @@ def bench_startup(config: Any, trials: int = 3) -> None:
     real_blocking = renderer._blocking
 
     def blocking(turn_id: str, chunk: bytes) -> None:
-        marks.setdefault("welcome_audio", time.perf_counter())
+        if probe.armed_at is not None and not welcome:
+            welcome.append(time.perf_counter())
         real_blocking(turn_id, chunk)
 
     renderer._blocking = blocking
     if base.music_path:
         mixer.load(base.music_path)  # warm cache, as the daemon preloads it
-    results: dict[str, list[float]] = {"first_sound": [], "music_started": [], "welcome_audio": []}
+    rows: dict[str, list[dict[str, float | None]]] = {"cold": [], "primed": []}
+    prime_seen: dict[str, list[bool]] = {"cold": [], "primed": []}
+
+    async def prime() -> bool:
+        mixer.prime()
+        deadline = time.perf_counter() + prime_wait_s
+        while probe.idle_callbacks == 0 and time.perf_counter() < deadline:
+            await asyncio.sleep(0.01)
+        return probe.idle_callbacks > 0
 
     async def run() -> None:
-        for _ in range(trials):
-            marks.clear()
-            options = StartupOptions(**{**base.__dict__, "music_volume": 0.0, "activation_sound": ""})
-            healthy = [HealthReport(n, HealthStatus.HEALTHY) for n in options.essential]
+        for mode in ("cold", "primed"):
+            for _ in range(trials):
+                mixer.stop()
+                await asyncio.sleep(0.5)
+                probe.disarm()
+                probe.idle_callbacks = 0
+                welcome.clear()
+                prime_seen[mode].append(await prime() if mode == "primed" else False)
+                options = StartupOptions(**{**base.__dict__, "music_volume": 0.0, "activation_sound": ""})
+                healthy = [HealthReport(n, HealthStatus.HEALTHY) for n in options.essential]
 
-            async def services() -> list:
-                return healthy
+                async def services() -> list:
+                    return healthy
 
-            async def speak(text: str) -> None:
-                raise AssertionError("live speech not expected")
+                async def speak(text: str) -> None:
+                    raise AssertionError("live speech not expected")
 
-            sequence = StartupSequence(
-                options, mixer=mixer, speak=speak, start_services=services,
-                cached_welcome=lambda text: silent_wav(1.0),
-                play_audio=lambda audio: queue.play(bytes_to_stream(audio), TurnContext.fresh("welcome")),
-                open_url=lambda url: None,
-            )
-            t0 = time.perf_counter()
-            report = await sequence.trigger("bench")
-            results["first_sound"].append((marks.get("first_callback", t0) - t0) * 1000)
-            results["music_started"].append(report.timings_ms.get("music_started"))
-            results["welcome_audio"].append((marks.get("welcome_audio", t0) - t0) * 1000)
-            mixer.stop()
-            await asyncio.sleep(0.5)
+                sequence = StartupSequence(
+                    options, mixer=mixer, speak=speak, start_services=services,
+                    cached_welcome=lambda text: silent_wav(1.0),
+                    play_audio=lambda audio: queue.play(bytes_to_stream(audio), TurnContext.fresh("welcome")),
+                    open_url=lambda url: None,
+                )
+                t0 = probe.arm()
+                report = await sequence.trigger("bench")
+                rows[mode].append(startup_trial_row(t0, probe, welcome[0] if welcome else None, report.timings_ms))
+        mixer.stop()
 
-    asyncio.run(run())
-    renderer.close()
-    RESULTS["startup"] = {k + "_ms": stats(v) for k, v in results.items()} | {"welcome_delay_s": base.welcome_delay_seconds}
+    try:
+        asyncio.run(run())
+    finally:
+        renderer.close()
+        mixer.stop()
+    RESULTS["startup"] = {
+        "method": "t0 = just before StartupSequence.trigger; gesture_to_chime_callback = first NON-SILENT mixer callback after t0 (device output zeroed); "
+                  "report_first_sound = StartupReport timestamp when play_sfx returned (not audible output); welcome_audio = first welcome write to the output queue. "
+                  "A missing mark is counted in 'missing', never reported as 0. Excludes the OS/microphone/clap path.",
+        "welcome_delay_s": base.welcome_delay_seconds,
+        "trials_per_mode": trials,
+        "cold": summarize_startup(rows["cold"]),
+        "primed": summarize_startup(rows["primed"]) | {"idle_callback_seen_before_trigger": f"{sum(prime_seen['primed'])}/{len(prime_seen['primed'])}"},
+    }
 
 
 # -- models ----------------------------------------------------------------------------------
@@ -455,23 +532,87 @@ def bench_e2e(config: Any, runs: int = 5) -> None:
     RESULTS["e2e"] = asyncio.run(run())
 
 
-def bench_resources(config: Any) -> None:
-    import psutil
+DAEMON_SCRIPT = "jarvis_daemon.pyw"
 
-    daemon = []
-    for p in psutil.process_iter(["cmdline"]):
-        if any("jarvis_daemon.pyw" in c for c in (p.info["cmdline"] or [])):
-            daemon += [p] + p.children(recursive=True)
-    daemon = list({p.pid: p for p in daemon}.values())
-    for p in daemon:
-        p.cpu_percent(None)
-    time.sleep(10)
-    RESULTS["resources"] = {
-        "daemon_processes": [p.name() for p in daemon],
-        "daemon_rss_mb": round(sum(p.memory_info().rss for p in daemon) / 2**20, 1),
-        "daemon_cpu_percent_one_core": round(sum(p.cpu_percent(None) for p in daemon), 2),
-        "gpu_used_mb": _gpu_used(),
+
+def daemon_roots(rows: Any) -> list[int]:
+    """PIDs of daemon processes whose parent is not itself a daemon match (venv shims re-exec with the same cmdline)."""
+    matches = {pid: ppid for pid, ppid, cmdline in rows if any(DAEMON_SCRIPT in part for part in (cmdline or []))}
+    return sorted(pid for pid, ppid in matches.items() if ppid not in matches)
+
+
+def resolve_daemon_pid(pid: int | None, rows: Any) -> tuple[int | None, str | None]:
+    """The single target PID, or an error; never a sweep over several instances."""
+    if pid is not None:
+        return pid, None
+    roots = daemon_roots(rows)
+    if len(roots) == 1:
+        return roots[0], None
+    if not roots:
+        return None, f"no {DAEMON_SCRIPT} process found; start the daemon or pass --pid"
+    return None, f"{len(roots)} {DAEMON_SCRIPT} instances running ({roots}); pass --pid to choose one"
+
+
+def sample_resources(pid: int, psutil_mod: Any, gpu_fn: Any, *, window_s: float = 10.0, interval_s: float = 1.0, sleep: Any = time.sleep) -> dict[str, Any]:
+    """CPU/RSS of exactly *pid* and its descendants over a bounded window, plus whole-GPU VRAM before/after."""
+    method = (f"psutil cpu_percent summed over pid {pid} and its children found at window start, sampled every {interval_s} s for {window_s} s "
+              "(percent of ONE core, may exceed 100); RSS summed the same way; VRAM is whole-GPU nvidia-smi memory.used, read outside the window")
+    try:
+        root = psutil_mod.Process(pid)
+        procs = [root] + root.children(recursive=True)
+        for proc in procs:
+            proc.cpu_percent(None)
+        names = [p.name() for p in procs]
+    except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied) as error:
+        return {"error": f"pid {pid} unavailable: {type(error).__name__}", "pid": pid, "method": method}
+    gpu_before = gpu_fn()
+    cpu_samples: list[float] = []
+    rss_samples: list[float] = []
+    gone: set[int] = set()
+    started = time.perf_counter()
+    for _ in range(max(1, round(window_s / interval_s))):
+        sleep(interval_s)
+        cpu = rss = 0.0
+        for proc in procs:
+            if proc.pid in gone:
+                continue
+            try:
+                cpu += proc.cpu_percent(None)
+                rss += proc.memory_info().rss
+            except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied):
+                gone.add(proc.pid)
+        cpu_samples.append(cpu)
+        rss_samples.append(rss / 2**20)
+        if root.pid in gone:
+            break
+    result: dict[str, Any] = {
+        "pid": pid, "method": method, "process_names": names, "process_count": len(procs), "processes_exited_during_window": len(gone),
+        "window_s": round(time.perf_counter() - started, 2), "samples": len(cpu_samples),
+        "cpu_percent_one_core": {"mean": round(statistics.fmean(cpu_samples), 2), "max": round(max(cpu_samples), 2)},
+        "rss_mb": {"last": round(rss_samples[-1], 1), "peak": round(max(rss_samples), 1)},
     }
+    gpu_after = gpu_fn()
+    if gpu_before is None and gpu_after is None:
+        result["gpu"] = {"available": False, "note": "nvidia-smi unavailable; VRAM not measured"}
+    else:
+        result["gpu"] = {"available": True, "used_mb_before": gpu_before, "used_mb_after": gpu_after}
+    if root.pid in gone:
+        result["error"] = f"pid {pid} exited during the window; figures are partial"
+    return result
+
+
+def bench_resources(config: Any, pid: int | None = None) -> None:
+    try:
+        import psutil
+    except ImportError:
+        RESULTS["resources"] = {"error": "psutil unavailable; idle CPU/RSS not measured"}
+        return
+    rows = [(p.info["pid"], p.info["ppid"], p.info["cmdline"]) for p in psutil.process_iter(["pid", "ppid", "cmdline"])] if pid is None else []
+    target, error = resolve_daemon_pid(pid, rows)
+    if target is None:
+        RESULTS["resources"] = {"error": error}
+        return
+    RESULTS["resources"] = sample_resources(target, psutil, _gpu_used)
 
 
 def bench_voice(config: Any) -> None:
@@ -519,13 +660,14 @@ def main() -> int:
     parser.add_argument("--config", default="config.win.json")
     parser.add_argument("--only", default=",".join(SECTIONS))
     parser.add_argument("--out")
+    parser.add_argument("--pid", type=int, help="daemon PID for the resources section (default: the single running jarvis_daemon.pyw)")
     args = parser.parse_args()
     config = load_config(args.config)
     RESULTS["meta"] = {"host": platform.node(), "python": platform.python_version(), "when": time.strftime("%Y-%m-%d %H:%M:%S")}
     for name in args.only.split(","):
         started = time.perf_counter()
         try:
-            SECTIONS[name](config)
+            SECTIONS[name](config, **({"pid": args.pid} if name == "resources" else {}))
         except Exception as error:  # noqa: BLE001 - keep the other sections
             RESULTS[name] = {"error": f"{type(error).__name__}: {error}"}
         print(f"[{name}] {round(time.perf_counter() - started, 1)} s", file=sys.stderr, flush=True)

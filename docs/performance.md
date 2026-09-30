@@ -28,8 +28,38 @@ For a before/after comparison against pre-M005 latency, see the
 | Whisper load / transcribe 2.5 s | 8.6 s / 264 ms | turbo model, CUDA |
 | DeepSeek time to first token | 769 / 930 ms | provider-bound |
 | End of utterance → first audible reply (warm) | 1382 / 1552 ms | |
-| Idle sentinel | 1.1 % of one core, ~140 MB | music preloaded, next runtime pre-built |
+| Idle sentinel | 1.1 % of one core, ~140 MB | earlier estimate (all `jarvis_daemon.pyw` processes); superseded by the PID-scoped figures below |
 | VRAM, voice warm → evicted | 5540 → 1275 MB | eviction returns ~4.2 GB |
+
+## Windows startup and idle measurements (2026-09-30)
+
+Real Windows host, worktree-local `.venv-win` (Python 3.11.9), `config.win.json` with only the DB path, control
+port 47911 and the `terminal` workspace task changed (details and replay in [startup.md](startup.md#windows-daemon-acceptance-2026-09-30)).
+Raw data: [`bench/windows-acceptance-2026-09-30.json`](bench/windows-acceptance-2026-09-30.json). Sign-in-equivalent run, not a reboot.
+
+Reproduce: `python scripts\perf_bench.py --config <cfg> --only claps,startup` (daemon stopped, device output zeroed) and, with the
+daemon running, `python scripts\perf_bench.py --config <cfg> --only resources --pid <daemon PID>`
+(PID of the launched `pythonw.exe`; its child is included; other Jarvis instances are never summed).
+
+| Metric | Result | Target | Verdict |
+|---|---|---|---|
+| Live daemon, `activate` → `first_sound` (report, `timings_ms_since_gesture`) | **39.3 ms** (3.9 ms after the trigger) | < 300 ms | Pass (one activation; timestamp when `play_sfx` returned, not audible output) |
+| Bench, gesture → first non-silent chime callback, **primed** stream (as the daemon runs) | 6.6 ms p50, 7.1 max (n = 3, 3/3 idle callbacks seen before trigger) | < 300 ms | Pass; excludes the device buffer and the OS/microphone path |
+| Bench, same, **cold** stream | 993, 83.7, 86.8 ms (n = 3) | < 300 ms | Fail for the first (truly cold) trial: 993 ms = import + stream open. Trials 2-3 reuse the imported modules and are not cold; the p50 (86.8 ms) is not representative. The daemon never takes this path once primed |
+| Bench, first welcome audio after trigger | 3005-3009 ms primed (3.0 s `welcome_delay_seconds`) | movie-style delay | Configured, as before |
+| Synthetic clap confirmation after the last clap | 48 / 55 ms p50 / p95, 40/40 detected | n/a | **Offline only**: no microphone, OS or chime latency. `clap_eval --synthetic` three-clap case: 510 ms (waits for the third clap) |
+| Idle daemon CPU (10 s window, 1 s samples, pid 28632 + child) | mean 3.1 %, max 9.4 % of one core | low | Measured 30 s after the socket came up, so still settling (output prime, next runtime build) |
+| Idle daemon RSS (same processes) | 78.9 MB | n/a | Measured in the same window; the child reached 281 MB after activation |
+| Whole-GPU VRAM: before launch / idle / active / after `sleep` / after `quit` | 192 / 846 / 4124 / 5368 / 802 MB | n/a | Whole-GPU `nvidia-smi` value, includes other apps (VS Code, browsers). It rose 192 → 847 MB during the 10 s idle window and was still 802 MB after `quit` with the daemon gone, so **idle VRAM attributable to the daemon is not established** |
+| Live daemon, `activate` → `interactive` | 15.1 s | n/a | Degraded welcome spoken through the SAPI fallback (the clone was cold) |
+
+VRAM note: the active reading is +3.3 GB over idle (clone worker started at activation, Whisper loaded by the voice loop); after
+`sleep` the models stay warm during the 600 s cooldown (`voice cooldown -> cold (shutdown)` only at `quit`), which is why the
+after-sleep reading is higher than the active one. No per-process VRAM was available, so none is claimed.
+
+Criterion-by-criterion status and the owner UAT checklist: [M007 verification record](engineering/m007-verification.md).
+
+Unverified: cold `first_sound` through a real clap on the microphone, audible chime loudness, and the cloned-voice (`cache`/`live`) welcome.
 
 For a like-for-like local Whisper versus Alibaba Qwen realtime STT comparison on the reference machine, follow the [STT bake-off procedure](stt-bakeoff.md); no cloud STT measurements are recorded yet.
 

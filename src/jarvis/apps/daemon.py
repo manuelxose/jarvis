@@ -151,6 +151,8 @@ class Sentinel:
         self._stop = asyncio.Event()
         self._last_gesture: dict[str, Any] = {}
         self._mixer: Any = None
+        self._output_prime: Optional[asyncio.Task[None]] = None
+        self._output_status = "pending"
         self._prepared: Optional[asyncio.Task[JarvisRuntime]] = None
         self.welcome_cache = self.welcome_cache_for(config)
 
@@ -188,14 +190,21 @@ class Sentinel:
         self.state = "candidate"
         hub.publish("activation.started", source="first_clap")
         self._spawn(self.voice.speculate("first clap"))
-        self._spawn(self._prime_output())
 
     async def _prime_output(self) -> None:
-        """Open the speaker stream on the first clap: the chime is instant on the second."""
+        """Open one silent stream off-loop before activation; failure does not block input."""
+        mixer = None
         try:
-            await asyncio.to_thread(self._get_mixer().prime)
-        except Exception as error:  # noqa: BLE001 - activation still works, just slower
-            logger.debug("output not primed: %s", error)
+            mixer = self._get_mixer()
+            await asyncio.to_thread(mixer.prime)
+        except Exception as error:  # noqa: BLE001 - keep hotkey/socket and mic alive
+            self._output_status = "unavailable"
+            logger.warning("sentinel output prime failed; activation will continue: %s", error)
+            if mixer is not None:
+                await asyncio.to_thread(mixer.stop)  # discard a partially opened stream
+        else:
+            self._output_status = "ready"
+            logger.info("sentinel output primed")
 
     def _on_candidate_expired(self, reason: str) -> None:
         if self.state != "candidate":
@@ -205,7 +214,14 @@ class Sentinel:
         recent = last if last and self.detector.now - last["time"] < 2.0 else None
         logger.info("activation candidate cancelled: %s%s", reason, f" (last rejected sound: {recent})" if recent else "")
         hub.publish("activation.cancelled", reason=reason)
-        self._spawn(self.voice.cancel_speculation(reason))
+        self._spawn(self._cancel_speculation(reason))
+
+    async def _cancel_speculation(self, reason: str) -> None:
+        # The cancel queues behind the speculative load's lock; a real activation that
+        # began meanwhile owns the worker now (seen live: it was evicted mid-start,
+        # so the welcome went out degraded through SAPI).
+        if self.state == "sentinel":
+            await self.voice.cancel_speculation(reason)
 
     def _on_audio(self, block: Any) -> None:
         """PortAudio callback thread: cheap feature extraction only."""
@@ -279,6 +295,8 @@ class Sentinel:
         self._spawn(self._maintenance())
         try:
             while not self._stop.is_set():
+                self._output_status = "warming"
+                self._output_prime = asyncio.create_task(self._prime_output())
                 activation = await self._listen()
                 if activation is None:
                     break
@@ -288,8 +306,14 @@ class Sentinel:
                     logger.info("%s requested by voice", self._after_session)
                     self._stop.set()
                     break
-                self._prepared = asyncio.create_task(self._prepare_runtime())
+                if not self._stop.is_set():
+                    self._prepared = asyncio.create_task(self._prepare_runtime())
         finally:
+            # to_thread cannot stop an in-flight PortAudio open; wait before closing it.
+            if self._output_prime is not None:
+                await self._output_prime
+            if self._mixer is not None:
+                await asyncio.to_thread(self._mixer.stop)
             preload.cancel()
             for task in list(self._tasks):
                 task.cancel()
@@ -349,7 +373,7 @@ class Sentinel:
         except Exception as error:  # noqa: BLE001 - hotkey/socket still work without a mic
             logger.warning("clap listener unavailable: %s", error)
         self.detector.resume(cooldown=True)
-        logger.info("sentinel listening (claps=%s, wake_word=%s)", self._claps_enabled, self._wake is not None)
+        logger.info("sentinel listening (claps=%s, wake_word=%s, output=%s)", self._claps_enabled, self._wake is not None, self._output_status)
         stop = asyncio.ensure_future(self._stop.wait())
         get = asyncio.ensure_future(self._activation.get())
         try:
@@ -369,6 +393,12 @@ class Sentinel:
 
     async def _session(self, source: str, gesture_at: float) -> None:
         self.state = "starting"
+        # An activation during speaker warm-up waits for the single in-flight open.
+        # Failure is logged by _prime_output; input and silent startup still proceed.
+        if self._output_prime is not None:
+            await self._output_prime
+        if self._stop.is_set():
+            return
         hub.publish("activation.confirmed", source=source, confidence=self._last_gesture.get("confidence") if source == "claps" else None)
         # Pin the shared voice for the whole session (loads it if still cold). Started
         # once the music plays: spawning the worker must never delay chime or music.
@@ -435,6 +465,9 @@ class Sentinel:
             # The owner may answer the welcome ("para la música") without the wake word.
             if hasattr(runtime, "activation"):
                 runtime.activation.note_turn_complete()
+            if mixer is not None:
+                # Startup music masks the mic: the first accepted command cuts it.
+                runtime.voice_loop.on_speech_accepted = lambda: mixer.music_playing and mixer.fade_out(1.0)
             recorder = asyncio.create_task(self._record_welcomes(runtime, sequence.options))
             watchdog = asyncio.create_task(self._idle_watchdog(runtime))
             ducker = asyncio.create_task(_duck_during_speech(mixer, runtime, sequence.options)) if mixer and mixer.music_playing else None
@@ -571,7 +604,7 @@ class Sentinel:
             "claps_accepted": [{"time": c.time, **c.features} for c in detector.accepted[-6:]],
             "transients_rejected": detector.rejected[-3:],
         }
-        return {"state": self.state, "voice": self.voice.snapshot(), "voice_cache_entries": self.welcome_cache.stats()["entries"], "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
+        return {"state": self.state, "output_prime": self._output_status, "voice": self.voice.snapshot(), "voice_cache_entries": self.welcome_cache.stats()["entries"], "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
 
     def sleep(self) -> None:
         """Stop talking: ends the session, or interrupts a startup in progress."""

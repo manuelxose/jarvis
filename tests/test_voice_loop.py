@@ -108,6 +108,18 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(turn.cancelled)
         self.assertTrue(player.played)
 
+    async def test_accepted_speech_fires_hook_and_caption_hallucination_is_ignored(self):
+        heard = []
+        loop, _, _ = _build(
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6 + [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=_PerUtteranceSTT([Transcript("Jangan lupa like, share, dan subscribe", is_final=True), Transcript("Jarvis, hola", is_final=True)]),
+            model=ScriptedModel(),
+            player=RecordingAudioPlayer(),
+        )
+        loop.on_speech_accepted = lambda: heard.append(1)
+        await loop.run(max_turns=1)
+        self.assertEqual((len(loop.turns), heard), (1, [1]))  # the caption never became a turn
+
     async def test_stop_request_ends_listening_without_waiting_for_speech(self):
         class _EndlessSilence:
             async def capture(self, context):
@@ -274,6 +286,46 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
                 )
                 await loop.run()
                 self.assertEqual(expected_turns, len(loop.turns))
+
+    async def test_pending_confirmation_takes_the_next_utterance(self):
+        from jarvis.application.planner import VoiceConfirmer
+        from jarvis.application.turn_manager import TurnResult
+        from jarvis.core.turn import TurnContext
+
+        confirmer = VoiceConfirmer(lambda name, args: "borrar el archivo", timeout_seconds=5.0)
+        spoken = []
+
+        async def speak(text, context):
+            spoken.append(text)
+
+        confirmer.speak = speak
+
+        class _ConfirmingTurns:
+            active = False
+
+            async def handle(self, text, **_):
+                approved = await confirmer("file_delete", {}, TurnContext.fresh("t"))
+                return TurnResult(transcript=text, response="hecho" if approved else "cancelado", route="tool", elapsed_ms=1, trace={})
+
+            async def interrupt(self):
+                pass
+
+        utterance = [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6
+        loop = VoiceLoop(
+            audio=ScriptedAudioInput(utterance * 2),
+            vad=EnergyVAD(),
+            stt=_PerUtteranceSTT([Transcript("Jarvis, borra el archivo", is_final=True), Transcript("confirmo", is_final=True)]),
+            turn_manager=_ConfirmingTurns(),
+            activation=ActivationManager(cooldown_seconds=0.0),
+            confirmer=confirmer,
+        )
+
+        await asyncio.wait_for(loop.run(max_turns=1), 5.0)
+
+        self.assertEqual(1, len(loop.turns))
+        self.assertEqual("borra el archivo", loop.turns[0].transcript)
+        self.assertEqual("hecho", loop.turns[0].response)
+        self.assertIn("borrar el archivo", spoken[0])
 
     async def test_state_reports_stopped_and_turn_count(self):
         loop, _, _ = _build(

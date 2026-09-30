@@ -1,10 +1,11 @@
+import sys
 import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # bare `unittest discover -s tests` runs
 from jarvis.application.demo import run_demo
-import sys
 sys.path.insert(0, str(Path(__file__).parent))  # standalone `-m unittest tests.X` runs
 from committed_config import load_committed_config
 

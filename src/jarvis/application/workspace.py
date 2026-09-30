@@ -274,6 +274,27 @@ def _process_identity(pid: int) -> Optional[float]:
         return None
 
 
+def _is_alive(pid: int, create_time: Optional[float]) -> bool:
+    """True if *pid* is still the process we started (same PID and creation time)."""
+    try:
+        import psutil  # noqa: PLC0415
+    except ImportError:
+        if _IS_WINDOWS:
+            return False
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    try:
+        proc = psutil.Process(pid)
+        if create_time is not None and abs(proc.create_time() - create_time) > 1.0:
+            return False  # PID reused by an unrelated process
+        return proc.is_running() and proc.status() != psutil.STATUS_ZOMBIE
+    except Exception:  # noqa: BLE001 - gone or denied
+        return False
+
+
 def _terminate_tree(pid: int, create_time: Optional[float]) -> bool:
     """Terminate *pid* and its children, only if it is still the process we started."""
     try:
@@ -345,6 +366,7 @@ class WorkspaceManager:
         terminate: Callable[[int, Optional[float]], bool] = _terminate_tree,
         close_windows: Callable[[str], int] = _close_windows,
         identity: Callable[[int], Optional[float]] = _process_identity,
+        alive: Callable[[int, Optional[float]], bool] = _is_alive,
         focus_window: Callable[[str], bool] = _focus_window,
         poll_seconds: float = 0.25,
     ) -> None:
@@ -357,6 +379,7 @@ class WorkspaceManager:
         self._terminate = terminate
         self._close_windows = close_windows
         self._identity = identity
+        self._alive = alive
         self._focus_window = focus_window
         self._poll = poll_seconds
         self._locks: dict[str, asyncio.Lock] = {}
@@ -410,9 +433,6 @@ class WorkspaceManager:
         return result
 
     async def _launch(self, profile: str, task: TaskSpec) -> TaskResult:
-        if task.url:
-            await asyncio.to_thread(self._open_url, task.url)
-            return TaskResult(task.name, "opened")
         if await self._check(task.detect):
             # Starting a profile means "put it in front of me": a window that is
             # already open (minimized or behind others) is brought forward.
@@ -423,6 +443,12 @@ class WorkspaceManager:
                 except Exception:  # noqa: BLE001 - focus is a courtesy, never a failure
                     logger.debug("could not focus %r", title, exc_info=True)
             return TaskResult(task.name, "already_running")
+        entry = self.managed(profile).get(task.name)
+        if entry and await asyncio.to_thread(self._alive, entry["pid"], entry.get("create_time")):
+            return TaskResult(task.name, "already_running", detail="managed by Jarvis", pid=entry["pid"])
+        if task.url:
+            await asyncio.to_thread(self._open_url, task.url)
+            return TaskResult(task.name, "opened")
         last = TaskResult(task.name, "failed", detail="not attempted")
         for attempt in range(task.retries + 1):
             try:
