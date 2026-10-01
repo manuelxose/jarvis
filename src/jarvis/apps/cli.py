@@ -15,6 +15,7 @@ Operator commands (see jarvis.apps.commands)::
     jarvis claps test|calibrate  -- live detector / owner calibration
     jarvis workspace start|stop|status [profile] [--force]
     jarvis autostart install|remove|status
+    jarvis ui [--print]          -- open the command center app window (--print: show the URL instead)
     jarvis tools                 -- registered tools and their risk class
     jarvis welcome record        -- record the startup welcomes in the cloned voice
     jarvis startup [--use-fakes] -- run the chime/music/welcome sequence once, print the StartupReport
@@ -83,6 +84,7 @@ def _parser(stdout: TextIO, stderr: TextIO) -> _Parser:
     parser.add_argument("--file", help="with claps test: replay a recording instead of the microphone")
     parser.add_argument("--profile", help="with workspace: profile name")
     parser.add_argument("--force", action="store_true", help="with workspace stop: also close apps Jarvis did not open")
+    parser.add_argument("--print", dest="print_url", action="store_true", help="with ui: print the command center URL (includes the token) instead of opening it")
     parser.add_argument("--config", default="config.json", help="path to JSON configuration")
     parser.add_argument(
         "--check-only", action="store_true", help="run health checks without entering the runtime"

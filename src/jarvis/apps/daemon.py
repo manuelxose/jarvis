@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 import sys
 import threading
 import time
@@ -33,6 +34,7 @@ from typing import Any, Callable, Mapping, Optional
 from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_path, load_calibration
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
 from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+from jarvis.observability import event_stream
 from jarvis.observability.event_hub import JsonlSink, hub
 from jarvis.adapters.tts.ack_cache import bytes_to_stream, join_wavs
 from jarvis.application.startup import StartupOptions, StartupSequence, welcome_texts
@@ -42,6 +44,7 @@ from jarvis.config import RuntimeConfig
 logger = logging.getLogger("jarvis.daemon")
 
 DEFAULT_PORT = 47811
+DEFAULT_UI_EVENTS_PORT = 47812  # token-protected SSE stream for the UI (0 disables it)
 _BLOCK = 320  # 20 ms at 16 kHz
 
 
@@ -155,6 +158,7 @@ class Sentinel:
         self._output_status = "pending"
         self._prepared: Optional[asyncio.Task[JarvisRuntime]] = None
         self.welcome_cache = self.welcome_cache_for(config)
+        self.ui_endpoint: Optional[dict[str, str]] = None  # {"url", "token"} once the event stream is up
 
     @staticmethod
     def welcome_cache_for(config: RuntimeConfig) -> Any:
@@ -712,6 +716,9 @@ async def serve(sentinel: Sentinel, port: int) -> asyncio.AbstractServer:
             elif command == "restart":
                 sentinel.request_restart()
                 reply = {"ok": True}
+            elif command == "ui":  # the token lives only here: never in `status`, which may be logged
+                endpoint = sentinel.ui_endpoint
+                reply = {"ok": True, **endpoint} if endpoint else {"ok": False, "error": "ui events disabled"}
             else:
                 reply = {"ok": False, "error": "unknown command"}
             writer.write((json.dumps(reply, default=str) + "\n").encode("utf-8"))
@@ -763,12 +770,62 @@ async def run_daemon(config: RuntimeConfig) -> int:
     except OSError:
         logger.info("another Jarvis daemon owns port %d; exiting", port)
         return 3
-    async with server:
-        await sentinel.run()
+    events_server = await _start_event_stream(sentinel, config)
+    try:
+        async with server:
+            await sentinel.run()
+    finally:
+        if events_server is not None:
+            events_server.close()
+            try:  # py>=3.12 waits for open SSE clients: bound it so restart is never held up
+                await asyncio.wait_for(events_server.wait_closed(), 2)
+            except asyncio.TimeoutError:
+                logger.warning("events stream still has open clients; continuing shutdown")
     if sentinel.restart_requested:
         # The port is free now: start a fresh daemon exactly as this one was started.
         relaunch()
     return 0
+
+
+async def _start_event_stream(sentinel: Sentinel, config: RuntimeConfig) -> Optional[asyncio.AbstractServer]:
+    """Start the UI event stream on loopback; a busy port or disabled config just means no stream."""
+    port = int(config.daemon.get("ui_events_port", DEFAULT_UI_EVENTS_PORT))
+    if not port:
+        logger.info("ui event stream disabled (ui_events_port=0)")
+        return None
+    token = secrets.token_urlsafe(32)
+    configured = config.daemon.get("ui_dist_dir")
+    dist = Path(configured) if configured else Path(__file__).resolve().parents[3] / "ui" / "dist"
+    static_dir = dist if dist.is_dir() else None
+    async def on_ui_action(action: str) -> None:
+        if sentinel._loop is None or sentinel._activation is None or sentinel._stop.is_set():
+            raise RuntimeError("daemon unavailable")
+        if action == "activate":
+            sentinel.request_activation("ui")
+        elif action == "sleep":
+            can_cancel_start = (sentinel.state == "starting" and sentinel.sequence is not None
+                                and sentinel.sequence.running)
+            if sentinel.runtime is None and not can_cancel_start:
+                raise RuntimeError("no active session")
+            sentinel.sleep()
+        else:
+            raise ValueError("unsupported UI action")
+
+    try:
+        server = await event_stream.serve_events(hub, token, port=port, static_dir=static_dir, on_action=on_ui_action)
+    except OSError as error:
+        logger.warning("ui event stream unavailable on port %d: %s", port, error)
+        return None
+    if static_dir is not None:
+        logger.info("serving UI from %s on http://127.0.0.1:%d/", static_dir, port)
+    else:
+        logger.info("UI build not found at %s; serving the event stream only (npm --prefix ui run build)", dist)
+    sentinel.ui_endpoint = {
+        "url": f"http://127.0.0.1:{port}/events",
+        "token": token,
+        "app_url": f"http://127.0.0.1:{port}/#token={token}",
+    }
+    return server
 
 
 def relaunch_argv(executable: str, argv: list[str]) -> list[str]:
