@@ -1,13 +1,19 @@
 import { AssistantStatus } from '../../../components/jarvis/AssistantStatus'
+import type { AssistantState } from '../../../components/foundations/StatusIndicator'
 import { Panel } from '../../../components/layout/Panel'
 import { ConversationMessage } from '../../../components/jarvis/ConversationMessage'
 import { mockConversation, mockDevelopment } from '../../../mocks/fixtures'
 
-export function OverviewWorkspace() {
+export interface WorkspaceProps {
+  state: AssistantState
+  speaking: boolean
+}
+
+export function OverviewWorkspace({ state, speaking }: WorkspaceProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <Panel>
-        <AssistantStatus state="listening" headline="Ready for the next command" detail="Two-clap activation confirmed 40ms ago · confidence 0.92" />
+        <AssistantStatus state={state} speaking={speaking} headline="Ready for the next command" detail="Two-clap activation confirmed 40ms ago · confidence 0.92" />
       </Panel>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
         <Panel title="Conversation">

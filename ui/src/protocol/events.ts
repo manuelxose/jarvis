@@ -3,10 +3,9 @@
  *
  * Mirrors `src/jarvis/observability/event_hub.py::SCHEMAS` field-for-field.
  * This file is the frontend half of that contract; it must be updated
- * whenever SCHEMAS changes. Phase 1 defines types only — no transport is
- * wired yet (see docs/architecture/frontend-architecture.md, "Jarvis UI
- * Bridge"). Implementing a live transport is Phase 2+ (GSD milestone M008,
- * slice S01 "Event hub and instrumentation contract").
+ * whenever SCHEMAS changes. The live transport is SSE, implemented in
+ * services/sse-transport.ts (see docs/architecture/frontend-architecture.md,
+ * "Jarvis UI Bridge").
  */
 
 export interface JarvisEventEnvelope {
@@ -101,6 +100,14 @@ export interface AgentCompleted extends JarvisEventEnvelope {
   readonly elapsed_ms: number
 }
 
+export interface TurnCost extends JarvisEventEnvelope {
+  readonly name: 'turn.cost'
+  readonly trace_id: string
+  readonly route: string
+  readonly entries: readonly Record<string, unknown>[]
+  readonly total_usd: number
+}
+
 export interface SystemMetrics extends JarvisEventEnvelope {
   readonly name: 'system.metrics'
   readonly cpu_percent: number
@@ -125,13 +132,35 @@ export type JarvisEvent =
   | AgentStarted
   | AgentProgress
   | AgentCompleted
+  | TurnCost
   | SystemMetrics
+
+/** Every event `name` exactly once; plain data so non-React code can validate incoming frames. */
+export const JARVIS_EVENT_NAMES = [
+  'activation.started',
+  'activation.cancelled',
+  'activation.confirmed',
+  'startup.progress',
+  'startup.completed',
+  'startup.degraded',
+  'voice.state',
+  'voice.loading',
+  'voice.ready',
+  'voice.evicted',
+  'speech.started',
+  'speech.completed',
+  'agent.started',
+  'agent.progress',
+  'agent.completed',
+  'turn.cost',
+  'system.metrics',
+] as const satisfies readonly JarvisEvent['name'][]
 
 /**
  * Transport boundary between Jarvis Core (Python) and Jarvis Frontend (React).
- * No implementation in Phase 1 — the desktop shell ADR determines whether
- * this is backed by a WebSocket, a shell-native IPC channel, or stdio.
- * Components must depend on this interface, never on a concrete transport.
+ * The live implementation is services/sse-transport.ts (token-protected SSE on
+ * 127.0.0.1). Components must depend on this interface, never on a concrete
+ * transport.
  */
 export interface JarvisEventTransport {
   subscribe(listener: (event: JarvisEvent) => void): () => void

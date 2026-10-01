@@ -1,5 +1,15 @@
 # React + TypeScript + Vite
 
+## Run it
+
+```
+npm --prefix ui run build     # the daemon serves ui/dist
+jarvis daemon                 # in one terminal
+jarvis ui                     # opens the command center app window (jarvis ui --print prints the URL)
+```
+
+See `docs/architecture/frontend-architecture.md` section 8.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

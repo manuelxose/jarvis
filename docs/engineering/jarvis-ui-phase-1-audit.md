@@ -120,3 +120,11 @@ Classification key: **PRESENT / WORKING / PARTIAL / MISSING / LEGACY / UNKNOWN /
 3. **Desktop shell decision has an environmental cost** — Tauri (preferred on footprint) needs Rust; Electron runs on Node only. See `docs/architecture/desktop-shell-adr.md`.
 4. **The frontend skill stack already exists in GSD Pi** — Phase 1 must verify discovery and fill the genuine gaps (React engineering, design-system discipline) rather than re-install everything.
 5. **Python runtime must remain untouched** — all Phase 1 work is frontend-only; existing 541-test baseline is the regression reference (1 pre-existing failure + 22 environment errors remain as-is).
+
+---
+
+## 4. Phase 1 acceptance gate
+
+Phase 1 closes the frontend foundation only: audit, skill stack, architecture, desktop-shell ADR, `ui/` skeleton, typed protocol (`ui/src/protocol/events.ts`, enforced against `event_hub.SCHEMAS` by `tests/test_ui_protocol_parity.py`), and the Electron window-lifecycle PoC (`desktop-shell-poc/`). The Tauri PoC remains BLOCKED (no Rust/cargo).
+
+**Slices S02 and later (live event transport, 3D/orb, gestures, Tauri shell) require explicit owner approval before they start.**

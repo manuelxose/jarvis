@@ -11,9 +11,9 @@ Date: 2026-09-24. Status: decided for Phase 1 scaffolding; component-primitive a
 | Language | TypeScript, `strict: true` + `noUncheckedIndexedAccess` | Required by acceptance item 9. Verified: `npx tsc -b` exits 0 on the scaffold. |
 | Linter | `oxlint` (Vite's default template choice) | Already present in the scaffold, Rust-based and fast. No ESLint added — would duplicate it (ponytail: reuse what's there). |
 | Styling | CSS Modules + CSS custom properties for tokens (`src/design-system/tokens.css`) | No compile-time utility framework yet. Tailwind is explicitly not justified this phase — there is no component volume yet to amortize its setup cost against, and semantic tokens (section 15) are a better fit for a design system that doesn't exist yet than utility classes are. Revisit only if Phase 2 shows real repeated friction. |
-| State management | React built-ins only (`useState`/`useReducer`/context) | No global store exists in the codebase to justify Zustand/Jotai/Redux yet. The one genuine future state-management driver — the Jarvis event stream (`protocol/events.ts`) — doesn't have a transport yet (see desktop-shell ADR), so picking a store now would be speculative. |
+| State management | React built-ins only (`useState`/`useReducer`/context) | No global store exists in the codebase to justify Zustand/Jotai/Redux yet. The one genuine future state-management driver — the Jarvis event stream (`protocol/events.ts`) — now has an SSE transport (`services/sse-transport.ts`), but the command center does not consume it yet, so picking a store remains speculative. |
 | Component primitives | Base UI (unstyled, evaluated below) for Phase 2 component work; not installed yet in Phase 1 | See §3 — no primitive is installed this phase because there are no interactive components yet to need one. |
-| IPC / protocol | `src/protocol/events.ts` — typed discriminated union mirroring `src/jarvis/observability/event_hub.py::SCHEMAS` 1:1 | Establishes the Jarvis UI Bridge boundary (§4) without implementing a transport. Verified against the actual Python `SCHEMAS` dict, not invented. |
+| IPC / protocol | `src/protocol/events.ts` — typed discriminated union mirroring `src/jarvis/observability/event_hub.py::SCHEMAS` 1:1 | Establishes the Jarvis UI Bridge boundary (§4). The transport is SSE via `services/sse-transport.ts`, token-protected on 127.0.0.1 (D028/D047); endpoint and token come from the daemon control command `ui`. Verified against the actual Python `SCHEMAS` dict, not invented. |
 | Testing (unit) | none added yet | No component logic exists yet to unit-test. Vitest is the obvious choice when it's needed (co-locates with Vite config) — not installed speculatively. |
 | Testing (visual QA) | Playwright (`@playwright/test`) | Mandatory per section 18. Verified working: `npx playwright test` boots `vite preview`, renders the app, asserts zero console errors, checks keyboard-reachable heading, and produces/verifies a deterministic screenshot at 1920×1080 and 2560×1440. |
 
@@ -31,7 +31,7 @@ ui/
     components/     # shared presentational components — not created yet, App.tsx is still the only component
     hooks/          # shared React hooks — not created yet
     state/          # app state (if/when a store is justified) — not created yet
-    services/       # browser-side service wrappers (e.g. transport implementations of JarvisEventTransport) — not created yet
+    services/       # browser-side service wrappers (e.g. transport implementations of JarvisEventTransport; `sse-transport.ts` is the live SSE one)
     styles/         # non-token global CSS — folded into index.css for now; split out when it grows
 ```
 
@@ -72,7 +72,24 @@ Primary: 1920×1080, 2560×1440, 4K, high-DPI scaling, multi-monitor. Verified m
 | --- | --- | --- |
 | JS bundle (initial) | < 250 KB gzipped for the shell | Current build: 68.67 KB gzip JS + 0.62 KB gzip CSS — verified via `npm run build` |
 | React rerenders | No component rerenders on an unrelated state change | Not yet applicable — one static component exists |
-| Idle CPU | Overlay must not poll; event-driven only via the bridge | Enforced by the `JarvisEventTransport` interface shape (subscribe, not poll) — not yet measurable, no transport exists |
+| Idle CPU | Overlay must not poll; event-driven only via the bridge | Enforced by the `JarvisEventTransport` interface shape (subscribe, not poll) — the SSE transport is push-only (no polling; keepalive every 15 s) |
 | Startup | Frontend paints before the desktop shell reports ready | Verified qualitatively in the Electron PoC (`ready-to-show` fires after `loadFile` resolves) |
 
-These are starting numbers, refined once real feature weight (event log, telemetry panels) exists.
+These are starting numbers, refined once real feature weight (event log, telemetry panels) exists. **M008/S05 hardware gate (2026-09-30): not accepted.** The historical 68.67 KB gzip figure measures the Phase 1 shell, not today's command center. The current Vite build emits 33.10 KB main + 70.99 KB Button + 1.33 KB overlay gzip JS (105.42 KB combined emitted JS, below the 250 KB shell budget; not a network-transfer/initial-load measurement). The Windows bridge identified Windows 11 Home, i7-12700H, RTX 3070 Laptop GPU plus Iris Xe, and Edge 154.0.4258.37, but the actual daemon was absent on the configured control port. Therefore no Windows Edge DPR, renderer identity, frame p50/p95, idle CPU/memory, GPU utilization, or live Activate/Sleep result exists; do not substitute WSL Chromium or fixture data. The repeatable isolated Edge/CDP probe, raw-sample schema, safety limits, and recovery are documented in [Windows UI hardware acceptance](../performance/ui-windows-hardware.md). The existing event-driven idle design remains a design constraint, not a measured CPU pass.
+
+## 8. UI server and shell
+
+- **Same-origin serving.** The loopback event server (`jarvis.observability.event_stream`, port `daemon.ui_events_port`) serves the built `ui/dist` and the SSE stream (`/events`) from one origin, so the shell needs no CORS and no second port. Static paths are traversal-safe (escapes out of the dist dir return 404) and need no token because they carry no secrets; `/events` still requires the token.
+- **Build must exist.** Run `npm --prefix ui run build` first. Without `ui/dist` the server logs that the UI is not served and `/` returns 404 (the stream still works).
+- **`daemon.ui_dist_dir`.** Optional config string overriding the dist location; default is `<repo root>/ui/dist`. Only used if it is a directory.
+- **Token flow.** `jarvis ui` asks the daemon (`ui` control command) for `app_url`, which is `http://127.0.0.1:<port>/#token=<token>`. The token rides in the URL fragment, so it is never sent to the server or logged. On load `ui/src/services/endpoint.ts` reads it, then clears the hash with `history.replaceState` so it leaves the address bar. With no token the shell renders "Offline" and opens no `EventSource`.
+- **Launching.** `jarvis ui` opens an Edge `--app=<app_url>` window (`msedge` on PATH, else the standard Program Files paths) and falls back to the default browser. `jarvis ui --print` prints `app_url` instead (the only path that shows the token). If the daemon is down or `daemon.ui_events_port` is 0 the command exits 1 with a hint.
+- **Keyboard / a11y contract.** `AppFrame` provides a "Skip to main content" link as the first tab stop (targets `<main id="main" tabIndex={-1}>`), `header`, `nav` (`aria-label="Workspaces"`) and `complementary` landmarks, a `role="status" aria-live="polite"` region announcing connection and assistant-state changes, and visible `:focus-visible` outlines. The connection state is shown as text, never colour alone. `ui/src/testing/live-shell.spec.ts` asserts these plus zero serious/critical axe violations against a live demo stream.
+
+## 9. Jarvis orb
+
+- **Model/renderer split.** `ui/src/components/jarvis/orb/orbModel.ts` is pure (no DOM or React): `foldOrbSignal` folds `voice.state` and `speech.started`/`speech.completed` into `{ state, speaking }`, `targetParams` maps that to `{ hue, energy, turbulence }`, and `stepParams` smooths toward the target. It is unit-tested with `node:test` (`ui/node-tests/orb-model.test.ts`). `JarvisOrb.tsx` only renders those params.
+- **Renderer.** Raw WebGL2, one full-screen triangle, one fragment shader, no textures, no npm dependency. The orb reacts to events only; there is no audio analysis (D049). `AssistantStatus` uses it for the large core; the 22px compact indicator stays CSS.
+- **Fallback.** If WebGL2 is unavailable, shader compile or link fails, or the context is lost, the orb logs one `console.warn` and renders `VisualCorePlaceholder` inside a `data-renderer="fallback"` wrapper.
+- **Reduced motion and visibility.** Under `prefers-reduced-motion: reduce` no `requestAnimationFrame` loop runs; params snap to the target and one frame is drawn per signal change. The loop also stops while `document.hidden` and resumes (with dt reset) on return.
+- **Test hooks.** The canvas exposes `data-renderer` (`webgl2` or `fallback`) and `data-orb-state` (the state, or `speaking` while speech is active). `ui/src/testing/orb.spec.ts` uses them against the live demo stream. Command-center screenshots mask the canvas because GPU output is not deterministic.

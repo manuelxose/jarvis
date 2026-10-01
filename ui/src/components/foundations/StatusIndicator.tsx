@@ -18,7 +18,7 @@ const COLOR_VAR: Record<AssistantState, string> = {
   processing: 'var(--accent-processing)',
   executing: 'var(--accent-processing)',
   error: 'var(--state-danger)',
-  offline: 'var(--state-offline)',
+  offline: 'var(--text-secondary)',
   notification: 'var(--accent-listening)',
 }
 

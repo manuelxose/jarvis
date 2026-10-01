@@ -633,7 +633,8 @@ def _parse_allowlist(data: Mapping[str, Any]) -> list[str]:
 _DESKTOP_KEYS = {"authorized_scopes", "trusted_operations", "apps"}
 _DAEMON_KEYS = {
     "hotkey", "wake_word", "wake_word_model", "control_port", "input_device", "min_free_vram_mb_for_ollama",
-    "session_idle_seconds", "metrics_interval_seconds", "events_log",
+    "session_idle_seconds", "metrics_interval_seconds", "events_log", "ui_events_port",
+    "ui_dist_dir",
 }
 
 
@@ -665,6 +666,8 @@ def _desktop_sections(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
         unknown = set(data) - allowed
         if unknown:
             raise ValueError(f"unknown {name} settings: {sorted(unknown)}")
+    if not isinstance(daemon.get("ui_dist_dir", ""), str):
+        raise ValueError("daemon.ui_dist_dir must be a string")
     for key in ("authorized_scopes", "trusted_operations"):
         value = desktop.get(key, [])
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):

@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import shutil
+import subprocess
+import sys
 import time
+import webbrowser
 from pathlib import Path
 from typing import Any, TextIO
 
-COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "restart", "claps", "workspace", "autostart", "tools", "welcome", "startup")
+COMMANDS = ("daemon", "activate", "sleep", "status", "quit", "restart", "claps", "workspace", "autostart", "tools", "welcome", "startup", "ui")
 
 
 def run(command: str, args: Any, config: Any, out: TextIO, err: TextIO) -> int:
@@ -41,6 +46,62 @@ def _control(command: str, config: Any, out: TextIO, err: TextIO) -> int:
     except OSError:
         err.write("error: the Jarvis daemon is not running (start it with: jarvis daemon)\n")
         return 1
+    return 0
+
+
+def _find_edge() -> str | None:
+    """Edge on PATH, else its standard Windows install locations."""
+    found = shutil.which("msedge")
+    if found:
+        return found
+    for variable in ("ProgramFiles(x86)", "ProgramFiles"):
+        root = os.environ.get(variable)
+        if root:
+            candidate = Path(root) / "Microsoft" / "Edge" / "Application" / "msedge.exe"
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def _launch_edge_app(edge: str, url: str) -> None:
+    detach: dict[str, Any] = (
+        {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+        if sys.platform == "win32"
+        else {"start_new_session": True}
+    )
+    subprocess.Popen([edge, f"--app={url}"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **detach)
+
+
+def _ui(args: Any, config: Any, out: TextIO, err: TextIO) -> int:
+    """Open the command center in an Edge app window (or the default browser); the token never reaches the terminal except with --print."""
+    from jarvis.apps.daemon import DEFAULT_PORT, send_command  # noqa: PLC0415
+
+    try:
+        reply = send_command("ui", int(config.daemon.get("control_port", DEFAULT_PORT)))
+    except OSError:  # ConnectionError is an OSError
+        err.write("Jarvis daemon is not running; start it with: jarvis daemon\n")
+        return 1
+    if not reply.get("ok"):
+        err.write(f"error: {reply.get('error', 'ui unavailable')}\n")
+        return 1
+    app_url = reply.get("app_url")
+    if not app_url:
+        err.write("error: the running daemon does not offer the UI shell (no app_url); restart it with: jarvis restart\n")
+        return 1
+    if getattr(args, "print_url", False):
+        out.write(f"{app_url}\n")
+        return 0
+    edge = _find_edge()
+    if edge:
+        try:
+            _launch_edge_app(edge, app_url)
+        except OSError as error:
+            err.write(f"warning: could not start Edge ({error}); using the default browser\n")
+        else:
+            out.write("opened in Edge app window\n")
+            return 0
+    webbrowser.open(app_url)
+    out.write("opened in default browser\n")
     return 0
 
 

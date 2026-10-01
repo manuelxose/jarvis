@@ -17,10 +17,8 @@ interface VisualCorePlaceholderProps {
 }
 
 /**
- * Reserved slot for the future audio-reactive holographic orb (out of scope
- * this phase, see docs/design/component-inventory.md). Deliberately a flat
- * CSS blob + glow, not WebGL — swappable for a <canvas>/R3F element later
- * without a layout change, per the future-capabilities boundary.
+ * Flat CSS blob + glow. Used as the compact status indicator and as the
+ * fallback when JarvisOrb (raw WebGL2, ./orb/JarvisOrb.tsx) cannot render.
  */
 export function VisualCorePlaceholder({ state, size = 120 }: VisualCorePlaceholderProps) {
   const color = CORE_COLOR[state] ?? 'var(--text-disabled)'

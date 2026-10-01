@@ -1,0 +1,27 @@
+{
+  "source": "Windows GPU Engine(*)\\Utilization Percentage via Get-Counter; filtered to isolated Edge process tree",
+  "samples": [
+    {
+      "matched_counter_count": 13,
+      "process_gpu_engine_percent_sum": 18.7986433995547,
+      "invalid_counter_count": 0,
+      "max_engine_percent": 18.7986433995547,
+      "timestamp": "2026-10-01T00:33:01.6134727+02:00"
+    },
+    {
+      "matched_counter_count": 13,
+      "process_gpu_engine_percent_sum": 19.133936003742,
+      "invalid_counter_count": 0,
+      "max_engine_percent": 19.133936003742,
+      "timestamp": "2026-10-01T00:33:02.6533335+02:00"
+    },
+    {
+      "matched_counter_count": 13,
+      "process_gpu_engine_percent_sum": 18.2383121675912,
+      "invalid_counter_count": 0,
+      "max_engine_percent": 18.2383121675912,
+      "timestamp": "2026-10-01T00:33:03.6881661+02:00"
+    }
+  ],
+  "interpretation": "Three one-second process-attributed engine samples during the real Edge probe; sum can combine engines and is not whole-device utilization or a GPU presentation-time measurement."
+}

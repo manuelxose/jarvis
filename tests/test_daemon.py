@@ -160,6 +160,168 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
             await server.wait_closed()
 
 
+class UiEventStreamTests(unittest.IsolatedAsyncioTestCase):
+    """run_daemon wires the SSE event stream and exposes endpoint + token via the `ui` command."""
+
+    def setUp(self):
+        EVENTS.clear()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"LOCALAPPDATA": self.tmp.name})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def sentinel(self):
+        opener = lambda callback: SimpleNamespace(stop=lambda: None, close=lambda: None)  # noqa: E731
+        return daemon.Sentinel(self.daemon_config(), runtime_factory=FakeRuntime, mixer_factory=FakeMixer, open_mic=opener)
+
+    def daemon_config(self, **daemon_settings):
+        root = Path(self.tmp.name)
+        path = root / "ui.json"
+        path.write_text(json.dumps({"runtime": {}, "memory": {"db_path": str(root / "j.db")}, "daemon": {"hotkey": "", **daemon_settings}}))
+        return load_config(path)
+
+    async def start_daemon(self, **daemon_settings):
+        config = self.daemon_config(control_port=free_port(), **daemon_settings)
+        port = config.daemon["control_port"]
+        with mock.patch.object(daemon, "Sentinel", return_value=self.sentinel()):
+            runner = asyncio.create_task(daemon.run_daemon(config))
+            for _ in range(200):
+                await asyncio.sleep(0.01)
+                try:
+                    return runner, port, await asyncio.to_thread(daemon.send_command, "ui", port)
+                except OSError:
+                    continue
+        self.fail("daemon control socket never came up")
+
+    async def test_ui_command_returns_endpoint_and_stream_delivers_hub_events(self):
+        from jarvis.observability.event_hub import hub
+
+        events_port = free_port()
+        runner, port, ui = await self.start_daemon(ui_events_port=events_port)
+        try:
+            self.assertTrue(ui["ok"])
+            self.assertEqual(ui["url"], f"http://127.0.0.1:{events_port}/events")
+            self.assertGreaterEqual(len(ui["token"]), 32)
+            self.assertEqual(ui["app_url"], f"http://127.0.0.1:{events_port}/#token={ui['token']}")
+            self.assertNotIn(ui["token"], json.dumps(await asyncio.to_thread(daemon.send_command, "status", port), default=str))
+            reader, writer = await asyncio.open_connection("127.0.0.1", events_port)
+            writer.write(f"GET /events?token={ui['token']} HTTP/1.1\r\nHost: x\r\n\r\n".encode())
+            await writer.drain()
+            head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
+            self.assertIn(b"200 OK", head)
+            self.assertIn(b"text/event-stream", head)
+            frame = None
+            for _ in range(40):  # the client may connect a beat before the hub subscription lands
+                hub.publish("voice.state", state="listening", reason="test")
+                try:
+                    chunk = await asyncio.wait_for(reader.readuntil(b"\n\n"), 0.1)
+                except asyncio.TimeoutError:
+                    continue
+                if chunk.startswith(b"data: "):
+                    frame = json.loads(chunk[6:])
+                    break
+            self.assertIsNotNone(frame)
+            self.assertEqual((frame["v"], frame["name"], frame["state"]), (1, "voice.state", "listening"))
+            writer.close()
+        finally:
+            await asyncio.to_thread(daemon.send_command, "quit", port)
+            await asyncio.wait_for(runner, 3)
+        again = await asyncio.start_server(lambda r, w: None, "127.0.0.1", events_port)  # port released
+        again.close()
+        await again.wait_closed()
+
+    async def test_ui_control_dispatches_real_sentinel_only_with_authorized_action(self):
+        events_port = free_port()
+        runner, port, ui = await self.start_daemon(ui_events_port=events_port)
+
+        async def action(name, *, token=None, origin=None):
+            reader, writer = await asyncio.open_connection("127.0.0.1", events_port)
+            body = json.dumps({"action": name}).encode()
+            writer.write((f"POST /control HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                          f"Origin: {origin or f'http://127.0.0.1:{events_port}'}\r\n"
+                          f"X-Jarvis-Token: {token or ui['token']}\r\nContent-Type: application/json\r\n"
+                          f"Content-Length: {len(body)}\r\n\r\n").encode() + body)
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(), 3)
+            writer.close()
+            await writer.wait_closed()
+            return int(response.split(b" ", 2)[1]), response
+
+        try:
+            self.assertEqual((await action("activate", token="invalid"))[0], 401)
+            self.assertEqual((await action("activate", origin="null"))[0], 403)
+            self.assertEqual((await action("restart"))[0], 400)
+            self.assertEqual((await asyncio.to_thread(daemon.send_command, "status", port))["state"], "sentinel")
+            self.assertEqual((await action("sleep"))[0], 503)  # no session to stop
+            self.assertEqual((await action("activate"))[0], 202)
+            for _ in range(200):
+                if (await asyncio.to_thread(daemon.send_command, "status", port))["state"] == "active":
+                    break
+                await asyncio.sleep(0.01)
+            self.assertEqual((await asyncio.to_thread(daemon.send_command, "status", port))["state"], "active")
+            self.assertEqual([e[0] for e in EVENTS].count("chime"), 1)
+            self.assertEqual((await action("sleep"))[0], 202)
+            for _ in range(200):
+                if (await asyncio.to_thread(daemon.send_command, "status", port))["state"] == "sentinel":
+                    break
+                await asyncio.sleep(0.01)
+            self.assertEqual((await asyncio.to_thread(daemon.send_command, "status", port))["state"], "sentinel")
+        finally:
+            await asyncio.to_thread(daemon.send_command, "quit", port)
+            await asyncio.wait_for(runner, 3)
+
+    async def test_ui_command_reports_disabled_when_port_is_zero(self):
+        runner, port, ui = await self.start_daemon(ui_events_port=0)
+        try:
+            self.assertEqual(ui, {"ok": False, "error": "ui events disabled"})
+        finally:
+            await asyncio.to_thread(daemon.send_command, "quit", port)
+            await asyncio.wait_for(runner, 3)
+
+    async def test_busy_ui_port_degrades_to_no_stream(self):
+        with socket.socket() as busy:
+            busy.bind(("127.0.0.1", 0))
+            busy.listen()
+            with self.assertLogs("jarvis.daemon", "WARNING"):
+                runner, port, ui = await self.start_daemon(ui_events_port=busy.getsockname()[1])
+            try:
+                self.assertFalse(ui["ok"])
+                self.assertEqual((await asyncio.to_thread(daemon.send_command, "status", port))["state"], "sentinel")
+            finally:
+                await asyncio.to_thread(daemon.send_command, "quit", port)
+                await asyncio.wait_for(runner, 3)
+
+    async def test_daemon_serves_configured_ui_dist_on_the_events_port(self):
+        dist = Path(self.tmp.name) / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<h1>shell</h1>")
+        events_port = free_port()
+        runner, port, ui = await self.start_daemon(ui_events_port=events_port, ui_dist_dir=str(dist))
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", events_port)
+            writer.write(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+            await writer.drain()
+            body = await asyncio.wait_for(reader.read(), 2)
+            self.assertIn(b"200 OK", body)
+            self.assertTrue(body.endswith(b"<h1>shell</h1>"))
+            self.assertNotIn(ui["token"].encode(), body)
+            writer.close()
+        finally:
+            await asyncio.to_thread(daemon.send_command, "quit", port)
+            await asyncio.wait_for(runner, 3)
+
+    def test_config_accepts_ui_events_port_and_rejects_unknown_keys(self):
+        self.assertEqual(self.daemon_config(ui_events_port=51000).daemon["ui_events_port"], 51000)
+        self.assertEqual(self.daemon_config(ui_dist_dir="/x/dist").daemon["ui_dist_dir"], "/x/dist")
+        with self.assertRaises(ValueError):
+            self.daemon_config(ui_dist_dir=5)
+        with self.assertRaises(ValueError):
+            self.daemon_config(ui_events_prot=1)
+
+
 class FakeClone:
     def __init__(self):
         self.starts = self.stops = 0
@@ -256,6 +418,7 @@ class ActivationStateTests(SentinelCase):
         sentinel.detector.on_candidate(SimpleNamespace(time=1.0))
         sentinel.request_activation("claps")  # second clap
         await self.wait_for(lambda: sentinel.state == "active")
+        await self.wait_for(lambda: sentinel.voice.state.value == "warm")  # acquire runs in its own task
         clone = sentinel.voice.tts
         self.assertEqual((clone.starts, sentinel.voice.state.value), (1, "warm"))
         self.assertTrue(all(e[1] is clone for e in EVENTS if e[0] == "voice_clone"))
