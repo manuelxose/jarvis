@@ -88,6 +88,32 @@ class VoiceCacheTests(unittest.TestCase):
         (profile / "reference.wav").write_bytes(b"x" * 10)
         self.assertNotEqual(first, profile_version(profile))
 
+    def test_profile_version_ignores_derived_prompt(self):
+        profile = self.dir / "profile"
+        profile.mkdir()
+        (profile / "profile.json").write_text("{}")
+        (profile / "reference.wav").write_bytes(b"x" * 10)
+        before = profile_version(profile)
+        (profile / "prompt.pt").write_bytes(b"derived")  # rewritten by the worker on first load
+        self.assertEqual(before, profile_version(profile))
+        (profile / "reference.wav").write_bytes(b"x" * 20)
+        self.assertNotEqual(before, profile_version(profile))
+
+    def test_profile_replacement_with_same_metadata_invalidates_audio(self):
+        import os
+
+        profile = self.dir / "profile"
+        profile.mkdir()
+        reference = profile / "reference.wav"
+        reference.write_bytes(b"old voice")
+        stamp = reference.stat()
+        identity = {**ID, "profile_version": profile_version(profile)}
+        VoiceCache(self.dir / "cache", identity).put("Hecho.", wav())
+        reference.write_bytes(b"new voice")
+        os.utime(reference, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        current = {**ID, "profile_version": profile_version(profile)}
+        self.assertIsNone(VoiceCache(self.dir / "cache", current).get("Hecho."))
+
     def test_stable_ack_rules(self):
         self.assertTrue(_stable_ack("He subido el volumen."))
         for bad in ("Son las 09:15.", "CPU al 12 por ciento.", "No he podido abrir X.", "tool x failed: boom", ""):

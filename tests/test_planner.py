@@ -274,6 +274,42 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
                 match = classifier.match(text)
                 self.assertEqual((match.name, dict(match.arguments)), (name, args))
 
+    def test_m009_s05_gap_phrasings_route_locally(self):
+        classifier = FastCommandClassifier()
+        cases = {
+            "¿qué ventanas hay abiertas?": ("windows_list", {}),
+            "lista mis ventanas": ("windows_list", {}),
+            "qué tengo abierto": ("windows_list", {}),
+            "list windows": ("windows_list", {}),
+            "¿cómo va la red?": ("network_stats", {}),
+            "cómo va internet": ("network_stats", {}),
+            "abre el proyecto jarvis en vscode": ("project_open", {"name": "jarvis"}),
+            "abre el proyecto jarvis en VS Code": ("project_open", {"name": "jarvis"}),
+            "abre el repo jarvis en visual studio code": ("project_open", {"name": "jarvis"}),
+            "abre el proyecto jarvis": ("project_open", {"name": "jarvis"}),
+            "lista mis repositorios": ("project_list", {}),
+            "qué repos tengo": ("project_list", {}),
+            "list my repos": ("project_list", {}),
+            "¿a qué volumen está?": ("volume_get", {}),
+            "qué volumen tengo": ("volume_get", {}),
+            "cuál es el volumen": ("volume_get", {}),
+            "what is the volume": ("volume_get", {}),
+            "pon el volumen al 40": ("volume_set", {"level": "40"}),
+        }
+        for text, (name, args) in cases.items():
+            with self.subTest(text=text):
+                match = classifier.match(text)
+                self.assertIsNotNone(match)
+                self.assertEqual((match.name, dict(match.arguments)), (name, args))
+
+    async def test_repo_list_is_local_but_repo_analysis_stays_with_hermes(self):
+        router = Router()
+        self.assertEqual((await router.route("lista mis repositorios", TurnContext.fresh("t"))).route, "fast_command")
+        for text in ("revisa mis proyectos", "analiza el repositorio"):
+            with self.subTest(text=text):
+                self.assertIsNone(FastCommandClassifier().match(text))
+                self.assertEqual((await router.route(text, TurnContext.fresh("t"))).route, "hermes")
+
     def test_vague_or_destructive_phrases_never_hit_a_local_tool(self):
         classifier = FastCommandClassifier()
         for text in ("cierra todo", "cierra esto", "borra el proyecto jarvis", "elimina todos los archivos", "formatea el disco"):

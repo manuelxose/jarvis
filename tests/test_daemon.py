@@ -638,6 +638,7 @@ class SessionLifecycleTests(SentinelCase):
         StartRuntime.live = StartRuntime.peak = 0
 
     async def test_control_activation_runs_the_full_loop_one_session_at_a_time(self):
+        self.config.daemon["session_idle_seconds"] = 60  # control round trips on Windows must not race idle sleep
         sentinel = self.sentinel(StartRuntime)
         port = free_port()
         server = await daemon.serve(sentinel, port)
@@ -786,7 +787,10 @@ class ClapHandoff:
         task = asyncio.create_task(sentinel.run())
         await self.wait_for(lambda: sentinel.state == "sentinel")
         await self.feed(sentinel, times)
-        await asyncio.sleep(0.2)
+        if len(times) >= sentinel.detector.tuning.claps_required:
+            await self.wait_for(lambda: sentinel.state == "active")
+        else:
+            await asyncio.sleep(0.2)
         return sentinel, task
 
     async def finish(self, sentinel, task):
@@ -801,12 +805,255 @@ class TwoClapDefaultTests(ClapHandoff, SentinelCase):
         self.assertEqual(ClapTuning().claps_required, 2)
         self.assertEqual(daemon.clap_tuning(self.config), ClapTuning())  # no calibration file, nothing pinned
 
+    async def run_capturing(self, times):
+        from jarvis.observability.event_hub import hub
+
+        events = []
+        unsubscribe = hub.subscribe(events.append)
+        try:
+            sentinel, task = await self.run_with(times)
+        except BaseException:
+            unsubscribe()
+            raise
+        return sentinel, task, events, unsubscribe
+
+    @staticmethod
+    def activation(events):
+        return [e for e in events if e["name"].startswith("activation.")]
+
     async def test_two_claps_activate_by_default(self):
+        sentinel, task, events, unsubscribe = await self.run_capturing([0.0, 0.45])
+        try:
+            self.assertEqual(sentinel.detector.tuning.claps_required, 2)
+            self.assertEqual(sentinel.state, "active")
+            self.assertGreaterEqual(sentinel._last_gesture["confidence"], 0.55)
+            confirmed = [e for e in events if e["name"] == "activation.confirmed"]
+            self.assertEqual([e["source"] for e in confirmed], ["claps"])
+        finally:
+            unsubscribe()
+            await self.finish(sentinel, task)
+
+    async def test_one_clap_speculates_then_expires_without_startup(self):
+        sentinel, task, events, unsubscribe = await self.run_capturing([0.0])
+        try:
+            await self.wait_for(lambda: sentinel.state == "sentinel" and sentinel.voice.state.value == "cold")
+            seen = self.activation(events)
+            self.assertEqual([e["name"] for e in seen], ["activation.started", "activation.cancelled"])
+            self.assertEqual(seen[0]["source"], "first_clap")
+            self.assertEqual(sentinel.voice.tts.stops, 1)  # speculation was loaded, then undone
+            names = [e[0] for e in EVENTS]
+            self.assertNotIn("chime", names)
+            self.assertNotIn("listening", names)
+        finally:
+            unsubscribe()
+            await self.finish(sentinel, task)
+
+    async def test_third_clap_does_not_restart_activation(self):
+        sentinel, task, events, unsubscribe = await self.run_capturing([0.0, 0.45, 0.9])
+        try:
+            self.assertEqual(sentinel.state, "active")
+            self.assertEqual([e["name"] for e in self.activation(events)], ["activation.started", "activation.confirmed"])
+            self.assertEqual([e[0] for e in EVENTS].count("listening"), 1)
+            self.assertEqual([e[0] for e in EVENTS].count("chime"), 1)
+        finally:
+            unsubscribe()
+            await self.finish(sentinel, task)
+
+
+class VoiceLifecycleTests(ClapHandoff, SentinelCase):
+    def sentinel(self, runtime=VoiceRuntime):
+        from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+
+        sentinel = super().sentinel(runtime)
+        sentinel.voice = VoiceModelManager(
+            FakeClone, VoicePolicy(max_gpu_mb=0, speculative_min_interval_seconds=0, cooldown_seconds=0.5),
+            free_vram=lambda: None, running_processes=set)
+        return sentinel
+
+    async def test_first_clap_loads_next_session_reuses_cooldown_evicts(self):
+        from jarvis.observability.event_hub import hub
+
+        events = []
+        unsubscribe = hub.subscribe(lambda e: events.append(e["name"]))
         sentinel, task = await self.run_with([0.0, 0.45])
-        self.assertEqual(sentinel.detector.tuning.claps_required, 2)
-        self.assertEqual(sentinel.state, "active")
-        self.assertGreaterEqual(sentinel._last_gesture["confidence"], 0.55)
-        await self.finish(sentinel, task)
+        try:
+            voice = sentinel.voice
+            await self.wait_for(lambda: voice.state.value == "warm")
+            clone = voice.tts
+            self.assertEqual((voice.loads, clone.starts, clone.stops), (1, 1, 0))  # speculative load reused
+            self.assertIn("voice.loading", events)
+
+            sentinel.runtime.voice_loop.last_activity -= 10  # idle watchdog ends session one
+            await self.wait_for(lambda: sentinel.state == "sentinel" and voice.state.value == "cooldown", timeout=3)
+            self.assertEqual(clone.stops, 0)  # kept warm after the session
+
+            sentinel.request_activation("control")  # inside the cooldown window
+            await self.wait_for(lambda: sentinel.state == "active")
+            await self.wait_for(lambda: voice.state.value == "warm")
+            self.assertEqual((voice.loads, clone.starts, clone.stops), (1, 1, 0))  # warm model reused
+            self.assertTrue(all(e[1] is clone for e in EVENTS if e[0] == "voice_clone"))
+
+            sentinel.runtime.voice_loop.last_activity -= 10
+            await self.wait_for(lambda: sentinel.state == "sentinel" and voice.state.value == "cooldown", timeout=3)
+            await self.wait_for(lambda: voice.state.value == "cold", timeout=3)
+            self.assertEqual((clone.stops, voice.loads), (1, 1))
+            self.assertIn("voice.evicted", events)
+        finally:
+            unsubscribe()
+            await self.finish(sentinel, task)
+
+
+def wav_bytes(frames=b"\0\0" * 80):
+    import io
+    import wave
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(16000)
+        out.writeframes(frames)
+    return buffer.getvalue()
+
+
+class PlayRuntime(StartRuntime):
+    def __init__(self, config, voice_clone=None):
+        super().__init__(config, voice_clone)
+        self.played = []
+
+        async def play(stream, context):
+            self.played.append(stream)
+
+        self.components.audio_output.play = play
+
+
+class ReenrollTests(SentinelCase):
+    def setUp(self):
+        from dataclasses import replace
+
+        super().setUp()
+        StartRuntime.live = StartRuntime.peak = 0
+        self.profile = Path(self.tmp.name) / "profile"
+        self.profile.mkdir()
+        (self.profile / "profile.json").write_text(json.dumps({"name": "owner"}))
+        self.write_reference(b"\0\0" * 100)
+        self.config = replace(self.config, tts=replace(self.config.tts, provider="qwen_clone", profile_dir=str(self.profile)))
+
+    def write_reference(self, frames):
+        (self.profile / "reference.wav").write_bytes(wav_bytes(frames))
+
+    def sentinel(self, runtime=PlayRuntime):
+        from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+
+        sentinel = super().sentinel(runtime)
+        sentinel.voice = VoiceModelManager(
+            FakeClone, VoicePolicy(max_gpu_mb=0, speculative_min_interval_seconds=0, cooldown_seconds=30),
+            free_vram=lambda: None, running_processes=set)
+        return sentinel
+
+    @staticmethod
+    def record_welcomes(sentinel):
+        from jarvis.application.startup import welcome_texts
+
+        for text in welcome_texts(daemon.startup_options(sentinel.config)):
+            sentinel.welcome_cache.put(text, wav_bytes())
+
+    async def session(self, sentinel):
+        sentinel.request_activation("control")
+        await self.wait_for(lambda: sentinel.state == "active")
+        await self.wait_for(lambda: sentinel.voice.state.value == "warm")
+        report = dict(sentinel.last_report)
+        sentinel.runtime.voice_loop.last_activity -= 10  # idle watchdog ends the session
+        await self.wait_for(lambda: sentinel.state == "sentinel" and sentinel.voice.state.value == "cooldown", timeout=3)
+        return report
+
+    async def test_reenrolled_profile_drops_welcomes_and_reloads_the_warm_clone(self):
+        from jarvis.observability.event_hub import hub
+
+        events = []
+        unsubscribe = hub.subscribe(events.append)
+        sentinel = self.sentinel()
+        task = asyncio.create_task(sentinel.run())
+        try:
+            await self.wait_for(lambda: sentinel.state == "sentinel")
+            self.record_welcomes(sentinel)
+            old_hash = sentinel.status()["voice_cache"]
+            self.assertEqual((await self.session(sentinel))["welcome_source"], "cache")
+            clone = sentinel.voice.tts
+            self.assertEqual((sentinel.voice.loads, clone.stops), (1, 0))
+
+            self.write_reference(b"\0\0" * 400)  # re-enroll while the daemon runs
+            report = await self.session(sentinel)
+            self.assertNotEqual(report["welcome_source"], "cache")
+            self.assertEqual(list(sentinel.welcome_cache.dir.glob("*.wav")), [])
+            self.assertNotEqual(sentinel.status()["voice_cache"], old_hash)
+            self.assertEqual((clone.stops, sentinel.voice.loads), (1, 2))  # old profile's clone dropped, new one loaded
+            evicted = [e for e in events if e["name"] == "voice.evicted" and "voice profile changed" in e.get("reason", "")]
+            self.assertEqual(len(evicted), 1)
+        finally:
+            unsubscribe()
+            sentinel.shutdown()
+            await asyncio.wait_for(task, 3)
+
+    async def test_unchanged_profile_reuses_the_warm_clone_and_the_cached_welcome(self):
+        from jarvis.observability.event_hub import hub
+
+        events = []
+        unsubscribe = hub.subscribe(events.append)
+        sentinel = self.sentinel()
+        task = asyncio.create_task(sentinel.run())
+        try:
+            await self.wait_for(lambda: sentinel.state == "sentinel")
+            self.record_welcomes(sentinel)
+            self.assertEqual((await self.session(sentinel))["welcome_source"], "cache")
+            self.assertEqual((await self.session(sentinel))["welcome_source"], "cache")
+            self.assertEqual((sentinel.voice.loads, sentinel.voice.tts.stops), (1, 0))
+            self.assertFalse([e for e in events if "voice profile changed" in str(e.get("reason", ""))])
+        finally:
+            unsubscribe()
+            sentinel.shutdown()
+            await asyncio.wait_for(task, 3)
+
+    async def test_busy_clone_keeps_the_stale_flag_until_it_can_be_evicted(self):
+        sentinel = self.sentinel()
+        self.assertTrue(await sentinel.voice.speculate("test"))
+        sentinel.voice.tts.busy = True
+        self.write_reference(b"\0\0" * 400)
+        await sentinel._refresh_voice_identity()
+        self.assertEqual((sentinel._voice_stale, sentinel.voice.state.value), (True, "speculative"))
+        sentinel.voice.tts.busy = False
+        await sentinel._refresh_voice_identity()
+        self.assertEqual((sentinel._voice_stale, sentinel.voice.state.value), (False, "cold"))
+
+    async def test_unreadable_identity_is_logged_and_never_blocks_activation(self):
+        sentinel = self.sentinel()
+        before = sentinel.welcome_cache
+        with mock.patch("jarvis.adapters.tts.voice_cache.voice_identity", side_effect=OSError("disk gone")):
+            with self.assertLogs("jarvis.daemon", "WARNING"):
+                await sentinel._refresh_voice_identity()
+        self.assertIs(sentinel.welcome_cache, before)
+        self.assertFalse(sentinel._voice_stale)
+
+    async def test_welcomes_are_not_recorded_while_the_clone_may_hold_the_old_voice(self):
+        from jarvis.application.startup import welcome_texts
+
+        class Recorder:
+            async def synthesize(self, texts, context):
+                async for _ in texts:
+                    yield wav_bytes()
+
+        sentinel = self.sentinel()
+        runtime, options = PlayRuntime(sentinel.config), daemon.startup_options(sentinel.config)
+        cache = sentinel.welcome_cache
+        with mock.patch.object(daemon, "_clone", return_value=Recorder()), mock.patch.object(daemon, "_wait_voice", return_value=True):
+            sentinel._voice_stale = True
+            await sentinel._record_welcomes(runtime, options, cache)
+            self.assertEqual(cache.stats()["entries"], 0)
+            sentinel._voice_stale = False
+            await sentinel._record_welcomes(runtime, options, SimpleNamespace(get=lambda text: None))  # a cache the sentinel has since replaced
+            self.assertEqual(cache.stats()["entries"], 0)
+            await sentinel._record_welcomes(runtime, options, cache)
+            self.assertEqual(cache.stats()["entries"], len(set(welcome_texts(options))))
 
 
 class ThreeClapHandoffTests(ClapHandoff, SentinelCase):

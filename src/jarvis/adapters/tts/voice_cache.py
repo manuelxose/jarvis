@@ -25,17 +25,23 @@ FORMAT = "wav/pcm_s16le/mono"
 
 
 def profile_version(profile_dir: Path) -> str:
-    """Hash of the enrolled profile's files (name, size, mtime); '' when absent."""
+    """Hash of the enrolled profile's source file contents; '' when absent.
+
+    ``prompt.pt`` is deliberately excluded: it is derived (dropped on enroll, rewritten by
+    the worker on first load), so including it would change the identity a second time.
+    """
     digest = hashlib.sha256()
     found = False
-    for name in ("profile.json", "reference.wav", "prompt.pt"):
+    for name in ("profile.json", "reference.wav"):
         path = profile_dir / name
         try:
-            stat = path.stat()
+            with path.open("rb") as source:
+                content_hash = hashlib.file_digest(source, "sha256").digest()
         except OSError:
             continue
         found = True
-        digest.update(f"{name}:{stat.st_size}:{int(stat.st_mtime)}".encode())
+        digest.update(name.encode())
+        digest.update(content_hash)
     return digest.hexdigest()[:16] if found else ""
 
 

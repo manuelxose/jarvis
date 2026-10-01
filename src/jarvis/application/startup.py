@@ -266,7 +266,8 @@ class StartupSequence:
             self._set_phase(StartupPhase.INITIALIZING)
 
             try:
-                reports = await asyncio.wait_for(services, options.services_timeout_seconds)
+                async with asyncio.timeout(options.services_timeout_seconds):
+                    reports = await services
             except asyncio.TimeoutError:
                 reports = [HealthReport("configuration", HealthStatus.FAILED, "startup timed out")]
             except Exception as error:  # noqa: BLE001 - reported, not raised
@@ -289,7 +290,8 @@ class StartupSequence:
                 voice_ready = True
                 if self._wait_voice is not None:
                     try:
-                        voice_ready = bool(await asyncio.wait_for(self._wait_voice(), options.voice_ready_timeout_seconds))
+                        async with asyncio.timeout(options.voice_ready_timeout_seconds):
+                            voice_ready = bool(await self._wait_voice())
                     except (asyncio.TimeoutError, Exception):  # noqa: BLE001
                         voice_ready = False
                 self._mark("voice_ready", started)
@@ -361,7 +363,8 @@ class StartupSequence:
             mixer.ramp(options.duck_volume, options.duck_seconds)
             await asyncio.sleep(options.duck_seconds)
         try:
-            await asyncio.wait_for(speak(), options.announce_timeout_seconds)
+            async with asyncio.timeout(options.announce_timeout_seconds):
+                await speak()
         except asyncio.TimeoutError:
             logger.warning("welcome speech timed out after %.0f s", options.announce_timeout_seconds)
             self.report.issues.append("speech timed out")

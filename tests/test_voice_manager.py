@@ -79,6 +79,17 @@ class VoiceManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((m.state, m.tts.stops), (VoiceState.COLD, 1))
         self.assertIn("voice.evicted", self.events)
 
+    async def test_busy_speculation_expires_after_synthesis_finishes(self):
+        m = manager()
+        await m.speculate("first clap")
+        m.tts.busy = True
+        await m.cancel_speculation("timeout")
+        await asyncio.sleep(0.05)
+        self.assertTrue(m.tts.running)
+        m.tts.busy = False
+        await asyncio.sleep(2.1)
+        self.assertEqual((m.state, m.tts.running, m.tts.stops), (VoiceState.COLD, False, 1))
+
     async def test_speculation_never_unloads_a_model_it_did_not_load(self):
         m = manager()
         await m.acquire("s1")
@@ -111,6 +122,70 @@ class VoiceManagerTests(unittest.IsolatedAsyncioTestCase):
         m.tts.busy = False
         await asyncio.sleep(2.1)  # deferred eviction retries
         self.assertEqual(m.tts.stops, 1)
+
+    async def test_on_demand_release_during_synthesis_evicts_after_it(self):
+        managers = [manager(preload="on_demand"), manager(cooldown_seconds=0)]
+        for m in managers:
+            await m.acquire("s1")
+            m.tts.busy = True
+            await m.release("s1")
+            self.assertEqual((m.state, m.tts.stops), (VoiceState.COOLDOWN, 0))
+            self.assertIn("deferred", m.last_reason)
+        # a new session during the deferral cancels it and keeps the model
+        reused = manager(preload="on_demand")
+        await reused.acquire("s1")
+        reused.tts.busy = True
+        await reused.release("s1")
+        await reused.acquire("s2")
+        self.assertEqual((reused.state, reused.tts.stops), (VoiceState.WARM, 0))
+        for m in managers:
+            m.tts.busy = False
+        await asyncio.sleep(2.1)  # deferred eviction retries
+        for m in managers:
+            self.assertEqual((m.state, m.tts.stops), (VoiceState.COLD, 1))
+        self.assertEqual((reused.state, reused.tts.stops), (VoiceState.WARM, 0))
+        await reused.shutdown()
+
+    async def test_invalidate_evicts_idle_started_models(self):
+        for state in ("speculative", "cooldown"):
+            m = manager()
+            if state == "speculative":
+                await m.speculate("first clap")
+                self.assertEqual(m.state, VoiceState.SPECULATIVE)
+            else:
+                await m.acquire("s1")
+                await m.release("s1")
+                self.assertEqual(m.state, VoiceState.COOLDOWN)
+            self.events.clear()
+            self.assertTrue(await m.invalidate("voice profile changed"))
+            self.assertEqual((m.state, m.tts.stops, m.last_reason), (VoiceState.COLD, 1, "voice profile changed"))
+            self.assertIn("voice.evicted", self.events)
+            self.assertIsNone(m._evict_task)
+
+    async def test_invalidate_cancels_pending_cooldown_eviction(self):
+        m = manager(cooldown_seconds=0.05)
+        await m.acquire("s1")
+        await m.release("s1")
+        self.assertTrue(await m.invalidate("voice profile changed"))
+        await asyncio.sleep(0.1)
+        self.assertEqual(m.tts.stops, 1)  # the timer did not stop it a second time
+
+    async def test_invalidate_refuses_held_busy_or_cold(self):
+        held = manager()
+        await held.acquire("s1")
+        self.assertFalse(await held.invalidate("voice profile changed"))
+        self.assertEqual((held.state, held.tts.stops, held.tts.running), (VoiceState.WARM, 0, True))
+
+        busy = manager()
+        await busy.acquire("s1")
+        await busy.release("s1")
+        busy.tts.busy = True
+        self.assertFalse(await busy.invalidate("voice profile changed"))
+        self.assertEqual((busy.state, busy.tts.stops, busy.tts.running), (VoiceState.COOLDOWN, 0, True))
+
+        cold = manager()
+        self.assertFalse(await cold.invalidate("voice profile changed"))
+        self.assertEqual(cold.state, VoiceState.COLD)
 
     async def test_speculation_is_rate_limited(self):
         clock = Clock()

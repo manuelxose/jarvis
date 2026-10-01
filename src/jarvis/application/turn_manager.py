@@ -353,6 +353,8 @@ class TurnManager:
         self, decision: RouteDecision, text: str, context: TurnContext
     ) -> str:
         assert decision.command is not None
+        started = time.monotonic()
+        result = None
         try:
             result = await self._tools(
                 decision.command.name, dict(decision.command.arguments), context
@@ -362,11 +364,23 @@ class TurnManager:
             succeeded = False
         else:
             succeeded = getattr(result, "ok", True) is not False
+        # Tool name only, never arguments: they can carry clipboard/file content
+        # and the hub feeds the JSONL log.
+        hub.publish(
+            "command.executed",
+            trace_id=context.trace_id,
+            tool=decision.command.name,
+            ok=succeeded,
+            elapsed_ms=round((time.monotonic() - started) * 1000, 1),
+        )
+        if result is not None:
             if self.planner is not None and _unresolved(decision.command.name, result):
                 # "abre el proyecto X" is not an app name: let the planner resolve it.
                 response = await self.planner.handle(text, context)
                 await self._speak_text(response, context)
                 return response
+            response = self._command_response(decision.command.name, result)
+        elif succeeded:
             response = self._command_response(decision.command.name, result)
         # A command result (or its error message) is spoken so the user hears the
         # outcome rather than a silent execution; this is the milestone's spoken

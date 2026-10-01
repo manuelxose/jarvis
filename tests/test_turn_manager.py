@@ -30,6 +30,7 @@ from jarvis.core.contracts import AgentStatus, AgentToken, AgentToolRequest, Tur
 from jarvis.core.errors import ToolExecutionError
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnCancelled
+from jarvis.observability.event_hub import hub
 
 
 async def _noop_tools(name, arguments, context):
@@ -200,6 +201,42 @@ class TurnManagerFastCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("hecho", result.response)
         self.assertEqual([("volume_up", {})], calls)
         self.assertFalse(result.cancelled)
+
+    async def test_fast_command_publishes_tool_success_without_arguments(self):
+        events = []
+        unsubscribe = hub.subscribe(lambda event: events.append(event) if event["name"] == "command.executed" else None)
+        try:
+            result = await _make_manager().handle("sube el volumen")
+        finally:
+            unsubscribe()
+
+        self.assertEqual(1, len(events))
+        self.assertEqual(result.trace["trace_id"], events[0]["trace_id"])
+        self.assertEqual("volume_up", events[0]["tool"])
+        self.assertIs(events[0]["ok"], True)
+        self.assertIsInstance(events[0]["elapsed_ms"], (int, float))
+        self.assertGreaterEqual(events[0]["elapsed_ms"], 0)
+        self.assertNotIn("arguments", events[0])
+
+    async def test_fast_command_publishes_tool_error_before_speech(self):
+        events = []
+        unsubscribe = hub.subscribe(lambda event: events.append(event) if event["name"] == "command.executed" else None)
+
+        async def tools(name, arguments, context):
+            raise ToolExecutionError("la herramienta fallo")
+
+        try:
+            result = await _make_manager(tools=tools).handle("sube el volumen")
+        finally:
+            unsubscribe()
+
+        self.assertEqual("la herramienta fallo", result.response)
+        self.assertEqual(1, len(events))
+        self.assertEqual(result.trace["trace_id"], events[0]["trace_id"])
+        self.assertEqual("volume_up", events[0]["tool"])
+        self.assertIs(events[0]["ok"], False)
+        self.assertIsInstance(events[0]["elapsed_ms"], (int, float))
+        self.assertNotIn("arguments", events[0])
 
     async def test_cached_acknowledgement_skips_tts_provider(self):
         import tempfile

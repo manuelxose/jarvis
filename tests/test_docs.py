@@ -95,6 +95,43 @@ class TestLatencyReportMatchesBench(unittest.TestCase):
         self.assertIn("stt-bakeoff.md", report_text)
 
 
+class TestM009PerformanceReport(unittest.TestCase):
+    def test_paired_values_and_exclusions_match_saved_runs(self):
+        report = (DOCS_DIR / "engineering" / "m009-performance-report.md").read_text(encoding="utf-8")
+        fast_base, fast_after, model_base, model_after = (
+            json.loads((DOCS_DIR / "bench" / name).read_text(encoding="utf-8"))
+            for name in (
+                "baseline-bb29c0f-fast.json", "m009-after-fast.json",
+                "baseline-bb29c0f-models.json", "m009-after-models.json",
+            )
+        )
+        for section, metric, base, after in (
+            ("route", "intent_ms", fast_base, fast_after),
+            ("command", "cached_ack_to_first_audio_ms", fast_base, fast_after),
+            ("interrupt", "playback_stop_ms", fast_base, fast_after),
+            ("tts", "warm_ttfa_ms", model_base, model_after),
+            ("tts", "warm_total_ms", model_base, model_after),
+            ("llm", "ttft_ms", model_base, model_after),
+            ("llm", "total_ms", model_base, model_after),
+        ):
+            before, current = base[section][metric], after[section][metric]
+            row = next(line for line in report.splitlines() if line.startswith(f"| {section}.{metric} |"))
+            for block in (before, current):
+                self.assertIn(f"{block['p50']:.2f} / {block['p95']:.2f}", row)
+                self.assertIn(str(block["n"]), row)
+            self.assertIn(f"{(current['p50'] / before['p50'] - 1) * 100:+.1f}%", row)
+
+        self.assertNotIn("| claps.confirmation_after_last_clap_ms |", report)
+        self.assertEqual(fast_base["claps"]["first_clap_candidate_ms"]["n"], 0)
+        for data, sections in ((fast_after, ("startup", "resources")), (model_after, ("stt", "e2e"))):
+            for section in sections:
+                self.assertIn(data[section]["error"], report)
+        self.assertIn("**Non-comparable providers**", report)
+        self.assertIn("**one** run each", report)
+        self.assertIn("M009 performance report](engineering/m009-performance-report.md)",
+                      (DOCS_DIR / "performance.md").read_text(encoding="utf-8"))
+
+
 class TestEnvVarsDocumented(unittest.TestCase):
     def test_env_vars_documented(self):
         found: set[str] = set()

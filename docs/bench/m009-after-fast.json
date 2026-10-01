@@ -1,0 +1,88 @@
+{
+ "meta": {
+  "host": "MSI-MANUEL",
+  "python": "3.12.0",
+  "when": "2026-10-01 11:26:36"
+ },
+ "claps": {
+  "method": "offline synthetic audio through ClapDetector with the configured tuning; detector confirmation latency only, not microphone, OS or gesture-to-chime latency",
+  "claps_required": 2,
+  "first_clap_candidate_ms": {
+   "n": 40,
+   "p50": 30.0,
+   "p95": 30.0,
+   "min": 30.0,
+   "max": 30.0
+  },
+  "confirmation_after_last_clap_ms": {
+   "n": 40,
+   "p50": 47.97,
+   "p95": 54.55,
+   "min": 35.64,
+   "max": 56.56
+  },
+  "detected": "40/40"
+ },
+ "route": {
+  "intent_ms": {
+   "n": 1300,
+   "p50": 0.02,
+   "p95": 0.05,
+   "min": 0.01,
+   "max": 0.7
+  },
+  "routes": {
+   "qué hora es": "fast_command:time",
+   "sube el volumen": "fast_command:volume_up",
+   "pon el volumen al 40": "fast_command:volume_set",
+   "abre spotify": "fast_command:open_application",
+   "minimiza chrome": "fast_command:window_manage",
+   "arranca mi entorno de desarrollo": "fast_command:workspace",
+   "qué está usando la memoria de la GPU": "fast_command:gpu_processes",
+   "cómo va el sistema": "fast_command:system_stats",
+   "abre el proyecto en el que estaba trabajando": "desktop",
+   "explícame qué es un agujero negro": "fast_model",
+   "mira este error y arréglalo": "hermes",
+   "cancela la operación": "fast_command:cancel_operations",
+   "muéstrame la actividad de red": "fast_command:network_stats"
+  }
+ },
+ "command": {
+  "time_query_to_first_audio_ms (tool+route, TTS stubbed)": {
+   "n": 30,
+   "p50": 0.08,
+   "p95": 0.21,
+   "min": 0.07,
+   "max": 0.39
+  },
+  "cached_ack_to_first_audio_ms": {
+   "n": 30,
+   "p50": 0.13,
+   "p95": 0.24,
+   "min": 0.12,
+   "max": 0.31
+  },
+  "cached_ack_to_device_ms (real output stream, silent)": {
+   "n": 10,
+   "p50": 0.12,
+   "p95": 0.43,
+   "min": 0.11,
+   "max": 0.43
+  }
+ },
+ "startup": {
+  "error": "ModuleNotFoundError: No module named 'sounddevice'"
+ },
+ "interrupt": {
+  "playback_stop_ms": {
+   "n": 8,
+   "p50": 0.02,
+   "p95": 0.03,
+   "min": 0.02,
+   "max": 0.03
+  }
+ },
+ "resources": {
+  "error": "no jarvis_daemon.pyw process found; start the daemon or pass --pid"
+ }
+}

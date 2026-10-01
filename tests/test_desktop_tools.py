@@ -269,6 +269,64 @@ class ProjectLookupTests(unittest.TestCase):
         self.assertIsNone(posix_from_unc("C:\\Users\\x"))
 
 
+class RepoListAndVolumeReadTests(unittest.IsolatedAsyncioTestCase):
+    def _make_root(self, tmp):
+        root = Path(tmp)
+        for name in ("beta", "alpha"):
+            (root / name / ".git").mkdir(parents=True)
+        (root / "plain").mkdir()
+        (root / ".hidden" / ".git").mkdir(parents=True)
+        (root / "node_modules" / "dep" / ".git").mkdir(parents=True)
+        (root / "group" / "nested").mkdir(parents=True)
+        (root / "group" / "nested" / ".git").mkdir()
+        return root
+
+    def test_list_repositories_finds_git_folders_only(self):
+        from jarvis.adapters.tools.desktop import list_repositories
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            names = [p.name for p in list_repositories([root])]
+            self.assertEqual(names, ["alpha", "beta", "nested"])
+            self.assertEqual(list_repositories([root / "plain"]), [])
+
+    async def test_project_list_tool_speaks_and_reports_empty_honestly(self):
+        from jarvis.adapters.tools.desktop import ProjectListTool
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            memory = DesktopContext(root / "ctx.json")
+            tool = ProjectListTool(scopes=(root,), backup_dir=root / "bk", memory=memory)
+            result = await tool.execute({}, TurnContext.fresh("t"))
+            self.assertTrue(result.ok)
+            self.assertIn("Tienes 3 repositorios", result.say)
+            self.assertEqual(len(result.data["repositories"]), 3)
+            empty = ProjectListTool(scopes=(root / "plain",), backup_dir=root / "bk", memory=memory)
+            result = await empty.execute({}, TurnContext.fresh("t"))
+            self.assertFalse(result.ok)
+
+    async def test_volume_get_reports_level_and_honest_failure(self):
+        from unittest import mock
+
+        from jarvis.adapters.tools import desktop
+
+        tool = desktop.VolumeGetTool()
+        ctx = TurnContext.fresh("t")
+        with mock.patch.object(desktop, "_IS_WINDOWS", False):
+            self.assertFalse((await tool.execute({}, ctx)).ok)
+        with mock.patch.object(desktop, "_IS_WINDOWS", True):
+            with mock.patch.object(desktop, "get_master_volume", return_value=None):
+                result = await tool.execute({}, ctx)
+                self.assertFalse(result.ok)
+                self.assertIn("pycaw", result.say)
+            with mock.patch.object(desktop, "get_master_volume", return_value=(0.4, False)):
+                result = await tool.execute({}, ctx)
+                self.assertTrue(result.ok)
+                self.assertEqual(result.say, "El volumen está al 40 por ciento.")
+            with mock.patch.object(desktop, "get_master_volume", return_value=(0.4, True)):
+                self.assertIn("silenciado", (await tool.execute({}, ctx)).say)
+
+
 class ParsingTests(unittest.TestCase):
     def test_nvidia_compute_apps_parsing_handles_wddm_na(self):
         raw = "1234, C:\\Program Files\\Ollama\\ollama.exe, 4096\n5678, C:\\x\\python.exe, [N/A]\n"

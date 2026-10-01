@@ -1,6 +1,7 @@
 """Silent, repeatable Jarvis performance benchmark (p50/p95).
 
     python scripts/perf_bench.py [--config config.win.json] [--only claps,route,...] [--out bench.json] [--pid DAEMON_PID]
+                                 [--compare BASELINE.json] [--compare-only CURRENT.json]
 
 Sections: claps, route, command, startup, interrupt, stt, tts, llm, e2e, resources.
 Everything that touches the audio device plays zero-amplitude buffers (or music
@@ -648,6 +649,51 @@ def bench_voice(config: Any) -> None:
     RESULTS["voice"] = asyncio.run(run())
 
 
+def collect_stats(results: dict, prefix: str = "") -> dict[str, dict]:
+    """Flatten nested results to {"section.key": stats block}; a stats block is a dict with "n" (and p50/p95 unless n == 0)."""
+    found: dict[str, dict] = {}
+    for key, value in results.items():
+        if key == "meta" or str(key).startswith("_") or not isinstance(value, dict):
+            continue
+        path = f"{prefix}.{key}" if prefix else str(key)
+        if "n" in value and (value["n"] == 0 or {"p50", "p95"} <= value.keys()):
+            found[path] = value
+        else:
+            found.update(collect_stats(value, path))
+    return found
+
+
+def _cell(block: dict | None) -> str:
+    if not block or not block.get("n") or "p50" not in block or "p95" not in block:
+        return "—"
+    return f"{block['p50']} / {block['p95']}"
+
+
+def compare(baseline: dict, current: dict) -> list[tuple[str, str, str, str]]:
+    """Rows of (metric, baseline "p50 / p95", current "p50 / p95", p50 delta %)."""
+    base, cur = collect_stats(baseline), collect_stats(current)
+    rows = []
+    for metric in sorted(base.keys() | cur.keys()):
+        b, c = base.get(metric), cur.get(metric)
+        delta = "—"
+        b50 = b.get("p50") if b and b.get("n") else None
+        c50 = c.get("p50") if c and c.get("n") else None
+        if isinstance(b50, (int, float)) and isinstance(c50, (int, float)) and b50 > 0 and c50 > 0:
+            delta = f"{(c50 - b50) / b50 * 100:+.1f}%"
+        rows.append((metric, _cell(b), _cell(c), delta))
+    return rows
+
+
+def format_comparison(rows: list[tuple[str, str, str, str]]) -> str:
+    lines = ["| metric | baseline p50 / p95 (ms) | current p50 / p95 (ms) | p50 delta |", "|---|---|---|---|"]
+    lines += [f"| {metric} | {base} | {cur} | {delta} |" for metric, base, cur, delta in rows]
+    return "\n".join(lines)
+
+
+def _load_json(path: str) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
 SECTIONS = {
     "claps": bench_claps, "route": bench_route, "command": bench_command, "startup": bench_startup,
     "interrupt": bench_interrupt, "resources": bench_resources, "stt": bench_stt, "tts": bench_tts,
@@ -661,7 +707,14 @@ def main() -> int:
     parser.add_argument("--only", default=",".join(SECTIONS))
     parser.add_argument("--out")
     parser.add_argument("--pid", type=int, help="daemon PID for the resources section (default: the single running jarvis_daemon.pyw)")
+    parser.add_argument("--compare", metavar="BASELINE_JSON", help="print a p50/p95 baseline-vs-current table after the run")
+    parser.add_argument("--compare-only", metavar="CURRENT_JSON", help="compare this results file against --compare without running any section")
     args = parser.parse_args()
+    if args.compare_only:
+        if not args.compare:
+            parser.error("--compare-only requires --compare BASELINE_JSON")
+        print(format_comparison(compare(_load_json(args.compare), _load_json(args.compare_only))))
+        return 0
     config = load_config(args.config)
     RESULTS["meta"] = {"host": platform.node(), "python": platform.python_version(), "when": time.strftime("%Y-%m-%d %H:%M:%S")}
     for name in args.only.split(","):
@@ -676,6 +729,9 @@ def main() -> int:
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
     print(text)
+    if args.compare:
+        print()
+        print(format_comparison(compare(_load_json(args.compare), json.loads(text))))
     return 0
 
 

@@ -7,7 +7,11 @@ built-in mic array (Intel Smart Sound) and speakers. Raw data:
 use zero-amplitude audio).
 
 For a before/after comparison against pre-M005 latency, see the
-[latency report](latency-report.md).
+[latency report](latency-report.md). For the M009 bb29c0f baseline-versus-after
+Windows evidence, paired p50/p95, exclusions and remaining acceptance gaps, see
+the [M009 performance report](engineering/m009-performance-report.md). Those
+runs used different hosts; the table below comes from `latest.json`, not the
+M009 after-run JSON.
 
 ## Benchmarks (p50 / p95)
 
@@ -30,6 +34,28 @@ For a before/after comparison against pre-M005 latency, see the
 | End of utterance → first audible reply (warm) | 1382 / 1552 ms | |
 | Idle sentinel | 1.1 % of one core, ~140 MB | earlier estimate (all `jarvis_daemon.pyw` processes); superseded by the PID-scoped figures below |
 | VRAM, voice warm → evicted | 5540 → 1275 MB | eviction returns ~4.2 GB |
+
+### Baseline (bb29c0f)
+
+[`bench/baseline-bb29c0f-fast.json`](bench/baseline-bb29c0f-fast.json) and
+[`bench/baseline-bb29c0f-models.json`](bench/baseline-bb29c0f-models.json) are
+the `perf_bench.py` outputs measured on 2026-09-24 on the reference machine with
+the 3-clap gesture. They were recovered byte-for-byte from the pre-deletion
+blobs (`git show 17f6b7c^:docs/engineering/bench/baseline-*.json`). Commit
+`bb29c0f` itself is not in this repository's history.
+
+Print a p50/p95 baseline-vs-current table from saved results (no audio, GPU or
+network needed):
+
+```
+python scripts/perf_bench.py --compare-only docs/bench/latest.json --compare docs/bench/baseline-bb29c0f-fast.json
+```
+
+Or run the benchmark live on the reference machine and compare at the end:
+
+```
+python scripts\perf_bench.py --config config.win.json --compare docs/bench/baseline-bb29c0f-fast.json
+```
 
 ## Windows startup and idle measurements (2026-09-30)
 
@@ -92,7 +118,8 @@ For a like-for-like local Whisper versus Alibaba Qwen realtime STT comparison on
   test suite. Real recordings (190 s of music, owner speech): 0 activations at default
   and maximum sensitivity.
 - Keyboard clicks have a clap-like shape, so loudness is the discriminator: calibration
-  sets the threshold 9 dB under the softest calibration clap. If typing still triggers
+  sets the threshold 12 dB under the softest calibration clap, and never within 12 dB
+  of the room's p99 noise. If typing still triggers
   it, set `claps.confirm_quiet_seconds: 0.25` (adds a rhythm guard, +250 ms latency).
 
 ## Failure scenarios and their tests

@@ -905,6 +905,37 @@ def find_projects(scopes: list[Path], name: str, depth: int = 2) -> list[Path]:
     return exact + sorted(partial, key=lambda p: len(p.name))
 
 
+def list_repositories(scopes: list[Path], depth: int = 2) -> list[Path]:
+    """Folders under *scopes* that contain a `.git` entry, sorted by name."""
+    found: list[Path] = []
+    for scope in scopes:
+        frontier = [scope]
+        for _ in range(depth):
+            next_level = []
+            for folder in frontier:
+                try:
+                    children = [c for c in folder.iterdir() if c.is_dir() and not c.name.startswith(".") and c.name not in _SKIP_DIRS]
+                except OSError:
+                    continue
+                found += [c for c in children if (c / ".git").exists()]
+                next_level += [c for c in children if not (c / ".git").exists()]
+            frontier = next_level
+    return sorted(set(found), key=lambda p: p.name.casefold())
+
+
+class ProjectListTool(_FileTool):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__("project_list", "List the git repositories in the authorized folders.", Risk.READ_ONLY, **kwargs)
+
+    async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
+        repos = await asyncio.to_thread(list_repositories, list(self.scopes))
+        if not repos:
+            return ToolResult("No encuentro ningún repositorio en tus carpetas autorizadas.", ok=False)
+        names = ", ".join(r.name for r in repos[:8])
+        more = "…" if len(repos) > 8 else ""
+        return ToolResult(f"Tienes {len(repos)} repositorios: {names}{more}", {"repositories": [str(r) for r in repos]})
+
+
 class ProcessKillTool(DesktopTool):
     def __init__(self) -> None:
         super().__init__("process_kill", "Terminate a process by pid (asks first).", Risk.HIGH_RISK,
@@ -974,6 +1005,33 @@ def set_master_volume(level: int) -> None:
         for _ in range(times):
             win32api.keybd_event(code, 0, 0, 0)
             win32api.keybd_event(code, 0, win32con.KEYEVENTF_KEYUP, 0)
+
+
+def get_master_volume() -> Optional[tuple[float, bool]]:
+    """(level 0-1, muted) via pycaw, or None when it cannot be read."""
+    try:
+        from pycaw.pycaw import AudioUtilities  # noqa: PLC0415
+
+        endpoint = AudioUtilities.GetSpeakers().EndpointVolume
+        return float(endpoint.GetMasterVolumeLevelScalar()), bool(endpoint.GetMute())
+    except Exception:  # noqa: BLE001 - pycaw missing or older API
+        return None
+
+
+class VolumeGetTool(DesktopTool):
+    def __init__(self) -> None:
+        super().__init__("volume_get", "Read the current master volume.", Risk.READ_ONLY)
+
+    async def execute(self, arguments: Mapping[str, Any], context: TurnContext) -> Any:
+        if not _IS_WINDOWS:
+            return _windows_only("El volumen")
+        state = await asyncio.to_thread(get_master_volume)
+        if state is None:
+            return ToolResult("No puedo leer el volumen sin pycaw instalado.", ok=False)
+        level, muted = state
+        percent = round(level * 100)
+        return ToolResult(f"El volumen está al {percent} por ciento{' y silenciado' if muted else ''}.",
+                          {"level": percent, "muted": muted})
 
 
 class WebSearchTool(DesktopTool):
@@ -1128,6 +1186,7 @@ def build_desktop_tools(
         FocusWindowTool(), WindowTool(), VirtualDesktopTool(), ListWindowsTool(), CloseAppTool(),
         FileSearchTool(**files), FileReadTool(**files), FileWriteTool(**files), FileMoveTool(**files), FileDeleteTool(**files),
         VSCodeTool(**files), TerminalTool(**files), RunCommandTool(**files), ProjectOpenTool(**files),
+        ProjectListTool(**files), VolumeGetTool(),
         SystemStatsTool(), ProcessListTool(), GpuProcessesTool(), NetworkStatsTool(), ProcessKillTool(),
         ScreenshotTool(data_dir / "screenshots"), VolumeLevelTool(), WebSearchTool(), CancelOperationsTool(cancel_operations),
     ]

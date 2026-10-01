@@ -69,7 +69,8 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
     (re.compile(r"^\s*(?:reiniciate|reinicia(?:te)?\s+(?:el\s+)?asistente|reinicia\s+jarvis|restart\s+yourself)\s*$"), "assistant_restart", "", 0.95),
     (re.compile(r"^\s*(?:apagate(?:\s+del\s+todo)?|apaga\s+(?:el\s+)?asistente|apaga\s+jarvis|desconectate|shut\s+down)\s*$"), "assistant_shutdown", "", 0.95),
     # Local desktop commands (no LLM round trip)
-    (re.compile(r"\b(?:actividad|uso|trafico|consumo)\s+de\s+(?:la\s+)?red\b|\bnetwork\s+(?:activity|usage|traffic)\b|\bcuanto\s+(?:estoy\s+)?(?:descargando|subiendo)\b"), "network_stats", "", 0.93),
+    (re.compile(r"\b(?:que\s+ventanas\s+hay(?:\s+abiertas)?|lista\s+(?:las|mis)\s+ventanas|que\s+tengo\s+abierto)\b|\blist\s+(?:my\s+|the\s+)?windows\b"), "windows_list", "", 0.92),
+    (re.compile(r"\b(?:actividad|uso|trafico|consumo)\s+de\s+(?:la\s+)?red\b|\bnetwork\s+(?:activity|usage|traffic)\b|\bcuanto\s+(?:estoy\s+)?(?:descargando|subiendo)\b|\bcomo\s+va\s+(?:la\s+red|internet|la\s+conexion)\b"), "network_stats", "", 0.93),
     (re.compile(r"\b(?:uso|consumo)\s+de\s+(?:la\s+)?(?:cpu|memoria|ram|gpu|grafica|procesador)\b|\b(?:cpu|ram|gpu|memory)\s+usage\b|\bcomo\s+va\s+la\s+grafica\b|\bcuanta\s+(?:ram|memoria)\b"), "system_stats", "", 0.92),
     (re.compile(r"\b(?:minimiza|minimize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "minimize"}),
     (re.compile(r"\b(?:maximiza|maximize)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(\w[\w\s]{0,30})$"), "window_manage", "target", 0.92, {"action": "maximize"}),
@@ -78,7 +79,8 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
     # Graceful close (WM_CLOSE; apps still ask to save). Vague objects go to the model.
     (re.compile(r"\b(?:cierra|close)\s+(?:la\s+ventana\s+de\s+|el\s+|la\s+)?(?!todo\b|esto\b|eso\b|la\s+sesion\b|sesion\b|mi\s+entorno\b)(\w[\w\s]{0,30})$"), "app_close", "target", 0.88),
     (re.compile(r"\b(?:abre|abrir|open)\s+(?:una\s+|la\s+|un\s+|a\s+)?(?:terminal|consola)\b"), "terminal_open", "", 0.93),
-    (re.compile(r"\b(?:abre|abrir|open)\s+(?:el\s+|mi\s+)?(?:proyecto|repositorio|repo|project|repository)\s+(?!en\b|que\b|donde\b|anterior\b|ultimo\b)(\w[\w\s-]{0,40})$"), "project_open", "name", 0.9),
+    (re.compile(r"\b(?:abre|abrir|open)\s+(?:el\s+|mi\s+)?(?:proyecto|repositorio|repo|project|repository)\s+(?!en\b|que\b|donde\b|anterior\b|ultimo\b)(\w[\w\s-]{0,40}?)(?:\s+en\s+(?:vs\s*code|vscode|code|visual\s+studio(?:\s+code)?))?$"), "project_open", "name", 0.9),
+    (re.compile(r"\blista\s+(?:mis|los)\s+(?:repositorios|repos|proyectos)\b|\bque\s+(?:repositorios|repos|proyectos)\s+tengo\b|\blist\s+my\s+repos\b"), "project_list", "", 0.92),
     # clipboard read / copy (read-path only; file write stays Hermes-only, D012)
     (
         re.compile(
@@ -114,6 +116,8 @@ _COMMAND_PATTERNS: tuple[tuple, ...] = (
         "application",
         0.9,
     ),
+    # read volume (before the set/up/down entries)
+    (re.compile(r"\ba\s+que\s+volumen\s+esta\b|\bque\s+volumen\s+(?:tengo|hay)\b|\bcual\s+es\s+el\s+volumen\b|\bwhat\s+is\s+the\s+volume\b"), "volume_get", "", 0.93),
     # volume up
     (re.compile(r"\b(?:sube|subir|aumenta|más alto|mas alto)\s+(?:el\s+)?(?:volumen)\b"), "volume_up", "", 0.95),
     (re.compile(r"\bvolume\s+up\b|\b(?:sube|aumenta)\s+(?:un\s+poco\s+)?el\s+volumen"), "volume_up", "", 0.95),

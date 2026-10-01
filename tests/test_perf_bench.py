@@ -231,5 +231,107 @@ class BenchResourcesTests(unittest.TestCase):
         self.assertIn("555", perf_bench.RESULTS["resources"]["error"])
 
 
+class StatsTests(unittest.TestCase):
+    def test_empty_is_n_zero(self):
+        self.assertEqual(perf_bench.stats([]), {"n": 0})
+
+    def test_none_values_are_filtered(self):
+        self.assertEqual(perf_bench.stats([None, None]), {"n": 0})
+        self.assertEqual(perf_bench.stats([None, 4.0])["n"], 1)
+
+    def test_single_value_has_equal_p50_and_p95(self):
+        block = perf_bench.stats([7.0])
+        self.assertEqual((block["p50"], block["p95"]), (7.0, 7.0))
+
+    def test_p95_index_on_twenty_values(self):
+        block = perf_bench.stats([float(i) for i in range(1, 21)])  # round(0.95 * 19) = 18 -> value 19
+        self.assertEqual(block["p95"], 19.0)
+        self.assertEqual(block["p50"], 10.5)
+        self.assertEqual((block["min"], block["max"]), (1.0, 20.0))
+
+
+def block(p50, p95, n=5):
+    return {"n": n, "p50": p50, "p95": p95}
+
+
+class CollectStatsTests(unittest.TestCase):
+    def test_nested_paths_and_skipped_keys(self):
+        results = {
+            "meta": {"x": block(1, 2)},
+            "_stt_instance": block(1, 2),
+            "claps": {"method": "text", "confirm_ms": block(555.4, 700.0), "detected": "40/40"},
+            "startup": {"cold": {"chime_ms": block(10, 20) | {"values": [10], "missing": 0}}},
+            "tts": {"warm_ttfa_ms": {"n": 0}, "vram": 100},
+            "resources": {"error": "psutil unavailable"},
+        }
+        self.assertEqual(
+            sorted(perf_bench.collect_stats(results)),
+            ["claps.confirm_ms", "startup.cold.chime_ms", "tts.warm_ttfa_ms"],
+        )
+
+
+class CompareTests(unittest.TestCase):
+    def rows(self, baseline, current):
+        return {row[0]: row[1:] for row in perf_bench.compare(baseline, current)}
+
+    def test_normal_delta_sign(self):
+        rows = self.rows({"a": {"m": block(100.0, 120.0)}}, {"a": {"m": block(150.0, 180.0), "faster": block(50.0, 60.0)}})
+        self.assertEqual(rows["a.m"], ("100.0 / 120.0", "150.0 / 180.0", "+50.0%"))
+        faster = self.rows({"a": {"m": block(200.0, 1.0)}}, {"a": {"m": block(100.0, 1.0)}})
+        self.assertEqual(faster["a.m"][2], "-50.0%")
+
+    def test_metric_on_one_side_only(self):
+        rows = self.rows({"a": {"old": block(1.0, 2.0)}}, {"a": {"new": block(3.0, 4.0)}})
+        self.assertEqual(rows["a.old"], ("1.0 / 2.0", "—", "—"))
+        self.assertEqual(rows["a.new"], ("—", "3.0 / 4.0", "—"))
+
+    def test_n_zero_side_shows_missing(self):
+        rows = self.rows({"a": {"m": {"n": 0}}}, {"a": {"m": block(3.0, 4.0)}})
+        self.assertEqual(rows["a.m"], ("—", "3.0 / 4.0", "—"))
+
+    def test_zero_baseline_p50_has_no_delta(self):
+        rows = self.rows({"a": {"m": block(0.0, 1.0)}}, {"a": {"m": block(3.0, 4.0)}})
+        self.assertEqual(rows["a.m"], ("0.0 / 1.0", "3.0 / 4.0", "—"))
+
+    def test_rows_are_sorted_by_metric(self):
+        names = [row[0] for row in perf_bench.compare({"b": {"x": block(1, 1)}}, {"a": {"x": block(1, 1)}})]
+        self.assertEqual(names, ["a.x", "b.x"])
+
+    def test_error_sections_are_ignored(self):
+        self.assertEqual(perf_bench.compare({"resources": {"error": "x"}}, {"resources": {"error": "y"}}), [])
+
+
+class FormatComparisonTests(unittest.TestCase):
+    def test_header_and_row(self):
+        text = perf_bench.format_comparison([("a.m", "1 / 2", "3 / 4", "+200.0%")])
+        lines = text.splitlines()
+        self.assertTrue(lines[0].startswith("| metric |"))
+        self.assertEqual(lines[1], "|---|---|---|---|")
+        self.assertEqual(lines[2], "| a.m | 1 / 2 | 3 / 4 | +200.0% |")
+
+
+class CompareOnlyCliTests(unittest.TestCase):
+    def test_compare_only_skips_sections_and_config(self):
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base, cur = Path(tmp) / "b.json", Path(tmp) / "c.json"
+            base.write_text(json.dumps({"a": {"m": block(100.0, 120.0)}}), encoding="utf-8")
+            cur.write_text(json.dumps({"a": {"m": block(110.0, 130.0)}}), encoding="utf-8")
+            argv = ["perf_bench.py", "--compare-only", str(cur), "--compare", str(base)]
+            with mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(perf_bench, "load_config", side_effect=AssertionError("config must not load")), \
+                    mock.patch.dict(perf_bench.SECTIONS, {k: mock.Mock(side_effect=AssertionError("no sections")) for k in perf_bench.SECTIONS}), \
+                    mock.patch("builtins.print") as out:
+                self.assertEqual(perf_bench.main(), 0)
+            self.assertIn("a.m", out.call_args[0][0])
+            self.assertIn("+10.0%", out.call_args[0][0])
+
+    def test_compare_only_without_baseline_is_an_error(self):
+        with mock.patch.object(sys, "argv", ["perf_bench.py", "--compare-only", "x.json"]), self.assertRaises(SystemExit):
+            perf_bench.main()
+
+
 if __name__ == "__main__":
     unittest.main()

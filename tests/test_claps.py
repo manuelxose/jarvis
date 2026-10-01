@@ -186,6 +186,10 @@ class TwoClapTests(unittest.TestCase):
         self.assertEqual(run(self.detector(), claps([1.0], 3.0)), [])
         self.assertEqual(self.events, [("candidate", 1.0), ("expired", "timeout")])
 
+    def test_two_of_three_claps_expire_without_a_third(self):
+        self.assertEqual(run(self.detector(claps_required=3), claps([1.0, 1.4], 3.0)), [])
+        self.assertEqual(self.events, [("candidate", 1.0), ("expired", "timeout")])
+
     def test_third_clap_does_not_restart_activation(self):
         gestures = run(self.detector(), claps([1.0, 1.4, 1.8], 4.0))
         self.assertEqual(len(gestures), 1)  # 3rd clap lands in the cooldown

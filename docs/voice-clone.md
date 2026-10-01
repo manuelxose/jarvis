@@ -135,6 +135,12 @@ change in Jarvis fixes this.
   `enroll --audio x.wav [--text ...] [--icl] [--start s --duration s]`
   imports an existing recording. `status` and `delete` manage the profile.
   Re-enrolling replaces the reference and drops the cached conditioning.
+  A running daemon picks the new profile up on the next clap, wake word or
+  activation: it drops the old voice's cached welcomes and acknowledgements,
+  rebuilds the prepared session, and reloads the clone (once it is idle).
+  Welcomes are not re-recorded while a clone that loaded the old profile is
+  still in memory, so old-voice audio is never filed under the new identity.
+  `status` reports the active cache identity as `voice_cache`.
 * Backup: copying `%LOCALAPPDATA%\jarvis\voice\default` backs up the profile.
   Deleting it (or running `delete`) removes the voice, the conditioning and
   the preview. Nothing is uploaded, and there is no cloud TTS in this path.
