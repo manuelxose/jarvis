@@ -1,4 +1,4 @@
-"""Triple-clap gesture detection with cheap, local signal processing.
+"""Two-clap (default) or three-clap gesture detection with cheap, local signal processing.
 
 A clap is a loud broadband transient: a sharp attack (well above the tracked
 noise floor within ~20 ms), a fast decay (back under -12 dB of its peak within
@@ -320,7 +320,7 @@ class ClapDetector:
 
     def _maybe_confirm(self, now: float) -> Optional[ClapGesture]:
         tuning = self.tuning
-        if len(self._claps) == 1 and now - self._claps[0].time > tuning.max_gap_seconds:
+        if 0 < len(self._claps) < tuning.claps_required and now - self._claps[-1].time > tuning.max_gap_seconds:
             self._clear("timeout")  # the confirming clap never came
             return None
         if len(self._claps) != tuning.claps_required:

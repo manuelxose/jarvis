@@ -202,7 +202,10 @@ class VoiceModelManager:
         """The candidate expired: undo a load that this speculation started."""
         async with self._lock:
             if self.state is VoiceState.SPECULATIVE and not self._holders and self._speculative_start:
-                await self._evict_locked(f"speculation cancelled: {reason}")
+                if not await self._evict_locked(f"speculation cancelled: {reason}"):
+                    self._set(VoiceState.COOLDOWN, "eviction deferred: synthesis in progress")
+                    self._cancel_eviction()
+                    self._evict_task = asyncio.ensure_future(self._evict_after(0))
 
     async def acquire(self, owner: str) -> None:
         """A session needs the voice: pin it and start loading if needed."""
@@ -229,7 +232,10 @@ class VoiceModelManager:
                 self._set(VoiceState.COOLDOWN, "preload=always")
                 return
             if self.policy.preload == "on_demand" or self.policy.cooldown_seconds == 0:
-                await self._evict_locked("session ended (on_demand)")
+                if not await self._evict_locked("session ended (on_demand)"):
+                    self._set(VoiceState.COOLDOWN, "eviction deferred: synthesis in progress")
+                    self._cancel_eviction()
+                    self._evict_task = asyncio.ensure_future(self._evict_after(0))
                 return
             self._set(VoiceState.COOLDOWN, "session ended")
             self._cancel_eviction()
@@ -247,6 +253,14 @@ class VoiceModelManager:
             free = await asyncio.to_thread(self._free_vram)
             if self.policy.evict_on_pressure and free is not None and free < self.policy.min_free_vram_mb:
                 await self._evict_locked(f"GPU memory pressure ({free:.0f} MiB free)")
+
+    async def invalidate(self, reason: str) -> bool:
+        """Drop an idle loaded clone (its worker holds a stale profile). False if held, busy or cold."""
+        async with self._lock:
+            evicted = await self._evict_locked(reason)
+            if evicted:  # a refused invalidate must leave the cooldown timer in charge
+                self._cancel_eviction()
+            return evicted
 
     async def shutdown(self) -> None:
         self._cancel_eviction()

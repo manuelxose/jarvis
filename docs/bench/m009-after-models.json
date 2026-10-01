@@ -1,0 +1,67 @@
+{
+ "meta": {
+  "host": "MSI-MANUEL",
+  "python": "3.12.0",
+  "when": "2026-10-01 11:27:02"
+ },
+ "stt": {
+  "error": "ProviderUnavailable: faster-whisper is not installed; local STT unavailable"
+ },
+ "tts": {
+  "cold_load_ms": {
+   "n": 1,
+   "p50": 55443.62,
+   "p95": 55443.62,
+   "min": 55443.62,
+   "max": 55443.62
+  },
+  "warm_ttfa_ms": {
+   "n": 16,
+   "p50": 209.54,
+   "p95": 229.03,
+   "min": 201.48,
+   "max": 231.44
+  },
+  "warm_total_ms": {
+   "n": 16,
+   "p50": 1009.36,
+   "p95": 1508.5,
+   "min": 457.18,
+   "max": 1598.17
+  },
+  "vram_used_mb_before": 1098.0,
+  "vram_used_mb_warm": 5363.0,
+  "worker_load_ms": 41188,
+  "worker_warmup_ms": 7593
+ },
+ "llm": {
+  "providers": [
+   "ollama"
+  ],
+  "ttft_ms": {
+   "n": 8,
+   "p50": 235.44,
+   "p95": 6692.71,
+   "min": 190.85,
+   "max": 6692.71
+  },
+  "total_ms": {
+   "n": 8,
+   "p50": 1065.97,
+   "p95": 8443.57,
+   "min": 413.89,
+   "max": 8443.57
+  }
+ },
+ "e2e": {
+  "error": "ProviderUnavailable: faster-whisper is not installed; local STT unavailable"
+ },
+ "voice": {
+  "cold_session_voice_ready_ms (speculative from 1st clap)": 28533,
+  "warm_session_voice_ready_ms": 0.0,
+  "warm_session_first_audio_ms": 231,
+  "vram_used_mb_warm": 5363.0,
+  "vram_used_mb_after_evict": 1098.0,
+  "worker_processes_started": 1
+ }
+}

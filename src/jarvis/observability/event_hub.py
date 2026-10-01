@@ -44,6 +44,7 @@ SCHEMAS: dict[str, dict[str, tuple[type, ...]]] = {
     "agent.started": {"trace_id": (str,), "route": (str,)},
     "agent.progress": {"trace_id": (str,), "detail": (str,)},
     "agent.completed": {"trace_id": (str,), "route": (str,), "ok": (bool,), "elapsed_ms": _NUM},
+    "command.executed": {"trace_id": (str,), "tool": (str,), "ok": (bool,), "elapsed_ms": _NUM},
     "turn.cost": {"trace_id": (str,), "route": (str,), "entries": (list,), "total_usd": _NUM},
     # host
     "system.metrics": {"cpu_percent": _NUM, "ram_percent": _NUM, "gpu": (dict, type(None))},

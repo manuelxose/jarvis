@@ -158,6 +158,19 @@ class SequenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(spoken, [])
         self.assertEqual(mixer.calls[-1], ("fade",))
 
+    async def test_cancellation_at_services_completion_never_announces(self):
+        seq, spoken = make(StartupOptions())
+
+        async def services():
+            seq._task.cancel()
+            return HEALTHY
+
+        seq._start_services = services
+        with self.assertRaises(asyncio.CancelledError):
+            await seq.trigger()
+        self.assertEqual(seq.phase, StartupPhase.CANCELLED)
+        self.assertEqual(spoken, [])
+
     async def test_missing_media_falls_back_to_url_then_continues(self):
         mixer = FakeMixer(load_error=FileNotFoundError("nope"))
         seq, spoken = make(StartupOptions(music_path="missing.mp3", music_url="https://example.invalid/x"), mixer=mixer)

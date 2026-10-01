@@ -100,6 +100,14 @@ export interface AgentCompleted extends JarvisEventEnvelope {
   readonly elapsed_ms: number
 }
 
+export interface CommandExecuted extends JarvisEventEnvelope {
+  readonly name: 'command.executed'
+  readonly trace_id: string
+  readonly tool: string
+  readonly ok: boolean
+  readonly elapsed_ms: number
+}
+
 export interface TurnCost extends JarvisEventEnvelope {
   readonly name: 'turn.cost'
   readonly trace_id: string
@@ -132,6 +140,7 @@ export type JarvisEvent =
   | AgentStarted
   | AgentProgress
   | AgentCompleted
+  | CommandExecuted
   | TurnCost
   | SystemMetrics
 
@@ -152,6 +161,7 @@ export const JARVIS_EVENT_NAMES = [
   'agent.started',
   'agent.progress',
   'agent.completed',
+  'command.executed',
   'turn.cost',
   'system.metrics',
 ] as const satisfies readonly JarvisEvent['name'][]

@@ -33,7 +33,7 @@ from typing import Any, Callable, Mapping, Optional
 
 from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_path, load_calibration
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
-from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy
+from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy, VoiceState
 from jarvis.observability import event_stream
 from jarvis.observability.event_hub import JsonlSink, hub
 from jarvis.adapters.tts.ack_cache import bytes_to_stream, join_wavs
@@ -158,6 +158,7 @@ class Sentinel:
         self._output_status = "pending"
         self._prepared: Optional[asyncio.Task[JarvisRuntime]] = None
         self.welcome_cache = self.welcome_cache_for(config)
+        self._voice_stale = False  # the loaded clone may still hold a replaced profile
         self.ui_endpoint: Optional[dict[str, str]] = None  # {"url", "token"} once the event stream is up
 
     @staticmethod
@@ -166,6 +167,35 @@ class Sentinel:
         from jarvis.adapters.tts.voice_cache import VoiceCache, voice_identity  # noqa: PLC0415
 
         return VoiceCache(_data_dir() / "cache" / "voice", voice_identity(config))
+
+    async def _refresh_voice_identity(self) -> None:
+        """Pick up a re-enrolled profile: new welcome/ack cache, fresh runtime, clone reloaded."""
+        from jarvis.adapters.tts.voice_cache import voice_identity  # noqa: PLC0415
+        from jarvis.core.errors import ProviderConfigError  # noqa: PLC0415
+
+        try:
+            identity = voice_identity(self.config)
+        except (ProviderConfigError, OSError) as error:
+            logger.warning("voice identity unavailable; keeping the current voice cache: %s", error)
+            return
+        if identity != self.welcome_cache.identity:
+            self.welcome_cache = self.welcome_cache_for(self.config)  # opening it purges the old voice's entries
+            self._voice_stale = True
+            logger.info("voice profile changed: cache identity now %s", self.welcome_cache.identity_hash)
+            old, self._prepared = self._prepared, None
+            if old is not None and not self._stop.is_set():
+                # The prebuilt runtime's ack cache still carries the old identity.
+                self._prepared = asyncio.create_task(self._prepare_runtime())
+                old.cancel()
+                stale = (await asyncio.gather(old, return_exceptions=True))[0]
+                if isinstance(stale, JarvisRuntime):
+                    await stale.stop()
+        if self._voice_stale and (await self.voice.invalidate("voice profile changed") or self.voice.state is VoiceState.COLD):
+            self._voice_stale = False
+
+    async def _speculate(self, reason: str) -> None:
+        await self._refresh_voice_identity()
+        await self.voice.speculate(reason)
 
     def _clone_factory(self) -> Any:
         from jarvis.adapters.tts.resolve import build_qwen_clone, tts_provider  # noqa: PLC0415
@@ -193,7 +223,7 @@ class Sentinel:
             return
         self.state = "candidate"
         hub.publish("activation.started", source="first_clap")
-        self._spawn(self.voice.speculate("first clap"))
+        self._spawn(self._speculate("first clap"))
 
     async def _prime_output(self) -> None:
         """Open one silent stream off-loop before activation; failure does not block input."""
@@ -247,7 +277,7 @@ class Sentinel:
                 try:
                     if self._wake.detected(pcm):
                         if self.voice.policy.predictive_on_wake_word:
-                            self._threadsafe(lambda: self._spawn(self.voice.speculate("wake word")))
+                            self._threadsafe(lambda: self._spawn(self._speculate("wake word")))
                         self.request_activation("wake_word")
                 except Exception as error:  # noqa: BLE001 - disable a broken detector, keep claps
                     logger.warning("wake word disabled: %s", error)
@@ -404,6 +434,8 @@ class Sentinel:
         if self._stop.is_set():
             return
         hub.publish("activation.confirmed", source=source, confidence=self._last_gesture.get("confidence") if source == "claps" else None)
+        await self._refresh_voice_identity()  # no-op unless the profile was re-enrolled since the last activation
+        welcome_cache = self.welcome_cache
         # Pin the shared voice for the whole session (loads it if still cold). Started
         # once the music plays: spawning the worker must never delay chime or music.
         self._voice_gate = asyncio.Event()
@@ -450,7 +482,7 @@ class Sentinel:
             start_workspace=self._workspace_starter(),
             on_phase=self._on_startup_phase,
             speak_fallback=speak_fallback,
-            cached_welcome=self.welcome_cache.get,
+            cached_welcome=welcome_cache.get,
             play_audio=lambda audio: holder["runtime"].components.audio_output.play(bytes_to_stream(audio), TurnContext.fresh("welcome")),
         )
         offset_ms = (time.perf_counter() - gesture_at) * 1000
@@ -472,7 +504,7 @@ class Sentinel:
             if mixer is not None:
                 # Startup music masks the mic: the first accepted command cuts it.
                 runtime.voice_loop.on_speech_accepted = lambda: mixer.music_playing and mixer.fade_out(1.0)
-            recorder = asyncio.create_task(self._record_welcomes(runtime, sequence.options))
+            recorder = asyncio.create_task(self._record_welcomes(runtime, sequence.options, welcome_cache))
             watchdog = asyncio.create_task(self._idle_watchdog(runtime))
             ducker = asyncio.create_task(_duck_during_speech(mixer, runtime, sequence.options)) if mixer and mixer.music_playing else None
             await runtime.run_until_stopped()
@@ -562,14 +594,18 @@ class Sentinel:
                 runtime.voice_loop.request_stop()
                 return
 
-    async def _record_welcomes(self, runtime: JarvisRuntime, options: StartupOptions) -> None:
+    async def _record_welcomes(self, runtime: JarvisRuntime, options: StartupOptions, cache: Any) -> None:
         """Once the clone is ready, record the 'all operational' welcomes in its voice."""
         clone = _clone(runtime)
-        missing = [text for text in welcome_texts(options) if self.welcome_cache.get(text) is None]
+        missing = [text for text in welcome_texts(options) if cache.get(text) is None]
         if clone is None or not missing:
             return
         try:
             if not await _wait_voice(runtime):
+                return
+            # Never file audio under an identity it was not synthesized with: the clone may still hold the old profile.
+            if cache is not self.welcome_cache or self._voice_stale:
+                logger.info("welcome recording skipped: voice profile changed under a loaded clone")
                 return
             for text in missing:
                 async def _one(value: str = text) -> Any:
@@ -577,7 +613,7 @@ class Sentinel:
 
                 chunks = [chunk async for chunk in clone.synthesize(_one(), TurnContext.fresh("welcome-cache"))]
                 if chunks:
-                    self.welcome_cache.put(text, join_wavs(chunks))
+                    cache.put(text, join_wavs(chunks))
                     logger.info("recorded cloned-voice welcome: %s", text[:40])
         except Exception as error:  # noqa: BLE001 - retried next session
             logger.warning("welcome recording failed: %s", error)
@@ -608,7 +644,7 @@ class Sentinel:
             "claps_accepted": [{"time": c.time, **c.features} for c in detector.accepted[-6:]],
             "transients_rejected": detector.rejected[-3:],
         }
-        return {"state": self.state, "output_prime": self._output_status, "voice": self.voice.snapshot(), "voice_cache_entries": self.welcome_cache.stats()["entries"], "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
+        return {"state": self.state, "output_prime": self._output_status, "voice": self.voice.snapshot(), "voice_cache_entries": self.welcome_cache.stats()["entries"], "voice_cache": self.welcome_cache.identity_hash, "listener": listener, "last_gesture": self._last_gesture, "last_report": self.last_report}
 
     def sleep(self) -> None:
         """Stop talking: ends the session, or interrupts a startup in progress."""

@@ -63,7 +63,7 @@ thinking and delays the first spoken word.
 | `enabled` | true | Listen for claps in the daemon. |
 | `claps_required` | 2 | 2 or 3. The first clap only starts a speculative voice load. |
 | `sensitivity` | 0.5 | 0–1. |
-| `min_peak_dbfs` | -32 | Loudness gate; `jarvis claps calibrate` sets it 9 dB under your softest clap. |
+| `min_peak_dbfs` | -32 | Loudness gate; `jarvis claps calibrate` sets it 12 dB under your softest clap, and never within 12 dB of the room's p99 noise. |
 | `min_gap_seconds` / `max_gap_seconds` | 0.12 / 0.9 | Spacing between claps (`max_gap` is also the candidate lifetime). |
 | `quiet_before_seconds` / `quiet_after_seconds` | 0.8 / 0.35 | Silence required around the gesture. |
 | `confirm_quiet_seconds` | 0 | > 0 waits for no extra transient (anti-rhythm guard, adds latency). |
@@ -102,7 +102,7 @@ Run `jarvis startup` to play the whole sequence once and print its timings; see 
 | `preload` | `adaptive` | `adaptive`, `always` (keep ~4.2 GB VRAM loaded) or `on_demand`. |
 | `speculative` | true | Start loading on the first clap. |
 | `predictive_on_wake_word` | true | Start loading when the wake word is heard. |
-| `cooldown_seconds` | 600 | Keep the model warm after a session. |
+| `cooldown_seconds` | 600 | Keep the model warm after a session. 0 = evict when the session ends (deferred until any in-flight synthesis finishes). |
 | `max_gpu_mb` | 4500 | Only load with this much free VRAM. |
 | `evict_on_pressure`, `min_free_vram_mb` | true, 700 | Evict when free VRAM drops below this. |
 | `gpu_busy_processes` | [] | e.g. `["cyberpunk2077.exe"]`: never load or keep the model while running. |
