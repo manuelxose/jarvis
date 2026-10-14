@@ -39,6 +39,7 @@ Thumbs.db
 
 # === AI agents/skills tooling + graphify (local-only, never in remote) ===
 .claude/
+.claude/settings.local.json
 .codex/
 .copilot/
 .agents/
