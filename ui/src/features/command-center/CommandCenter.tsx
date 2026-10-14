@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { DesktopMode } from '../../shell/jarvis-desktop'
 import { ConfirmationCard } from '../../components/interaction/ConfirmationCard'
 import controlStyles from '../../components/interaction/ConfirmationCard.module.css'
 import type { ControlAction } from '../../protocol/commands'
@@ -48,14 +49,19 @@ const WORKSPACE_COMPONENTS: Record<string, (props: WorkspaceProps) => React.JSX.
 const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
   connected: 'Connected',
   connecting: 'Connecting…',
-  offline: 'Offline — no event stream',
+  reconnecting: 'Reconnecting…',
+  disconnected: 'Disconnected — Jarvis Core not running',
+  'auth-failure': 'Authentication failed',
+  'incompatible-version': 'Incompatible Jarvis Core version',
 }
 
 function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
   return (
     <span
       data-testid="connection-status"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', color: status === 'offline' ? 'var(--state-offline)' : 'var(--text-secondary)' }}
+      role="status"
+      aria-live="polite"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', color: status !== 'connected' && status !== 'connecting' && status !== 'reconnecting' ? 'var(--state-offline)' : 'var(--text-secondary)' }}
     >
       <span
         aria-hidden="true"
@@ -71,6 +77,64 @@ export function CommandCenter() {
   const { status, voiceState, speaking, metrics } = useJarvisEvents()
   const assistantState: AssistantState = status === 'connected' ? voiceState : 'offline'
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [desktopMode, setDesktopMode] = useState<DesktopMode | null>(null)
+  const [desktopMessage, setDesktopMessage] = useState('')
+  const fullscreen = desktopMode === 'COMMAND_CENTER_FULLSCREEN'
+  const fullscreenLabel = fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'
+
+  useEffect(() => {
+    const bridge = window.jarvisDesktop
+    if (!bridge) return
+    let active = true
+    let notified = false
+    let initialExpired = false
+    const accept = (mode: DesktopMode | null) => {
+      if (active && (mode === 'COMMAND_CENTER_WINDOWED' || mode === 'COMMAND_CENTER_FULLSCREEN' || mode === 'OVERLAY_COMPACT' || mode === 'OVERLAY_EXPANDED' || mode === 'HIDDEN')) {
+        setDesktopMode(mode)
+        setDesktopMessage('')
+        return true
+      }
+      return false
+    }
+    const timer = window.setTimeout(() => {
+      initialExpired = true
+      if (active && !notified) setDesktopMessage('Desktop mode unavailable. Browser review remains usable.')
+    }, 2000)
+    let unsubscribe: (() => void) | undefined
+    try {
+      unsubscribe = bridge.onModeChanged((mode) => { if (accept(mode)) notified = true })
+      void bridge.getMode().then((mode) => {
+        if (active && !notified && !initialExpired && !accept(mode)) setDesktopMessage('Desktop mode unavailable. Browser review remains usable.')
+      }).catch(() => {
+        if (active && !notified && !initialExpired) setDesktopMessage('Desktop mode unavailable. Browser review remains usable.')
+      }).finally(() => window.clearTimeout(timer))
+    } catch {
+      queueMicrotask(() => { if (active) setDesktopMessage('Desktop mode unavailable. Browser review remains usable.') })
+      window.clearTimeout(timer)
+    }
+    return () => { active = false; window.clearTimeout(timer); unsubscribe?.() }
+  }, [])
+
+  useEffect(() => {
+    const settings = window.jarvisDesktop?.settings
+    if (!settings) return
+    return settings.onOpenRequested(() => setActiveWorkspace('settings'))
+  }, [])
+
+  function requestDesktopMode(mode: DesktopMode) {
+    const bridge = window.jarvisDesktop
+    if (!bridge) {
+      setDesktopMessage('Desktop controls are unavailable in browser review.')
+      return
+    }
+    try {
+      bridge.requestMode(mode)
+      // Fire-and-forget IPC is not confirmation. Only host notifications change labels.
+      setDesktopMessage('Desktop mode requested; waiting for native confirmation.')
+    } catch {
+      setDesktopMessage('Desktop mode request failed. Try again.')
+    }
+  }
   const [action, setAction] = useState<ControlAction | null>(null)
   const [pending, setPending] = useState(false)
   const [controlError, setControlError] = useState<string | null>(null)
@@ -133,11 +197,15 @@ export function CommandCenter() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  const commands: Command[] = WORKSPACES.map((w) => ({
-    id: w.id,
-    label: `Go to ${w.label}`,
-    run: () => setActiveWorkspace(w.id),
-  }))
+  const commands: Command[] = [
+    ...WORKSPACES.map((w) => ({
+      id: w.id,
+      label: `Go to ${w.label}`,
+      run: () => setActiveWorkspace(w.id),
+    })),
+    { id: 'overlay', label: 'Return to compact overlay', run: () => requestDesktopMode('OVERLAY_COMPACT') },
+    { id: 'fullscreen', label: fullscreenLabel, run: () => requestDesktopMode(fullscreen ? 'COMMAND_CENTER_WINDOWED' : 'COMMAND_CENTER_FULLSCREEN') },
+  ]
 
   const Workspace = WORKSPACE_COMPONENTS[activeWorkspace] ?? OverviewWorkspace
 
@@ -151,6 +219,10 @@ export function CommandCenter() {
             actions={
               <>
                 <ConnectionIndicator status={status} />
+                {window.jarvisDesktop && <>
+                  <IconButton aria-label="Return to compact overlay" title="Return to compact overlay" onClick={() => requestDesktopMode('OVERLAY_COMPACT')}>↙</IconButton>
+                  <IconButton aria-label={fullscreenLabel} title={fullscreenLabel} onClick={() => requestDesktopMode(fullscreen ? 'COMMAND_CENTER_WINDOWED' : 'COMMAND_CENTER_FULLSCREEN')}>{fullscreen ? '⊡' : '⛶'}</IconButton>
+                </>}
                 <button type="button" className={controlStyles.toolbarControl} disabled={status !== 'connected' || pending} onClick={(e) => openControl('activate', e.currentTarget)}>Activate</button>
                 <button type="button" className={controlStyles.toolbarControl} disabled={status !== 'connected' || pending} onClick={(e) => openControl('sleep', e.currentTarget)}>Sleep</button>
                 <IconButton aria-label="Open command palette (Ctrl+K)" onClick={() => setPaletteOpen(true)}>
@@ -182,6 +254,7 @@ export function CommandCenter() {
           </>
         }
       >
+        {desktopMessage && <p className={controlStyles.result} role="status">{desktopMessage}</p>}
         {controlMessage && <p className={controlStyles.result} role="status">{controlMessage}</p>}
         {activeWorkspace !== 'overview' && (
           <div style={{ marginBottom: 'var(--space-4)' }}>

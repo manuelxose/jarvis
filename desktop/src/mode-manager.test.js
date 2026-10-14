@@ -38,3 +38,13 @@ test('every mode can reach HIDDEN and OVERLAY_COMPACT directly', () => {
     if (mode !== 'OVERLAY_COMPACT') assert.ok(TRANSITIONS[mode].includes('OVERLAY_COMPACT'), `${mode} -> OVERLAY_COMPACT`)
   }
 })
+
+test('canTransition equals the TRANSITIONS table for every MODES x MODES pair', () => {
+  const { MODES, TRANSITIONS } = require('./mode-manager')
+  assert.deepEqual(Object.keys(TRANSITIONS).sort(), [...MODES].sort())
+  for (const from of MODES) for (const to of MODES) {
+    assert.equal(createModeManager(from).canTransition(to), TRANSITIONS[from].includes(to), `${from} -> ${to}`)
+  }
+  for (const from of MODES) assert.equal(TRANSITIONS[from].includes(from), false, `${from} has no self-edge`)
+  assert.equal(createModeManager('HIDDEN').canTransition('NOPE'), false)
+})

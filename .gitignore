@@ -108,3 +108,14 @@ bench-tts/
 
 # Windows download metadata
 *:Zone.Identifier
+desktop-native-smoke-*/
+
+# Native overlay acceptance run artifacts (harness-generated)
+desktop-native-overlay-*/
+desktop-native-command-center-*/
+desktop-native-visual-*/
+desktop-native-window-state-*/
+desktop-native-qa-matrix-*/
+desktop-native-core-lifecycle-*/
+desktop-native-tray-*/
+desktop-native-core-lifecycle-*.json

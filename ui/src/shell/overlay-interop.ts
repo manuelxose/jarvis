@@ -1,34 +1,50 @@
-/**
- * Wires the transparent overlay window's click-through behavior when running
- * inside the Electron shell (brief section 5, "critical requirement:
- * click-through"). No-op in the browser design-review harness, where
- * `window.jarvisDesktop` doesn't exist.
- *
- * How it works: the main process starts the overlay window in
- * `setIgnoreMouseEvents(true, { forward: true })`, so mouse events pass
- * through to whatever is underneath *and* are still forwarded to this
- * renderer for hit-testing. On every forwarded mousemove we ask the DOM what
- * is actually at that point: if it's the overlay's own background element
- * (marked `data-overlay-root`) or nothing, the point is empty space and the
- * window should keep passing clicks through; if it's anything nested inside
- * (a button, the conversation panel, ...), the window should capture mouse
- * input so that element is actually clickable.
- */
-export function initOverlayInterop(): () => void {
-  const bridge = window.jarvisDesktop
+import type { JarvisDesktopBridge } from './jarvis-desktop'
+
+const owners = new WeakMap<Document, () => void>()
+
+/** Explicit visible regions only; forwarded movement is not native receipt proof. */
+export function initOverlayInterop(
+  doc: Document = document,
+  host: Window = window,
+  bridge: JarvisDesktopBridge | undefined = host.jarvisDesktop,
+): () => void {
+  owners.get(doc)?.()
   if (!bridge) return () => {}
-
-  let lastInteractive: boolean | null = null
-
-  function handleMouseMove(event: MouseEvent) {
-    const target = document.elementFromPoint(event.clientX, event.clientY)
-    const interactive = target !== null && !target.hasAttribute('data-overlay-root')
-    if (interactive !== lastInteractive) {
-      lastInteractive = interactive
-      bridge!.setOverlayInteractive(interactive)
-    }
+  let last: boolean | undefined
+  let disposed = false
+  function send(value: boolean) {
+    if (value === last) return
+    last = value
+    bridge!.setOverlayInteractive(value)
   }
-
-  document.addEventListener('mousemove', handleMouseMove)
-  return () => document.removeEventListener('mousemove', handleMouseMove)
+  const reset = () => send(false)
+  function move(event: MouseEvent) {
+    const target = doc.elementFromPoint(event.clientX, event.clientY)
+    const region = target?.closest('[data-overlay-interactive]')
+    send(!doc.hidden && Boolean(region?.isConnected && region.getClientRects().length &&
+      !region.closest('[hidden], [inert], [aria-hidden="true"]') &&
+      host.getComputedStyle(region).visibility === 'visible'))
+  }
+  reset()
+  doc.addEventListener('mousemove', move)
+  doc.addEventListener('mouseleave', reset)
+  doc.addEventListener('visibilitychange', reset)
+  host.addEventListener('blur', reset)
+  host.addEventListener('pagehide', reset)
+  // Native mode/hide resets can precede the next forwarded mouse event.
+  const unsubscribe = bridge.onModeChanged(reset)
+  const cleanup = () => {
+    if (disposed) return
+    disposed = true
+    doc.removeEventListener('mousemove', move)
+    doc.removeEventListener('mouseleave', reset)
+    doc.removeEventListener('visibilitychange', reset)
+    host.removeEventListener('blur', reset)
+    host.removeEventListener('pagehide', reset)
+    unsubscribe()
+    reset()
+    if (owners.get(doc) === cleanup) owners.delete(doc)
+  }
+  owners.set(doc, cleanup)
+  return cleanup
 }

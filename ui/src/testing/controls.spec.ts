@@ -128,7 +128,8 @@ test('sleep confirmation dispatches once; disconnected stream disables controls'
   await expect.poll(async () => (await actions()).length).toBe(before + 1)
   expect((await actions()).at(-1)).toBe('sleep')
   server.kill('SIGTERM') // a real dropped daemon stream, not a mocked browser response
-  await expect(page.getByTestId('connection-status')).toContainText('Offline', { timeout: 10000 })
+  // Label follows the S06 typed connection states: disconnected renders "Disconnected — Jarvis Core not running".
+  await expect(page.getByTestId('connection-status')).toContainText('Disconnected — Jarvis Core not running', { timeout: 10000 })
   await expect(page.getByRole('button', { name: 'Activate', exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Sleep', exact: true })).toBeDisabled()
   expect(consoleErrors.filter(message => !message.includes('Failed to load resource: net::ERR_CONNECTION_REFUSED'))).toEqual([])

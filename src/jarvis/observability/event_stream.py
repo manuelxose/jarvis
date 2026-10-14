@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from jarvis.observability.event_hub import EventHub, hub
+from jarvis.observability.event_hub import VERSION, EventHub, hub
 
 logger = logging.getLogger("jarvis.events.stream")
 
@@ -237,7 +237,7 @@ async def serve_events(
             except RuntimeError:  # loop already closed: daemon is shutting down
                 pass
 
-        head = ["HTTP/1.1 200 OK", "Content-Type: text/event-stream", "Cache-Control: no-cache", "Connection: keep-alive"]
+        head = ["HTTP/1.1 200 OK", "Content-Type: text/event-stream", "Cache-Control: no-cache", "Connection: keep-alive", f"X-Jarvis-Protocol: {VERSION}"]
         if origin and _origin_allowed(origin):
             head.append(f"Access-Control-Allow-Origin: {origin}")
         writer.write(("\r\n".join(head) + "\r\n\r\n: connected\n\n").encode("ascii"))

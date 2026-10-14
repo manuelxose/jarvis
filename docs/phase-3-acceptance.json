@@ -1,0 +1,304 @@
+{
+  "generatedAt": "2026-10-14T19:23:29.000Z",
+  "briefSource": "Phase 3 brief (\u00a721 criteria, 15 acceptance scenarios) was NOT found in the repository or worktree. Criteria C01-C13 and scenarios S01-S15 are reconstructed from the M010 roadmap success criteria and S01-S09 slice demos; ids and wording are not the brief's.",
+  "criteria": [
+    {
+      "id": "C01",
+      "title": "Native Electron shell launches on the real Windows host",
+      "source": "reconstructed:M010 roadmap/S01",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#shell-launch"
+      ]
+    },
+    {
+      "id": "C02",
+      "title": "Overlay is transparent and click-through to windows beneath",
+      "source": "reconstructed:M010 roadmap/S02",
+      "status": "BLOCKED",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#overlay-transparent-click-through",
+        "docs/desktop-overlay.md"
+      ],
+      "reason": "Edge recipient passes; Explorer, VS Code and terminal recipients are owner-accepted gaps (explorer-launch-exited-before-window, focus-reset-not-observed)."
+    },
+    {
+      "id": "C03",
+      "title": "Command Center windowed/maximized/fullscreen modes work on the host monitors",
+      "source": "reconstructed:M010 roadmap/S03",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#command-center-modes",
+        "docs/desktop-qa-evidence.json#fullscreen-escape"
+      ]
+    },
+    {
+      "id": "C04",
+      "title": "Mode manager never leaves an invisible blocking window",
+      "source": "reconstructed:M010 roadmap/S03",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#command-center-modes",
+        "docs/desktop-command-center.md"
+      ]
+    },
+    {
+      "id": "C05",
+      "title": "Window state persists and restores across monitor/DPI changes",
+      "source": "reconstructed:M010 roadmap/S04",
+      "status": "BLOCKED",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#window-state-restore-multi-monitor",
+        "docs/desktop-qa-evidence.json#dpi-scaling-topology"
+      ],
+      "reason": "Automated restore rows pass; the physical-display-change row needs the owner to unplug a monitor."
+    },
+    {
+      "id": "C06",
+      "title": "Core connection states incl. auth-failure and incompatible-version, no mock connection",
+      "source": "reconstructed:M010 roadmap/S05",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#core-attach-restart",
+        "docs/desktop-core-bridge.md",
+        "docs/desktop-qa-automated.md"
+      ]
+    },
+    {
+      "id": "C07",
+      "title": "Tray, global shortcuts and launch-at-sign-in (default off)",
+      "source": "reconstructed:M010 roadmap/S06",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#tray-shortcuts-login",
+        "docs/desktop-tray-evidence.json#tray-created",
+        "docs/desktop-tray-evidence.json#shortcut-registered",
+        "docs/desktop-tray-evidence.json#login-item-roundtrip",
+        "docs/desktop-tray-shortcuts.md"
+      ]
+    },
+    {
+      "id": "C08",
+      "title": "Closing the UI never kills Core",
+      "source": "reconstructed:M010 roadmap/S05-S06",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#core-attach-restart"
+      ]
+    },
+    {
+      "id": "C09",
+      "title": "Security: context isolation, IPC auth, CSP, no shell/filesystem exposure",
+      "source": "reconstructed:M010 roadmap/S08",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-security-review.md",
+        "docs/desktop-qa-automated.md"
+      ]
+    },
+    {
+      "id": "C10",
+      "title": "Typecheck, lint and unit/contract tests green",
+      "source": "reconstructed:M010 roadmap/S08",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-automated.md"
+      ]
+    },
+    {
+      "id": "C11",
+      "title": "Native visual parity with Phase 2 references",
+      "source": "reconstructed:M010 roadmap/S09",
+      "status": "FAIL",
+      "evidence": [
+        "docs/desktop-visual-verification.md",
+        "docs/desktop-visual-evidence.json#command-center-overview-1920x1080",
+        "docs/desktop-visual-evidence.json#command-center-overview-2560x1440",
+        "docs/desktop-visual-evidence.json#overlay-compact-idle-1920x1080",
+        "docs/desktop-visual-evidence.json#overlay-compact-idle-2560x1440",
+        "docs/desktop-visual-evidence.json#overlay-expanded-1920x1080",
+        "docs/desktop-visual-evidence.json#overlay-expanded-2560x1440",
+        "docs/desktop-visual-evidence-win32.json#command-center-overview-1920x1080",
+        "docs/desktop-visual-evidence-win32.json#command-center-overview-2560x1440",
+        "docs/desktop-visual-evidence-win32.json#overlay-compact-idle-1920x1080",
+        "docs/desktop-visual-evidence-win32.json#overlay-compact-idle-2560x1440",
+        "docs/desktop-visual-evidence-win32.json#overlay-expanded-1920x1080",
+        "docs/desktop-visual-evidence-win32.json#overlay-expanded-2560x1440"
+      ],
+      "reason": "Phase 2 cross-platform comparison unchanged: all 6 comparable captures exceed the fixed 0.01 diff ratio (overlay mismatch is mostly alpha=0 transparent native background vs opaque reference; Overview 0.027/0.015 is content and rasterization difference); 26 references BLOCKED. Same-platform win32 baseline comparison PASSes 6/6 at ratio 0 but only proves Windows render stability, not Phase 2 parity, so the criterion stays FAIL."
+    },
+    {
+      "id": "C12",
+      "title": "Clap/welcome/TTS voice path untouched and tests green",
+      "source": "reconstructed:M010 roadmap",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-automated.md"
+      ]
+    },
+    {
+      "id": "C13",
+      "title": "No orphan processes after harness runs",
+      "source": "reconstructed:M010 roadmap/S08",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#no-orphan-processes"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S01",
+      "title": "Launch Command Center on the host and quit cleanly",
+      "source": "reconstructed:S01",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#shell-launch"
+      ]
+    },
+    {
+      "id": "S02",
+      "title": "Launch overlay on the host and quit cleanly",
+      "source": "reconstructed:S01",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#shell-launch"
+      ]
+    },
+    {
+      "id": "S03",
+      "title": "Click through overlay transparent margin into Explorer/VS Code/terminal",
+      "source": "reconstructed:S02",
+      "status": "BLOCKED",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#overlay-transparent-click-through"
+      ],
+      "reason": "Edge recipient passes; other recipients are owner-accepted environmental gaps."
+    },
+    {
+      "id": "S04",
+      "title": "Command Center windowed, maximized and fullscreen modes",
+      "source": "reconstructed:S03",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#command-center-modes"
+      ]
+    },
+    {
+      "id": "S05",
+      "title": "Escape leaves fullscreen",
+      "source": "reconstructed:S03",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#fullscreen-escape"
+      ]
+    },
+    {
+      "id": "S06",
+      "title": "Mode switching leaves no invisible blocking window",
+      "source": "reconstructed:S03",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#command-center-modes"
+      ]
+    },
+    {
+      "id": "S07",
+      "title": "Restore window state after restart and monitor unplug",
+      "source": "reconstructed:S04",
+      "status": "BLOCKED",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#window-state-restore-multi-monitor"
+      ],
+      "reason": "requires-owner-physical-display-change"
+    },
+    {
+      "id": "S08",
+      "title": "Mixed-DPI three-monitor topology handled",
+      "source": "reconstructed:S04",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#dpi-scaling-topology"
+      ]
+    },
+    {
+      "id": "S09",
+      "title": "Core attach, restart and token rotation",
+      "source": "reconstructed:S05",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#core-attach-restart"
+      ]
+    },
+    {
+      "id": "S10",
+      "title": "Auth-failure and incompatible-version Core states (automated, no mock connection)",
+      "source": "reconstructed:S05",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-core-bridge.md",
+        "docs/desktop-qa-automated.md"
+      ]
+    },
+    {
+      "id": "S11",
+      "title": "Tray created, shortcut registered, collision reported, login item round trip",
+      "source": "reconstructed:S06",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-tray-evidence.json#tray-created",
+        "docs/desktop-tray-evidence.json#shortcut-registered",
+        "docs/desktop-tray-evidence.json#shortcut-collision-reported",
+        "docs/desktop-tray-evidence.json#login-item-roundtrip"
+      ]
+    },
+    {
+      "id": "S12",
+      "title": "Real keystroke injection toggles the overlay",
+      "source": "reconstructed:S06",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-tray-evidence.json#shortcut-injection-toggles-overlay"
+      ]
+    },
+    {
+      "id": "S13",
+      "title": "Exiting the desktop leaves Core running (tray harness)",
+      "source": "reconstructed:S06",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-tray-evidence.json#exit-desktop-leaves-core"
+      ]
+    },
+    {
+      "id": "S14",
+      "title": "Screenshots match Phase 2 references at 1080p and 1440p",
+      "source": "reconstructed:S09",
+      "status": "FAIL",
+      "evidence": [
+        "docs/desktop-visual-evidence.json#command-center-overview-1920x1080",
+        "docs/desktop-visual-evidence.json#command-center-overview-2560x1440",
+        "docs/desktop-visual-evidence.json#overlay-compact-idle-1920x1080",
+        "docs/desktop-visual-evidence.json#overlay-compact-idle-2560x1440",
+        "docs/desktop-visual-evidence.json#overlay-expanded-1920x1080",
+        "docs/desktop-visual-evidence.json#overlay-expanded-2560x1440",
+        "docs/desktop-visual-evidence-win32.json#command-center-overview-1920x1080",
+        "docs/desktop-visual-evidence-win32.json#command-center-overview-2560x1440",
+        "docs/desktop-visual-evidence-win32.json#overlay-compact-idle-1920x1080",
+        "docs/desktop-visual-evidence-win32.json#overlay-compact-idle-2560x1440",
+        "docs/desktop-visual-evidence-win32.json#overlay-expanded-1920x1080",
+        "docs/desktop-visual-evidence-win32.json#overlay-expanded-2560x1440"
+      ],
+      "reason": "6 FAIL against Phase 2 Linux references (ratio above 0.01), 26 BLOCKED. The win32-baseline PASS (6/6, ratio 0, run to run) compares Windows to Windows and does not satisfy 'match Phase 2 references'."
+    },
+    {
+      "id": "S15",
+      "title": "No orphan Electron processes after the final run",
+      "source": "reconstructed:S08",
+      "status": "PASS",
+      "evidence": [
+        "docs/desktop-qa-evidence.json#no-orphan-processes"
+      ]
+    }
+  ]
+}

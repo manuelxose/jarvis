@@ -12,7 +12,7 @@ function Sparkline({ values, color = 'var(--accent-primary)' }: SparklineProps) 
   const step = width / Math.max(1, values.length - 1)
   const points = values.map((v, i) => `${i * step},${height - (v / 100) * height}`).join(' ')
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Resource usage history">
+    <svg width={width} height={height} style={{ maxWidth: '100%', height: 'auto' }} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Resource usage history">
       <polyline points={points} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )

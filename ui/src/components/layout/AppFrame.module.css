@@ -48,6 +48,10 @@
   .right {
     display: none;
   }
+  .center {
+    /* Three System cards otherwise retain their wide-screen panel minimum. */
+    --panel-min-width: 0px;
+  }
 }
 
 .skipLink {

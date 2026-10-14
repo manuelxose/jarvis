@@ -87,7 +87,7 @@ test.describe('live shell', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text())
     })
     await page.goto('/')
-    await expect(page.getByTestId('connection-status')).toHaveText('Offline — no event stream')
+    await expect(page.getByTestId('connection-status')).toHaveText('Disconnected — Jarvis Core not running')
     await expect(page.getByText('No live metrics')).toBeVisible()
     expect(consoleErrors).toEqual([])
   })

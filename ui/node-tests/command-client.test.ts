@@ -36,3 +36,20 @@ test('denial, malformed acceptance, connection loss and timeout never claim succ
   const hanging = ((_: string, init: RequestInit) => new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))) as typeof fetch
   await assert.rejects(sendControl('sleep', { endpoint, fetchImpl: hanging, timeoutMs: 5 }), /timed out/)
 })
+
+test('desktop bridge routes control through IPC and never fetches', async () => {
+  const sent: string[] = []
+  const win = globalThis.window as unknown as { jarvisDesktop?: unknown }
+  win.jarvisDesktop = { core: { control: async (a: string) => { sent.push(a); return { ok: true } } } }
+  try {
+    let fetches = 0
+    const fetchImpl = (async () => { fetches++; throw Error('unexpected') }) as typeof fetch
+    await sendControl('activate', { fetchImpl })
+    assert.deepEqual(sent, ['activate'])
+    assert.equal(fetches, 0)
+    win.jarvisDesktop = { core: { control: async () => ({ ok: false, error: 'not-connected' }) } }
+    await assert.rejects(sendControl('sleep', { fetchImpl }), /denied \(not-connected\)/)
+  } finally {
+    delete win.jarvisDesktop
+  }
+})

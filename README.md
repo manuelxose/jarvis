@@ -108,6 +108,17 @@ docs/             arquitectura, configuración, control del escritorio, voz, ren
 - [Rendimiento](docs/performance.md): benchmarks, objetivos y cuellos de botella.
 - [Alibaba Qwen](docs/alibaba-qwen.md): referencia de la voz en la nube opcional.
 
+## Desktop app (Phase 3)
+
+Aplicación de escritorio Electron para Windows (Command Center y overlay). Construye la UI y lánzala:
+
+```
+npm --prefix ui run build
+npm --prefix desktop start
+```
+
+Guía de operación: [docs/desktop-handoff.md](docs/desktop-handoff.md). Resultados y veredictos (incluye elementos BLOCKED/FAIL): [docs/phase-3-report.md](docs/phase-3-report.md).
+
 ## Privacidad y seguridad
 
 - La muestra de tu voz, su condicionamiento, la caché de audio, la memoria de conversaciones y

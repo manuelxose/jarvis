@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test:transport": "node --experimental-eventsource --test \"node-tests/*.test.ts\"",
+    "test:desktop-command-center": "playwright test --config playwright.desktop.config.ts",
     "preview": "vite preview"
   },
   "dependencies": {

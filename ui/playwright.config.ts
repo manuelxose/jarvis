@@ -7,6 +7,8 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './src/testing',
+  // Desktop bridge lifecycle tests require the owned dev server in the scoped config.
+  testIgnore: 'desktop-command-center.spec.ts',
   fullyParallel: true,
   // ponytail: capped — screenshot capture under >4 concurrent workers on this
   // WSL host showed occasional single-pixel paint-timing flakes (observed on

@@ -7,7 +7,19 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test src"
+    "test": "node --test src/mode-manager.test.js src/shortcuts.test.js src/window-state-store.test.js src/bootstrap.test.js src/window-state-probe.test.js src/core-bridge.test.js src/tray.test.js src/security.test.js src/visual-probe.test.js",
+    "test:all-native": "node --test scripts/*.test.cjs",
+    "smoke:native": "node scripts/native-smoke.cjs",
+    "test:native-smoke": "node --test scripts/native-smoke.test.cjs",
+    "test:native-core-lifecycle": "node --test scripts/native-core-lifecycle.test.cjs",
+    "smoke:core-lifecycle": "node scripts/native-core-lifecycle.cjs",
+    "test:native-tray": "node --test scripts/native-tray.test.cjs",
+    "smoke:tray": "node scripts/native-tray.cjs",
+    "test:native-qa-matrix": "node --test scripts/native-qa-matrix.test.cjs",
+    "qa:matrix": "node scripts/native-qa-matrix.cjs",
+    "visual:native": "node scripts/native-visual.cjs",
+    "visual:baselines": "node scripts/visual-baselines.cjs",
+    "test:native-visual": "node --test scripts/native-visual.test.cjs"
   },
   "devDependencies": {
     "electron": "^44.4.5"

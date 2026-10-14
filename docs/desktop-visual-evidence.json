@@ -1,0 +1,433 @@
+{
+  "generatedAt": "2026-10-14T15:59:39.657Z",
+  "perChannelTolerance": 51,
+  "maxDiffRatio": 0.01,
+  "status": "FAIL",
+  "scenarios": [
+    {
+      "id": "command-center-overview-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-overview-desktop-1080p-linux.png",
+      "capture": "desktop-native-visual-X9s2t1/state/capture-command-center-1920x1080.png",
+      "status": "FAIL",
+      "ratio": 0.026751543209876542,
+      "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+      "diffPixels": 55472,
+      "diff": "desktop-native-visual-X9s2t1/state/diff-command-center-overview-1920x1080.png"
+    },
+    {
+      "id": "command-center-overview-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-overview-desktop-1440p-linux.png",
+      "capture": "desktop-native-visual-X9s2t1/state/capture-command-center-2560x1440.png",
+      "status": "FAIL",
+      "ratio": 0.01505126953125,
+      "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+      "diffPixels": 55485,
+      "diff": "desktop-native-visual-X9s2t1/state/diff-command-center-overview-2560x1440.png"
+    },
+    {
+      "id": "command-center-conversation-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-conversation-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-conversation-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-conversation-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-memory-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-memory-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-memory-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-memory-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-system-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-system-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-system-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-system-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-agents-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-agents-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-agents-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-agents-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-development-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-development-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-development-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-development-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-media-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-media-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-media-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-media-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-settings-1920x1080",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-settings-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "command-center-settings-2560x1440",
+      "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-settings-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Non-Overview workspace is not selected by the CLI capture contract; renderer injection is forbidden."
+    },
+    {
+      "id": "overlay-compact-idle-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-compact-idle-desktop-1080p-linux.png",
+      "capture": "desktop-native-visual-X9s2t1/state/capture-overlay-1920x1080.png",
+      "status": "FAIL",
+      "ratio": 0.9795428240740741,
+      "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+      "diffPixels": 2031180,
+      "diff": "desktop-native-visual-X9s2t1/state/diff-overlay-compact-idle-1920x1080.png"
+    },
+    {
+      "id": "overlay-compact-idle-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-compact-idle-desktop-1440p-linux.png",
+      "capture": "desktop-native-visual-X9s2t1/state/capture-overlay-2560x1440.png",
+      "status": "FAIL",
+      "ratio": 0.9884944661458334,
+      "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+      "diffPixels": 3643986,
+      "diff": "desktop-native-visual-X9s2t1/state/diff-overlay-compact-idle-2560x1440.png"
+    },
+    {
+      "id": "overlay-listening-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-listening-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-listening-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-listening-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-speaking-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-speaking-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-speaking-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-speaking-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-processing-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-processing-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-processing-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-processing-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-expanded-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-expanded-desktop-1080p-linux.png",
+      "capture": "desktop-native-visual-X9s2t1/state/capture-overlay-expanded-1920x1080.png",
+      "status": "FAIL",
+      "ratio": 0.931412037037037,
+      "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+      "diffPixels": 1931376,
+      "diff": "desktop-native-visual-X9s2t1/state/diff-overlay-expanded-1920x1080.png"
+    },
+    {
+      "id": "overlay-expanded-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-expanded-desktop-1440p-linux.png",
+      "capture": "desktop-native-visual-X9s2t1/state/capture-overlay-expanded-2560x1440.png",
+      "status": "FAIL",
+      "ratio": 0.9614236111111111,
+      "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+      "diffPixels": 3544192,
+      "diff": "desktop-native-visual-X9s2t1/state/diff-overlay-expanded-2560x1440.png"
+    },
+    {
+      "id": "overlay-notification-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-notification-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-notification-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-notification-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-error-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-error-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-error-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-error-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-disconnected-1920x1080",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-disconnected-desktop-1080p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    },
+    {
+      "id": "overlay-disconnected-2560x1440",
+      "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-disconnected-desktop-1440p-linux.png",
+      "capture": null,
+      "status": "BLOCKED",
+      "ratio": null,
+      "reason": "Browser simulation state is not exposed by native mode controls; renderer injection or a live Core/state integration would be required."
+    }
+  ],
+  "directory": "desktop-native-visual-X9s2t1",
+  "host": {
+    "displays": [
+      {
+        "id": 2380241315,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": -1920,
+          "y": 1173,
+          "width": 1920,
+          "height": 1080
+        },
+        "workArea": {
+          "x": -1920,
+          "y": 1173,
+          "width": 1920,
+          "height": 1032
+        }
+      },
+      {
+        "id": 922014266,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": 3840,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "workArea": {
+          "x": 3840,
+          "y": 0,
+          "width": 1920,
+          "height": 1032
+        }
+      },
+      {
+        "id": 3361103286,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 3840,
+          "height": 2160
+        },
+        "workArea": {
+          "x": 0,
+          "y": 0,
+          "width": 3840,
+          "height": 2088
+        }
+      }
+    ],
+    "platform": "win32",
+    "rootPid": 688,
+    "stopped": [],
+    "scenarios": [
+      {
+        "id": "command-center-overview-1920x1080",
+        "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-overview-desktop-1080p-linux.png",
+        "capture": "desktop-native-visual-X9s2t1\\state\\capture-command-center-1920x1080.png",
+        "status": "FAIL",
+        "ratio": 0.026751543209876542,
+        "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+        "diffPixels": 55472,
+        "diff": "desktop-native-visual-X9s2t1\\state\\diff-command-center-overview-1920x1080.png"
+      },
+      {
+        "id": "command-center-overview-2560x1440",
+        "reference": "ui/src/testing/command-center.spec.ts-snapshots/command-center-overview-desktop-1440p-linux.png",
+        "capture": "desktop-native-visual-X9s2t1\\state\\capture-command-center-2560x1440.png",
+        "status": "FAIL",
+        "ratio": 0.01505126953125,
+        "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+        "diffPixels": 55485,
+        "diff": "desktop-native-visual-X9s2t1\\state\\diff-command-center-overview-2560x1440.png"
+      },
+      {
+        "id": "overlay-compact-idle-1920x1080",
+        "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-compact-idle-desktop-1080p-linux.png",
+        "capture": "desktop-native-visual-X9s2t1\\state\\capture-overlay-1920x1080.png",
+        "status": "FAIL",
+        "ratio": 0.9795428240740741,
+        "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+        "diffPixels": 2031180,
+        "diff": "desktop-native-visual-X9s2t1\\state\\diff-overlay-compact-idle-1920x1080.png"
+      },
+      {
+        "id": "overlay-compact-idle-2560x1440",
+        "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-compact-idle-desktop-1440p-linux.png",
+        "capture": "desktop-native-visual-X9s2t1\\state\\capture-overlay-2560x1440.png",
+        "status": "FAIL",
+        "ratio": 0.9884944661458334,
+        "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+        "diffPixels": 3643986,
+        "diff": "desktop-native-visual-X9s2t1\\state\\diff-overlay-compact-idle-2560x1440.png"
+      },
+      {
+        "id": "overlay-expanded-1920x1080",
+        "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-expanded-desktop-1080p-linux.png",
+        "capture": "desktop-native-visual-X9s2t1\\state\\capture-overlay-expanded-1920x1080.png",
+        "status": "FAIL",
+        "ratio": 0.931412037037037,
+        "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+        "diffPixels": 1931376,
+        "diff": "desktop-native-visual-X9s2t1\\state\\diff-overlay-expanded-1920x1080.png"
+      },
+      {
+        "id": "overlay-expanded-2560x1440",
+        "reference": "ui/src/testing/overlay.spec.ts-snapshots/overlay-expanded-desktop-1440p-linux.png",
+        "capture": "desktop-native-visual-X9s2t1\\state\\capture-overlay-expanded-2560x1440.png",
+        "status": "FAIL",
+        "ratio": 0.9614236111111111,
+        "reason": "Pixel difference exceeds the fixed 0.01 maximum ratio.",
+        "diffPixels": 3544192,
+        "diff": "desktop-native-visual-X9s2t1\\state\\diff-overlay-expanded-2560x1440.png"
+      }
+    ],
+    "owned": [
+      {
+        "parent": 12072,
+        "pid": 688,
+        "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+        "session": 1,
+        "started": "639275903813128825"
+      },
+      {
+        "parent": 688,
+        "pid": 31372,
+        "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+        "session": 1,
+        "started": "639275903821204864"
+      },
+      {
+        "parent": 688,
+        "pid": 16636,
+        "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+        "session": 1,
+        "started": "639275903834290360"
+      },
+      {
+        "parent": 688,
+        "pid": 9484,
+        "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+        "session": 1,
+        "started": "639275903876246846"
+      }
+    ],
+    "remaining": [],
+    "exitCode": 0,
+    "error": null,
+    "cleanupErrors": []
+  },
+  "recovery": {
+    "cleanupErrors": [],
+    "stopped": [],
+    "remaining": []
+  }
+}

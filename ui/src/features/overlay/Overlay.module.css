@@ -42,12 +42,51 @@
 /* Production desktop shell (desktop/src/main.js sets this via the preload
    bridge): the window itself is transparent, so the browser-only design
    review background and the demo mode-switcher strip must not render. */
+:global(html[data-desktop-shell='electron']),
+:global(html[data-desktop-shell='electron']) body,
+:global(html[data-desktop-shell='electron']) :global(#root) {
+  background: transparent;
+  background-image: none;
+}
+
 :global(html[data-desktop-shell='electron']) .desktop {
   min-height: 100vh;
+  padding: 12px;
+  align-items: flex-start;
   background: transparent;
   background-image: none;
 }
 
 :global(html[data-desktop-shell='electron']) .controls {
   display: none;
+}
+
+.nativeCard {
+  width: 384px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-app);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.dragHandle {
+  -webkit-app-region: drag;
+  user-select: none;
+  cursor: move;
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+}
+
+.nativeControls {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.nativeCard button,
+.nativeCard [tabindex] {
+  -webkit-app-region: no-drag;
 }

@@ -120,7 +120,7 @@ test.describe('jarvis orb (live)', () => {
   test('without a token the orb still renders and there are no console errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
     await page.goto(origin)
-    await expect(page.getByTestId('connection-status')).toHaveText('Offline — no event stream')
+    await expect(page.getByTestId('connection-status')).toHaveText('Disconnected — Jarvis Core not running')
     await expect(page.locator('[data-renderer]').first()).toBeVisible()
     await expect(page.locator('[data-renderer]').first()).toHaveAttribute('data-orb-state', /.+/)
     expect(errors).toEqual([])

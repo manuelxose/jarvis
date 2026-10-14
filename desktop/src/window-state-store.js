@@ -8,6 +8,9 @@ const path = require('node:path')
 // (the part that actually breaks on a disconnected monitor) is unit-testable
 // without touching disk or Electron's `screen` module.
 
+const { MODES } = require('./mode-manager')
+const { DEFAULT_SHORTCUTS, sanitizeShortcuts } = require('./shortcuts')
+
 const DEFAULT_STATE = Object.freeze({
   initialMode: 'OVERLAY_COMPACT',
   overlay: { displayId: null, x: null, y: null, width: 360, height: 72 },
@@ -15,19 +18,71 @@ const DEFAULT_STATE = Object.freeze({
   fullscreenPreference: false,
   lastActiveWorkspace: null,
   launchAtLogin: false,
+  shortcuts: { ...DEFAULT_SHORTCUTS },
 })
 
-function loadState(filePath) {
+const isInt = (v) => Number.isFinite(v) && Math.abs(v) <= 100000
+const pickPos = (v) => (isInt(v) ? Math.round(v) : null)
+const pickSize = (v, d) => (Number.isFinite(v) && v >= 1 && v <= 16384 ? Math.round(v) : d)
+
+function sanitizeWindow(raw, defaults) {
+  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const out = {
+    displayId: Number.isFinite(r.displayId) ? r.displayId : null,
+    x: pickPos(r.x),
+    y: pickPos(r.y),
+    width: pickSize(r.width, defaults.width),
+    height: pickSize(r.height, defaults.height),
+  }
+  if ('maximized' in defaults) out.maximized = typeof r.maximized === 'boolean' ? r.maximized : defaults.maximized
+  return out
+}
+
+function sanitizeState(raw) {
+  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  return {
+    initialMode: MODES.includes(r.initialMode) ? r.initialMode : DEFAULT_STATE.initialMode,
+    overlay: sanitizeWindow(r.overlay, DEFAULT_STATE.overlay),
+    commandCenter: sanitizeWindow(r.commandCenter, DEFAULT_STATE.commandCenter),
+    fullscreenPreference:
+      typeof r.fullscreenPreference === 'boolean' ? r.fullscreenPreference : DEFAULT_STATE.fullscreenPreference,
+    lastActiveWorkspace: MODES.includes(r.lastActiveWorkspace) ? r.lastActiveWorkspace : null,
+    launchAtLogin: typeof r.launchAtLogin === 'boolean' ? r.launchAtLogin : DEFAULT_STATE.launchAtLogin,
+    shortcuts: sanitizeShortcuts(r.shortcuts).shortcuts,
+  }
+}
+
+function loadStateWithDiagnostics(filePath) {
+  let raw
   try {
-    const raw = fs.readFileSync(filePath, 'utf8')
-    const parsed = JSON.parse(raw)
-    return { ...DEFAULT_STATE, ...parsed }
+    raw = fs.readFileSync(filePath, 'utf8')
   } catch (err) {
     if (err.code !== 'ENOENT') {
       console.error('window-state-store: failed to read state, using defaults', err)
+      return { state: sanitizeState(null), recovered: 'unreadable-file', shortcutRejections: [] }
     }
-    return { ...DEFAULT_STATE }
+    return { state: sanitizeState(null), recovered: null, shortcutRejections: [] }
   }
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    console.error('window-state-store: corrupt state file, using defaults', err)
+    return { state: sanitizeState(null), recovered: 'corrupt-file', shortcutRejections: [] }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { state: sanitizeState(null), recovered: 'corrupt-file', shortcutRejections: [] }
+  }
+  const badMode = 'initialMode' in parsed && !MODES.includes(parsed.initialMode)
+  return {
+    state: sanitizeState(parsed),
+    recovered: badMode ? 'invalid-initial-mode' : null,
+    shortcutRejections: sanitizeShortcuts(parsed.shortcuts).rejected,
+  }
+}
+
+function loadState(filePath) {
+  return loadStateWithDiagnostics(filePath).state
 }
 
 function saveState(filePath, state) {
@@ -53,24 +108,81 @@ function isBoundsVisible(bounds, displays, minVisiblePx = 40) {
   })
 }
 
-/**
- * Returns bounds safe to apply: the saved bounds if still visible on the
- * given displays, otherwise centered on the primary display's work area.
- */
-function resolveBounds(saved, displays, primaryDisplay) {
-  const width = saved.width || DEFAULT_STATE.overlay.width
-  const height = saved.height || DEFAULT_STATE.overlay.height
-  const candidate = { x: saved.x, y: saved.y, width, height }
-  if (isBoundsVisible(candidate, displays)) {
-    return candidate
+function overlapArea(bounds, area) {
+  const ox = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x)
+  const oy = Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y)
+  return ox > 0 && oy > 0 ? ox * oy : 0
+}
+
+/** Id of the display with the largest overlap with bounds, or null. */
+function displayForBounds(bounds, displays) {
+  if (!bounds || bounds.x == null || bounds.y == null) return null
+  let best = null
+  let bestArea = 0
+  for (const d of displays) {
+    const a = overlapArea(bounds, d.workArea)
+    if (a > bestArea) {
+      best = d.id
+      bestArea = a
+    }
   }
-  const area = primaryDisplay.workArea
+  return best
+}
+
+function fitInto(area, x, y, width, height) {
+  const w = Math.min(width, area.width)
+  const h = Math.min(height, area.height)
   return {
-    x: Math.round(area.x + (area.width - width) / 2),
-    y: Math.round(area.y + (area.height - height) / 2),
-    width,
-    height,
+    x: Math.round(Math.min(Math.max(x, area.x), area.x + area.width - w)),
+    y: Math.round(Math.min(Math.max(y, area.y), area.y + area.height - h)),
+    width: Math.round(w),
+    height: Math.round(h),
   }
 }
 
-module.exports = { DEFAULT_STATE, loadState, saveState, isBoundsVisible, resolveBounds }
+/**
+ * Returns bounds safe to apply: restored on the saved display (clamped into
+ * its work area), kept where still visible, or centered on the primary display.
+ */
+function resolveBounds(saved, displays, primaryDisplay, defaults = DEFAULT_STATE.overlay) {
+  const width = pickSize(saved.width, defaults.width)
+  const height = pickSize(saved.height, defaults.height)
+  const hasPos = isInt(saved.x) && isInt(saved.y)
+  const candidate = { x: hasPos ? saved.x : null, y: hasPos ? saved.y : null, width, height }
+
+  const own = saved.displayId != null ? displays.find((d) => d.id === saved.displayId) : null
+  if (own && hasPos) {
+    const fit = fitInto(own.workArea, candidate.x, candidate.y, width, height)
+    const same = fit.x === candidate.x && fit.y === candidate.y && fit.width === width && fit.height === height
+    return { ...fit, displayId: own.id, reason: same ? 'restored' : 'clamped' }
+  }
+  if (isBoundsVisible(candidate, displays)) {
+    const id = displayForBounds(candidate, displays)
+    const target = displays.find((d) => d.id === id)
+    const fit = fitInto(target.workArea, candidate.x, candidate.y, width, height)
+    const same = fit.x === candidate.x && fit.y === candidate.y && fit.width === width && fit.height === height
+    return { ...fit, displayId: id, reason: same ? 'restored' : 'clamped' }
+  }
+  const area = primaryDisplay.workArea
+  const w = Math.min(width, area.width)
+  const h = Math.min(height, area.height)
+  return {
+    x: Math.round(area.x + (area.width - w) / 2),
+    y: Math.round(area.y + (area.height - h) / 2),
+    width: Math.round(w),
+    height: Math.round(h),
+    displayId: primaryDisplay.id ?? null,
+    reason: hasPos || saved.displayId != null ? 'display-missing' : 'default',
+  }
+}
+
+module.exports = {
+  DEFAULT_STATE,
+  sanitizeState,
+  loadState,
+  loadStateWithDiagnostics,
+  saveState,
+  isBoundsVisible,
+  displayForBounds,
+  resolveBounds,
+}

@@ -1,0 +1,48 @@
+{
+  "status": "BLOCKED",
+  "reason": "windows-venv-missing",
+  "checkedPaths": [
+    "/home/manuelxose/workspace/jarvis/.venv-win/Scripts/python.exe",
+    "/home/manuelxose/workspace/jarvis/.venv/Scripts/python.exe",
+    "/home/manuelxose/workspace/jarvis/.venv-win/Scripts/python.exe",
+    "/home/manuelxose/workspace/jarvis/.venv/Scripts/python.exe"
+  ],
+  "scenarios": [
+    {
+      "id": "core-start",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    },
+    {
+      "id": "desktop-attach",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    },
+    {
+      "id": "core-quit-desktop-survives",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    },
+    {
+      "id": "core-relaunch-reattach",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    },
+    {
+      "id": "desktop-exit-core-survives",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    },
+    {
+      "id": "core-cleanup",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    },
+    {
+      "id": "no-python-spawn",
+      "status": "BLOCKED",
+      "reason": "windows-venv-missing"
+    }
+  ],
+  "generatedAt": "2026-10-14T11:14:38.638Z"
+}

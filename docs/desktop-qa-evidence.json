@@ -1,0 +1,143 @@
+{
+  "status": "BLOCKED",
+  "generatedAt": "2026-10-14T19:23:05.735Z",
+  "scenarios": [
+    {
+      "id": "shell-launch",
+      "harness": "smoke",
+      "status": "PASS",
+      "evidence": "smoke"
+    },
+    {
+      "id": "overlay-transparent-click-through",
+      "harness": "overlay",
+      "status": "BLOCKED",
+      "reason": "explorer.empty-root(explorer-launch-exited-before-window),explorer.transparent-margin(explorer-launch-exited-before-window),explorer.exit-reentry(explorer-launch-exited-before-window),explorer.leave-reset(explorer-launch-exited-before-window),explorer.hide-reset(explorer-launch-exited-before-window),vscode.empty-root(vscode-focus-reset-not-observed),vscode.transparent-margin(vscode-focus-reset-not-observed),vscode.exit-reentry(vscode-focus-reset-not-observed),vscode.leave-reset(vscode-focus-reset-not-observed),vscode.hide-reset(vscode-focus-reset-not-observed),terminal.empty-root(terminal-focus-reset-not-observed),terminal.transparent-margin(terminal-focus-reset-not-observed),terminal.exit-reentry(terminal-focus-reset-not-observed),terminal.leave-reset(terminal-focus-reset-not-observed),terminal.hide-reset(terminal-focus-reset-not-observed)",
+      "evidence": "overlay"
+    },
+    {
+      "id": "command-center-modes",
+      "harness": "command-center",
+      "status": "PASS",
+      "evidence": "command-center"
+    },
+    {
+      "id": "fullscreen-escape",
+      "status": "PASS",
+      "evidence": "command-center"
+    },
+    {
+      "id": "window-state-restore-multi-monitor",
+      "status": "BLOCKED",
+      "reason": "accepted-gaps:physical-display-change",
+      "evidence": "window-state"
+    },
+    {
+      "id": "dpi-scaling-topology",
+      "status": "PASS",
+      "evidence": "topology"
+    },
+    {
+      "id": "core-attach-restart",
+      "harness": "core-lifecycle",
+      "status": "PASS",
+      "evidence": "core-lifecycle"
+    },
+    {
+      "id": "tray-shortcuts-login",
+      "harness": "tray",
+      "status": "PASS",
+      "evidence": "tray"
+    },
+    {
+      "id": "no-orphan-processes",
+      "status": "PASS",
+      "evidence": "process-scan"
+    }
+  ],
+  "topology": {
+    "monitors": [
+      {
+        "device": "\\\\.\\DISPLAY1",
+        "primary": false,
+        "x": -1920,
+        "y": 1173,
+        "width": 1920,
+        "height": 1080,
+        "dpiX": 96,
+        "dpiY": 96
+      },
+      {
+        "device": "\\\\.\\DISPLAY10",
+        "primary": false,
+        "x": 3840,
+        "y": 0,
+        "width": 1920,
+        "height": 1080,
+        "dpiX": 96,
+        "dpiY": 96
+      },
+      {
+        "device": "\\\\.\\DISPLAY5",
+        "primary": true,
+        "x": 0,
+        "y": 0,
+        "width": 3840,
+        "height": 2160,
+        "dpiX": 144,
+        "dpiY": 144
+      }
+    ],
+    "windowsVersion": "10.0.26200",
+    "classification": {
+      "count": 3,
+      "multiMonitor": true,
+      "primaryCount": 1,
+      "dpiKnown": true,
+      "mixedDpi": true,
+      "scales": [
+        100,
+        100,
+        150
+      ]
+    }
+  },
+  "harnesses": {
+    "smoke": {
+      "exitCode": 0,
+      "evidenceFile": "desktop-native-qa-matrix-UVuaHD/smoke.json",
+      "status": "PASS"
+    },
+    "overlay": {
+      "exitCode": 1,
+      "evidenceFile": "desktop-native-qa-matrix-UVuaHD/overlay.json",
+      "status": "BLOCKED"
+    },
+    "command-center": {
+      "exitCode": 0,
+      "evidenceFile": "desktop-native-qa-matrix-UVuaHD/command-center.json",
+      "status": "PASS"
+    },
+    "window-state": {
+      "exitCode": 0,
+      "evidenceFile": "desktop-native-qa-matrix-UVuaHD/window-state.json",
+      "status": "PASS_WITH_GAPS"
+    },
+    "core-lifecycle": {
+      "exitCode": 0,
+      "evidenceFile": "desktop-native-qa-matrix-UVuaHD/core-lifecycle.json",
+      "status": "PASS"
+    },
+    "tray": {
+      "exitCode": 0,
+      "evidenceFile": "docs/desktop-tray-evidence.json",
+      "status": "PASS"
+    }
+  },
+  "orphans": [],
+  "reaggregation": {
+    "reason": "core-lifecycle needs default Core ports free; tray exit-desktop-leaves-core needs a running Core on them. Matrix run 2026-10-14T18:41:22.868Z (no Core running) scored all harnesses except tray, which was re-run alone with a Core on 47811 (docs/desktop-tray-evidence.json) and re-scored with native-qa-matrix.cjs scoreScenarios/aggregate.",
+    "matrixRun": "2026-10-14T18:41:22.868Z",
+    "trayRun": "2026-10-14T19:22:40.991Z"
+  }
+}

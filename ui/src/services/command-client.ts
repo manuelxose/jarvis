@@ -1,11 +1,14 @@
 import type { ControlAction } from '../protocol/commands.ts'
 import { getLaunchEndpoint, type EventEndpoint } from './endpoint.ts'
+import { sendDesktopControl } from './desktop-transport.ts'
 
 /** A 202 means the daemon accepted dispatch, not that a voice turn finished. */
 export async function sendControl(
   action: ControlAction,
   options: { endpoint?: EventEndpoint | null; signal?: AbortSignal; fetchImpl?: typeof fetch; timeoutMs?: number } = {},
 ): Promise<void> {
+  const core = typeof window === 'undefined' ? undefined : window.jarvisDesktop?.core
+  if (core && options.endpoint === undefined) return sendDesktopControl(core, action)
   const endpoint = options.endpoint === undefined ? getLaunchEndpoint() : options.endpoint
   if (!endpoint || !['activate', 'sleep'].includes(action)) throw new Error('Control is unavailable.')
   const events = new URL(endpoint.url)

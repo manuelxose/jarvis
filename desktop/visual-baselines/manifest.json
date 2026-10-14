@@ -1,0 +1,86 @@
+{
+  "sourceRun": "desktop-native-visual-no2QYU",
+  "generatedAt": "2026-10-14T19:03:49.592Z",
+  "host": {
+    "electron": "44.4.5",
+    "displays": [
+      {
+        "id": 2380241315,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": -1920,
+          "y": 1173,
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      {
+        "id": 922014266,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": 3840,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      {
+        "id": 3361103286,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 3840,
+          "height": 2160
+        }
+      }
+    ],
+    "scaleFactors": [
+      1
+    ]
+  },
+  "files": [
+    {
+      "id": "command-center-overview-1920x1080",
+      "file": "desktop/visual-baselines/command-center-overview-1920x1080-win32.png",
+      "sha256": "d345549338f78e8627e878689894b26a7dc10f9128cd2c449094b364c04ebf13",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": "command-center-overview-2560x1440",
+      "file": "desktop/visual-baselines/command-center-overview-2560x1440-win32.png",
+      "sha256": "9aa08f34885525f11d56f308e8199c3c8def71cad5014688f5b1aac9aa0ac830",
+      "width": 2560,
+      "height": 1440
+    },
+    {
+      "id": "overlay-compact-idle-1920x1080",
+      "file": "desktop/visual-baselines/overlay-compact-idle-1920x1080-win32.png",
+      "sha256": "659e4791e862fcb822750dfcd64d21723fb2e6b13efe23fe03aecd152ff19942",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": "overlay-compact-idle-2560x1440",
+      "file": "desktop/visual-baselines/overlay-compact-idle-2560x1440-win32.png",
+      "sha256": "22957b216bfce041e415727725dcb2dff6b760b2e556033cab46025b46e60453",
+      "width": 2560,
+      "height": 1440
+    },
+    {
+      "id": "overlay-expanded-1920x1080",
+      "file": "desktop/visual-baselines/overlay-expanded-1920x1080-win32.png",
+      "sha256": "a32ba8edab4aae2bb7cbb7589cbf19a48bccfe5b9c06d39462a428ebdd215e07",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": "overlay-expanded-2560x1440",
+      "file": "desktop/visual-baselines/overlay-expanded-2560x1440-win32.png",
+      "sha256": "f26a67205654387202557c574b786cf815d21b5945dea9e833c6eb8176fc988a",
+      "width": 2560,
+      "height": 1440
+    }
+  ]
+}

@@ -35,7 +35,7 @@ from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_pa
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
 from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy, VoiceState
 from jarvis.observability import event_stream
-from jarvis.observability.event_hub import JsonlSink, hub
+from jarvis.observability.event_hub import VERSION, JsonlSink, hub
 from jarvis.adapters.tts.ack_cache import bytes_to_stream, join_wavs
 from jarvis.application.startup import StartupOptions, StartupSequence, welcome_texts
 from jarvis.core.turn import TurnContext
@@ -754,7 +754,7 @@ async def serve(sentinel: Sentinel, port: int) -> asyncio.AbstractServer:
                 reply = {"ok": True}
             elif command == "ui":  # the token lives only here: never in `status`, which may be logged
                 endpoint = sentinel.ui_endpoint
-                reply = {"ok": True, **endpoint} if endpoint else {"ok": False, "error": "ui events disabled"}
+                reply = {"ok": True, **endpoint, "protocol": VERSION} if endpoint else {"ok": False, "error": "ui events disabled"}
             else:
                 reply = {"ok": False, "error": "unknown command"}
             writer.write((json.dumps(reply, default=str) + "\n").encode("utf-8"))

@@ -1,0 +1,66 @@
+{
+  "status": "PASS",
+  "scenarios": [
+    {
+      "id": "tray-created",
+      "status": "PASS",
+      "pid": 18020,
+      "proof": "Tray constructor returned, tray-ready and identity-matched process alive; not a pixel assertion of Shell_NotifyIcon"
+    },
+    {
+      "id": "shortcut-registered",
+      "status": "PASS",
+      "registered": [
+        "Control+Alt+Shift+J",
+        "Control+Alt+Shift+C"
+      ]
+    },
+    {
+      "id": "shortcut-injection-toggles-overlay",
+      "status": "PASS",
+      "sent": 8,
+      "modeChanged": true,
+      "rendererShown": true
+    },
+    {
+      "id": "shortcut-collision-reported",
+      "status": "PASS",
+      "holder": "second-electron-probe",
+      "unavailable": {
+        "stage": "shortcut-unavailable",
+        "pid": 31808,
+        "action": "toggleOverlay",
+        "accelerator": "Control+Alt+Shift+J",
+        "reason": "registration-failed"
+      },
+      "alive": true
+    },
+    {
+      "id": "login-item-roundtrip",
+      "status": "PASS",
+      "enabled": true,
+      "launchArgumentPresent": true,
+      "valueExcerpt": " HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run jarvis-desktop REG_SZ \"C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe\" \"\\\\wsl.localhost\\Ubuntu\\home\\manuelxose\\workspace\\jarvis\\desktop\" --launched-at-login ",
+      "disabled": true,
+      "restored": true
+    },
+    {
+      "id": "exit-desktop-leaves-core",
+      "status": "PASS",
+      "desktopExited": true,
+      "coreReachableBefore": true,
+      "coreReachableAfter": true
+    },
+    {
+      "id": "cleanup",
+      "status": "PASS",
+      "processesRemaining": 0,
+      "helperTracked": true,
+      "registryRestored": true
+    }
+  ],
+  "errors": [],
+  "directory": "/home/manuelxose/workspace/jarvis/desktop-native-tray-quKHOS",
+  "runtimePolicy": "local-runtime-cache; app code stays in the worktree; sandbox remains enabled",
+  "generatedAt": "2026-10-14T19:22:40.991Z"
+}

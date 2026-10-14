@@ -4,8 +4,11 @@ import type { JarvisEvent, SystemMetrics } from '../protocol/events'
 import { foldOrbSignal, INITIAL_SIGNAL } from '../components/jarvis/orb/orbModel'
 import { getLaunchEndpoint } from '../services/endpoint'
 import { createSseTransport } from '../services/sse-transport'
+import { createDesktopTransport } from '../services/desktop-transport'
 
-export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
+export type ConnectionStatus = 'connected' | 'connecting' | 'reconnecting' | 'disconnected' | 'auth-failure' | 'incompatible-version'
+
+const STATUSES: readonly string[] = ['connected', 'connecting', 'reconnecting', 'disconnected', 'auth-failure', 'incompatible-version']
 export interface MetricRow {
   label: string
   value: string
@@ -27,16 +30,58 @@ function metricRows(event: SystemMetrics): MetricRow[] {
   return rows
 }
 
-/** Live connection state, assistant state and system metrics from the daemon's SSE stream. */
+function foldEvent(prev: JarvisEventsState, event: JarvisEvent): JarvisEventsState {
+  const signal = foldOrbSignal({ state: prev.voiceState, speaking: prev.speaking }, event)
+  return {
+    ...prev,
+    voiceState: signal.state,
+    speaking: signal.speaking,
+    metrics: event.name === 'system.metrics' ? metricRows(event) : prev.metrics,
+  }
+}
+
+function applyStatus(prev: JarvisEventsState, status: ConnectionStatus): JarvisEventsState {
+  if (prev.status === status) return prev
+  const next = { ...prev, status }
+  if (status !== 'connected') {
+    next.voiceState = INITIAL_SIGNAL.state
+    next.speaking = INITIAL_SIGNAL.speaking
+  }
+  return next
+}
+
+/** Live connection state, assistant state and system metrics: Electron Core bridge when present, else the browser SSE stream. */
 export function useJarvisEvents(): JarvisEventsState {
   const [state, setState] = useState<JarvisEventsState>(() => ({
-    status: getLaunchEndpoint() ? 'connecting' : 'offline',
+    status: window.jarvisDesktop?.core ? 'connecting' : getLaunchEndpoint() ? 'connecting' : 'disconnected',
     voiceState: INITIAL_SIGNAL.state,
     speaking: INITIAL_SIGNAL.speaking,
     metrics: null,
   }))
 
   useEffect(() => {
+    const core = window.jarvisDesktop?.core
+    if (core) {
+      const transport = createDesktopTransport(core)
+      let active = true
+      const accept = (status: unknown) => {
+        if (active && typeof status === 'string' && STATUSES.includes(status)) {
+          setState((prev) => applyStatus(prev, status as ConnectionStatus))
+        }
+      }
+      const offState = transport.onState(accept)
+      const offEvent = transport.subscribe((event) => {
+        // Events are only trusted while the bridge reports connected.
+        setState((prev) => (prev.status === 'connected' ? foldEvent(prev, event) : prev))
+      })
+      void transport.getState().then(accept).catch(() => accept('disconnected'))
+      return () => {
+        active = false
+        offState()
+        offEvent()
+      }
+    }
+
     const target = getLaunchEndpoint()
     if (!target) return
     const transport = createSseTransport(target.url, target.token)
@@ -44,19 +89,12 @@ export function useJarvisEvents(): JarvisEventsState {
     let hasConnected = false
 
     const unsubscribe = transport.subscribe((event: JarvisEvent) => {
-      setState((prev) => {
-        const next = { ...prev, status: 'connected' as const }
-        const signal = foldOrbSignal({ state: prev.voiceState, speaking: prev.speaking }, event)
-        next.voiceState = signal.state
-        next.speaking = signal.speaking
-        if (event.name === 'system.metrics') next.metrics = metricRows(event)
-        return next
-      })
+      setState((prev) => foldEvent(applyStatus(prev, 'connected'), event))
     })
     const poll = setInterval(() => {
       if (transport.connected) hasConnected = true
-      const status = transport.connected ? 'connected' : hasConnected || Date.now() - started >= 3000 ? 'offline' : 'connecting'
-      setState((prev) => (prev.status === status ? prev : { ...prev, status }))
+      const status = transport.connected ? 'connected' : hasConnected || Date.now() - started >= 3000 ? 'disconnected' : 'connecting'
+      setState((prev) => applyStatus(prev, status))
     }, 500)
 
     return () => {

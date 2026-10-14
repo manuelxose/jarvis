@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { initOverlayInterop } from '../../shell/overlay-interop'
 import { FloatingContainer } from '../../components/layout/FloatingContainer'
 import { VisualCorePlaceholder } from '../../components/jarvis/VisualCorePlaceholder'
 import { StatusIndicator } from '../../components/foundations/StatusIndicator'
@@ -82,19 +83,45 @@ function OverlayCard({ mode }: { mode: OverlayMode }) {
   }
 }
 
-/** Desktop Overlay prototype. The state strip at the bottom-left is a demo control for this design review — the production overlay has no chrome of its own. */
+/** Prototype content; browser review controls are separate from native mode/drag controls. */
 export function Overlay() {
-  const [mode, setMode] = useState<OverlayMode>('listening')
+  const bridge = window.jarvisDesktop
+  const [mode, setMode] = useState<OverlayMode>(bridge ? 'compact-idle' : 'listening')
+  useEffect(() => {
+    if (!bridge) return
+    let active = true
+    let notified = false
+    const apply = (nativeMode: string | null) => {
+      if (active) setMode(nativeMode === 'OVERLAY_EXPANDED' ? 'expanded' : 'compact-idle')
+    }
+    const unsubscribe = bridge.onModeChanged((value) => { notified = true; apply(value) })
+    void bridge.getMode().then((value) => { if (!notified) apply(value) }).catch(() => {
+      if (active) bridge.setOverlayInteractive(false)
+    })
+    const cleanup = initOverlayInterop()
+    return () => { active = false; unsubscribe(); cleanup() }
+  }, [bridge])
   return (
     <div className={styles.desktop} data-overlay-root>
-      <OverlayCard mode={mode} />
-      <div className={styles.controls} role="group" aria-label="Simulate overlay state">
+      {bridge ? (
+        <section className={styles.nativeCard} data-overlay-interactive aria-label="Jarvis overlay">
+          <div className={styles.dragHandle} data-overlay-drag title="Drag Jarvis">Jarvis · Prototype</div>
+          <OverlayCard mode={mode} />
+          <div className={styles.nativeControls}>
+            <Button onClick={() => bridge.requestMode(mode === 'expanded' ? 'OVERLAY_COMPACT' : 'OVERLAY_EXPANDED')}>
+              {mode === 'expanded' ? 'Collapse' : 'Expand'}
+            </Button>
+            <Button onClick={() => bridge.requestMode('COMMAND_CENTER_WINDOWED')}>Open center</Button>
+          </div>
+        </section>
+      ) : <OverlayCard mode={mode} />}
+      {!bridge && <div className={styles.controls} role="group" aria-label="Simulate overlay state">
         {MODES.map((m) => (
           <Button key={m} variant={mode === m ? 'primary' : 'default'} aria-pressed={mode === m} onClick={() => setMode(m)}>
             {m}
           </Button>
         ))}
-      </div>
+      </div>}
     </div>
   )
 }
