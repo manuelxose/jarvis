@@ -39,6 +39,8 @@ from jarvis.config import (
 from jarvis.core.contracts import HealthStatus
 from jarvis.core.errors import ProviderUnavailable
 from jarvis.core.turn import TurnCancelled, TurnContext
+from jarvis.observability.core_signals import CoreSignals
+from jarvis.observability.event_hub import EventHub
 
 RATE = 22050
 
@@ -84,6 +86,7 @@ def make_fake_sounddevice(recorder: dict, write=None) -> types.SimpleNamespace:
             recorder["device"] = device
             recorder["dtype_out"] = dtype
             self.active = False
+            self.latency = 0.05
 
         def start(self):
             self.active = True
@@ -117,6 +120,9 @@ def make_fake_numpy(recorder: dict) -> types.SimpleNamespace:
 
         def __len__(self) -> int:
             return len(self.frames) // 2
+
+        def tobytes(self) -> bytes:
+            return self.frames
 
         def __getitem__(self, index: slice) -> "Samples":
             return Samples(self.frames[index.start * 2:index.stop * 2])
@@ -180,6 +186,113 @@ class RendererFullPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(nframes, recorder["sample_count"])
         self.assertEqual(nframes * 2, recorder["frames_len"])
         self.assertEqual((-1, 1), recorder["reshape"])
+
+
+def _signals():
+    hub = EventHub()
+    events: list[dict] = []
+    hub.subscribe(events.append)
+    return CoreSignals(hub=hub), events
+
+
+def _kinds(events):
+    return [e["kind"] for e in events if e["name"] == "core.signal"]
+
+
+class RendererTelemetryTests(unittest.IsolatedAsyncioTestCase):
+    async def _play(self, render, queue, blob, turn="t"):
+        async def audio():
+            yield blob
+
+        await queue.play(audio(), TurnContext.fresh(turn))
+
+    async def test_measured_levels_per_slice_then_ended_on_drain(self):
+        recorder: dict = {}
+        signals, events = _signals()
+        render = make_sounddevice_render(signals=signals)
+        queue = AudioOutputQueue(render=render, signals=signals)
+        blob, _ = make_sine_wav(seconds=0.2)  # 0.04 s slices -> 5 writes
+
+        with mock.patch.dict(
+            sys.modules, {"sounddevice": make_fake_sounddevice(recorder), "numpy": make_fake_numpy(recorder)}
+        ):
+            await self._play(render, queue, blob)
+
+        kinds = _kinds(events)
+        self.assertEqual(["turn-start", "playback-start"], kinds[:2])
+        self.assertEqual(5, kinds.count("output"))
+        self.assertEqual(["playback-end", "turn-end"], kinds[-2:])
+        start = next(e for e in events if e.get("kind") == "playback-start")
+        self.assertEqual(50.0, start["latency_ms"])
+        outputs = [e for e in events if e.get("kind") == "output"]
+        self.assertTrue(all(0.5 < e["level"] <= 1.0 for e in outputs))
+        end = next(e for e in events if e.get("kind") == "playback-end")
+        self.assertEqual("ended", end["outcome"])
+        seqs = [e["seq"] for e in events]
+        self.assertEqual(sorted(seqs), seqs)
+
+    async def test_abort_mid_chunk_cancels_once_and_emits_no_later_output(self):
+        recorder: dict = {}
+        signals, events = _signals()
+        render = make_sounddevice_render(signals=signals)
+        queue = AudioOutputQueue(render=render, signals=signals)
+        blob, _ = make_sine_wav(seconds=0.4)
+        turn = TurnContext.fresh("t")
+        writes = []
+
+        def write(samples):
+            writes.append(1)
+            if len(writes) == 2:
+                queue.flush(turn.trace_id)  # barge-in from the device thread
+
+        async def audio():
+            yield blob
+
+        with mock.patch.dict(
+            sys.modules, {"sounddevice": make_fake_sounddevice(recorder, write), "numpy": make_fake_numpy(recorder)}
+        ):
+            await queue.play(audio(), turn)
+
+        kinds = _kinds(events)
+        self.assertEqual(1, kinds.count("playback-end"))
+        end = next(e for e in events if e.get("kind") == "playback-end")
+        self.assertEqual("cancelled", end["outcome"])
+        self.assertEqual(1, recorder.get("aborts"))
+        self.assertNotIn("output", kinds[kinds.index("playback-end"):])
+        self.assertLess(len(writes), 10)
+
+    async def test_portaudio_error_ends_playback_failed(self):
+        recorder: dict = {}
+        signals, events = _signals()
+        render = make_sounddevice_render(signals=signals)
+        blob, _ = make_sine_wav(seconds=0.2)
+        calls = []
+
+        def write(samples):
+            calls.append(1)
+            if len(calls) == 2:
+                raise _FakePortAudioError("device unplugged")
+
+        with mock.patch.dict(
+            sys.modules, {"sounddevice": make_fake_sounddevice(recorder, write), "numpy": make_fake_numpy(recorder)}
+        ):
+            with self.assertRaises(ProviderUnavailable):
+                await render("t", blob)
+
+        ends = [e for e in events if e.get("kind") == "playback-end"]
+        self.assertEqual(["failed"], [e["outcome"] for e in ends])
+        self.assertEqual(1, _kinds(events).count("output"))
+
+    async def test_silent_render_never_claims_playback(self):
+        signals, events = _signals()
+        queue = AudioOutputQueue(render=_silent_render, signals=signals)
+
+        async def audio():
+            yield b"x"
+
+        await queue.play(audio(), TurnContext.fresh("t"))
+
+        self.assertEqual([], events)
 
 
 class WiringTests(unittest.IsolatedAsyncioTestCase):

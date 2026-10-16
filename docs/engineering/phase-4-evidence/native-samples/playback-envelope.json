@@ -1,0 +1,18 @@
+{
+ "runs": [
+  {
+   "entry": "playback-envelope",
+   "status": "PASS",
+   "exit_code": 0,
+   "remaining_count": 0,
+   "measurements": {
+    "output": "HDMI monitor",
+    "output_events": 113,
+    "playback_start": true,
+    "outcome": "ended",
+    "outputs_after_end": 0,
+    "peak": 0.1998
+   }
+  }
+ ]
+}

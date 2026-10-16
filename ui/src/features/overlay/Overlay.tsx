@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { initOverlayInterop } from '../../shell/overlay-interop'
 import { FloatingContainer } from '../../components/layout/FloatingContainer'
-import { VisualCorePlaceholder } from '../../components/jarvis/VisualCorePlaceholder'
+import { VisualCore } from '../../components/jarvis/visual-core/VisualCore'
+import { fakeSource } from '../../components/jarvis/visual-core/fixtureSource'
+import type { VisualState } from '../../components/jarvis/visual-core/visualCoreMachine'
+import type { VisualCoreSource } from '../../services/visual-core-service'
+import { useJarvisEvents } from '../../app/useJarvisEvents'
 import { StatusIndicator } from '../../components/foundations/StatusIndicator'
 import { ConversationMessage } from '../../components/jarvis/ConversationMessage'
 import { Button } from '../../components/foundations/Button'
@@ -13,45 +17,39 @@ export type OverlayMode = 'compact-idle' | 'listening' | 'speaking' | 'expanded'
 
 const MODES: OverlayMode[] = ['compact-idle', 'listening', 'speaking', 'processing', 'expanded', 'notification', 'error', 'disconnected']
 
-function OverlayCard({ mode }: { mode: OverlayMode }) {
+const FIXTURE_STATE: Record<OverlayMode, VisualState | null> = {
+  'compact-idle': 'IDLE',
+  listening: 'LISTENING',
+  speaking: 'SPEAKING',
+  processing: 'THINKING',
+  expanded: 'LISTENING',
+  notification: null,
+  error: 'ERROR',
+  disconnected: 'DISCONNECTED',
+}
+
+function OverlayCard({ mode, source }: { mode: OverlayMode; source?: VisualCoreSource }) {
   switch (mode) {
     case 'compact-idle':
-      return (
-        <FloatingContainer className={styles.compact}>
-          <VisualCorePlaceholder state="idle" size={22} />
-          <StatusIndicator state="idle" />
-        </FloatingContainer>
-      )
     case 'listening':
+    case 'processing':
       return (
         <FloatingContainer className={styles.compact}>
-          <VisualCorePlaceholder state="listening" size={22} />
-          <StatusIndicator state="listening" />
+          <VisualCore source={source} variant="compact-overlay" />
         </FloatingContainer>
       )
     case 'speaking':
       return (
         <FloatingContainer style={{ width: 320 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <VisualCorePlaceholder state="speaking" size={28} />
-            <StatusIndicator state="speaking" />
-          </div>
+          <VisualCore source={source} variant="compact-overlay" />
           <p className={styles.caption}>Oxlint is clean — zero warnings. Starting the visual regression run now.</p>
-        </FloatingContainer>
-      )
-    case 'processing':
-      return (
-        <FloatingContainer className={styles.compact}>
-          <VisualCorePlaceholder state="processing" size={22} />
-          <StatusIndicator state="processing" label="Working on it" />
         </FloatingContainer>
       )
     case 'expanded':
       return (
         <FloatingContainer className={styles.expanded}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
-            <VisualCorePlaceholder state="listening" size={28} />
-            <StatusIndicator state="listening" />
+          <div style={{ marginBottom: 'var(--space-3)' }}>
+            <VisualCore source={source} variant="expanded-overlay" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxHeight: 260, overflowY: 'auto' }} tabIndex={0}>
             {mockConversation.map((m) => (
@@ -70,13 +68,14 @@ function OverlayCard({ mode }: { mode: OverlayMode }) {
     case 'error':
       return (
         <FloatingContainer style={{ width: 320 }}>
-          <StatusIndicator state="error" />
+          <VisualCore source={source} variant="compact-overlay" />
           <p className={styles.caption}>hermes-child lost the Ollama connection. Retrying in 8s — say "cancel" to stop.</p>
         </FloatingContainer>
       )
     case 'disconnected':
       return (
         <FloatingContainer style={{ width: 320 }}>
+          <VisualCore source={source} variant="compact-overlay" />
           <EmptyState title="Jarvis is offline" description="No transport connected. Check the daemon and try again." />
         </FloatingContainer>
       )
@@ -86,6 +85,7 @@ function OverlayCard({ mode }: { mode: OverlayMode }) {
 /** Prototype content; browser review controls are separate from native mode/drag controls. */
 export function Overlay() {
   const bridge = window.jarvisDesktop
+  const { core } = useJarvisEvents()
   const [mode, setMode] = useState<OverlayMode>(bridge ? 'compact-idle' : 'listening')
   useEffect(() => {
     if (!bridge) return
@@ -101,12 +101,15 @@ export function Overlay() {
     const cleanup = initOverlayInterop()
     return () => { active = false; unsubscribe(); cleanup() }
   }, [bridge])
+  const fixtureState = FIXTURE_STATE[mode]
+  const fixture = useMemo(() => (fixtureState ? fakeSource(fixtureState) : undefined), [fixtureState])
+  const source = bridge ? core : fixture
   return (
     <div className={styles.desktop} data-overlay-root>
       {bridge ? (
         <section className={styles.nativeCard} data-overlay-interactive aria-label="Jarvis overlay">
           <div className={styles.dragHandle} data-overlay-drag title="Drag Jarvis">Jarvis · Prototype</div>
-          <OverlayCard mode={mode} />
+          <OverlayCard mode={mode} source={source} />
           <div className={styles.nativeControls}>
             <Button onClick={() => bridge.requestMode(mode === 'expanded' ? 'OVERLAY_COMPACT' : 'OVERLAY_EXPANDED')}>
               {mode === 'expanded' ? 'Collapse' : 'Expand'}
@@ -114,7 +117,7 @@ export function Overlay() {
             <Button onClick={() => bridge.requestMode('COMMAND_CENTER_WINDOWED')}>Open center</Button>
           </div>
         </section>
-      ) : <OverlayCard mode={mode} />}
+      ) : <OverlayCard mode={mode} source={source} />}
       {!bridge && <div className={styles.controls} role="group" aria-label="Simulate overlay state">
         {MODES.map((m) => (
           <Button key={m} variant={mode === m ? 'primary' : 'default'} aria-pressed={mode === m} onClick={() => setMode(m)}>

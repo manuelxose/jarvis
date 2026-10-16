@@ -1,0 +1,19 @@
+{
+ "record_type": "human-observation",
+ "observer": "owner (Manuel)",
+ "date": "2026-10-16",
+ "collected": "in the working session, in answer to direct questions",
+ "subject": "Does the native Overlay core follow the spoken audio (speaking while it sounds, stops when the reply is cut) in sync?",
+ "questions_asked": [
+  "Did you hear both phrases (the second cut mid-sentence)?",
+  "Did you see the Overlay core switch to speaking while it sounded and stop when it was cut?",
+  "Did you notice any lag between sound and image, or did it feel in sync?"
+ ],
+ "answers": [
+  {
+   "quote": "todo perfecto",
+   "context": "given right after watching the attended run (Overlay open, G435 headset): one reply played to the end and one cut mid-sentence."
+  }
+ ],
+ "limits": "A single overall answer, not itemised per question. The machine measurements of the same sequence are in the av-sync-human sample, captured to file in an identical immediate re-run of the same harness (the observed run itself printed its trace to the terminal)."
+}

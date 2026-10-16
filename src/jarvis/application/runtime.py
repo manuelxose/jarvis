@@ -22,6 +22,7 @@ from typing import Any, Callable, Optional
 from jarvis.adapters.audio import EnergyVAD
 from jarvis.adapters.audio.activation import ActivationManager
 from jarvis.adapters.audio.input import MicCapture
+from jarvis.observability.core_signals import CoreSignals
 from jarvis.adapters.audio.output import AudioOutputQueue, make_sounddevice_render
 from jarvis.adapters.fakes import (
     EchoTTS,
@@ -90,6 +91,7 @@ class RuntimeComponents:
     voice_loop: VoiceLoop
     workspace: Optional[WorkspaceManager] = None
     desktop: Optional[DesktopContext] = None
+    core_signals: Optional[CoreSignals] = None
 
 
 class JarvisRuntime:
@@ -112,6 +114,10 @@ class JarvisRuntime:
         self.voice_loop = voice_loop
         self.metrics = metrics or LatencyMetrics()
         self._warm_up_task: asyncio.Task[None] | None = None
+
+    @property
+    def core_signals(self) -> Optional[CoreSignals]:
+        return self.components.core_signals
 
     @property
     def state(self) -> RuntimeState:
@@ -196,19 +202,23 @@ def build_runtime(
     use_fakes: bool = False,
     fake_stt: Any = None,
     voice_clone: Any = None,
+    signals: Optional[CoreSignals] = None,
 ) -> JarvisRuntime:
     """Compose the runtime. ``use_fakes=True`` yields a fully-healthy offline runtime.
+
+    ``signals`` is the process-owned CoreSignals (the daemon's, so the UI session
+    survives runtime restarts); one is created when omitted.
 
     ``fake_stt`` overrides the scripted STT transcript when ``use_fakes=True``,
     so the hardware-acceptance harness can drive a specific utterance through
     the voice loop without audio hardware or provider credentials.
     """
     if use_fakes:
-        return _build_fake_runtime(config, stt=fake_stt)
-    return _build_real_runtime(config, voice_clone=voice_clone)
+        return _build_fake_runtime(config, stt=fake_stt, signals=signals)
+    return _build_real_runtime(config, voice_clone=voice_clone, signals=signals)
 
 
-def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> JarvisRuntime:
+def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None, signals: Optional[CoreSignals] = None) -> JarvisRuntime:
     """``voice_clone``: a shared, externally managed QwenCloneTTS (daemon) or None."""
     memory = _build_memory(config)
     model = _build_model_chain(config)
@@ -225,8 +235,11 @@ def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> Jarvi
     _register_desktop_tools(config, tools, desktop, workspace, hermes)
     # Chunks are written in short slices, so a long SAPI sentence needs a
     # timeout above its duration rather than the 5 s per-chunk default.
+    signals = signals or CoreSignals()
     audio_output = AudioOutputQueue(
-        render=make_sounddevice_render(device=config.audio.output_device), render_timeout_seconds=60.0
+        render=make_sounddevice_render(device=config.audio.output_device, signals=signals),
+        render_timeout_seconds=60.0,
+        signals=signals,
     )
     tts = _build_tts_chain(config, shared_clone=voice_clone)
     stt = _build_stt_chain(config)
@@ -248,6 +261,7 @@ def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> Jarvi
         ack_cache=VoiceCache(_data_dir() / "cache" / "voice", voice_identity(config)),
         agent_tools=functools.partial(tools.execute, origin="agent"),
         pricing=_model_pricing(config),
+        signals=signals,
     )
     turn_manager.planner = DesktopPlanner(
         model=model,
@@ -287,21 +301,23 @@ def _build_real_runtime(config: RuntimeConfig, voice_clone: Any = None) -> Jarvi
         barge_in_frames=5 if config.audio.barge_in else 0,
         echo_tail_frames=3,
         confirmer=confirmer,
+        signals=signals,
     )
     tools.register(SleepTool(voice_loop.request_stop_after_turn))
     tools.register(MusicTool(media_key=lambda: tools.execute("media_play_pause", {}, TurnContext.fresh("music"))))
     tools.register(AssistantControlTool("restart"))  # only the daemon can restart itself
     tools.register(AssistantControlTool("shutdown", voice_loop.request_stop_after_turn))
-    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop, workspace, desktop)
+    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop, workspace, desktop, signals)
     return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 
 
-def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRuntime:
+def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None, signals: Optional[CoreSignals] = None) -> JarvisRuntime:
     injected_stt = stt is not None
     memory = _build_memory(config)
     model = ScriptedModel({"": "Respuesta de demostracion."}, default="Respuesta de demostracion.")
     hermes = ScriptedHermes()
     tools = _build_tools(config, confirmer=_auto_approve)
+    signals = signals or CoreSignals()
     audio_output = AudioOutputQueue(render=_recording_render([]))
     tts = EchoTTS()
     stt = stt or ScriptedSTT([Transcript("Jarvis, hola", is_final=True)])
@@ -318,6 +334,7 @@ def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRunt
         audio=audio_output,
         hermes=hermes,
         memory=memory,
+        signals=signals,
     )
 
     health_components = _fake_health_components(config, memory)
@@ -335,8 +352,9 @@ def _build_fake_runtime(config: RuntimeConfig, *, stt: Any = None) -> JarvisRunt
         stt=stt,
         turn_manager=turn_manager,
         activation=activation,
+        signals=signals,
     )
-    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop)
+    components = RuntimeComponents(memory, model, hermes, tools, audio_output, turn_manager, voice_loop, core_signals=signals)
     return JarvisRuntime(config, supervisor, components, activation=activation, voice_loop=voice_loop)
 
 

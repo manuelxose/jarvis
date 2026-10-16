@@ -5,6 +5,8 @@ import { foldOrbSignal, INITIAL_SIGNAL } from '../components/jarvis/orb/orbModel
 import { getLaunchEndpoint } from '../services/endpoint'
 import { createSseTransport } from '../services/sse-transport'
 import { createDesktopTransport } from '../services/desktop-transport'
+import { createVisualCoreService, type VisualCoreService, type VisualCoreSource } from '../services/visual-core-service'
+import { createVisualCoreFeed } from '../services/visual-core-feed'
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'reconnecting' | 'disconnected' | 'auth-failure' | 'incompatible-version'
 
@@ -19,6 +21,7 @@ export interface JarvisEventsState {
   speaking: boolean
   metrics: MetricRow[] | null
 }
+export type JarvisEventsResult = JarvisEventsState & { core: VisualCoreSource }
 
 function metricRows(event: SystemMetrics): MetricRow[] {
   const rows = [
@@ -51,7 +54,7 @@ function applyStatus(prev: JarvisEventsState, status: ConnectionStatus): JarvisE
 }
 
 /** Live connection state, assistant state and system metrics: Electron Core bridge when present, else the browser SSE stream. */
-export function useJarvisEvents(): JarvisEventsState {
+export function useJarvisEvents(): JarvisEventsResult {
   const [state, setState] = useState<JarvisEventsState>(() => ({
     status: window.jarvisDesktop?.core ? 'connecting' : getLaunchEndpoint() ? 'connecting' : 'disconnected',
     voiceState: INITIAL_SIGNAL.state,
@@ -59,18 +62,31 @@ export function useJarvisEvents(): JarvisEventsState {
     metrics: null,
   }))
 
+  const [visualCore, setVisualCore] = useState<VisualCoreService>(() => createVisualCoreService())
+
   useEffect(() => {
+    // StrictMode re-runs effects after cleanup disposed the service; never reuse a disposed one.
+    const service = visualCore.getDiagnostics().disposed ? createVisualCoreService() : visualCore
+    if (service !== visualCore) setVisualCore(service)
+    const feed = createVisualCoreFeed(service)
     const core = window.jarvisDesktop?.core
     if (core) {
       const transport = createDesktopTransport(core)
       let active = true
+      let lastStatus = ''
       const accept = (status: unknown) => {
         if (active && typeof status === 'string' && STATUSES.includes(status)) {
+          if (status !== lastStatus) {
+            feed.setStatus(status)
+            if (status === 'connected') void feed.resync(core.getReplay?.() ?? null)
+            lastStatus = status
+          }
           setState((prev) => applyStatus(prev, status as ConnectionStatus))
         }
       }
       const offState = transport.onState(accept)
       const offEvent = transport.subscribe((event) => {
+        feed.accept(event)
         // Events are only trusted while the bridge reports connected.
         setState((prev) => (prev.status === 'connected' ? foldEvent(prev, event) : prev))
       })
@@ -79,21 +95,34 @@ export function useJarvisEvents(): JarvisEventsState {
         active = false
         offState()
         offEvent()
+        feed.dispose()
       }
     }
 
     const target = getLaunchEndpoint()
-    if (!target) return
+    if (!target) {
+      feed.dispose()
+      return
+    }
     const transport = createSseTransport(target.url, target.token)
     const started = Date.now()
     let hasConnected = false
+    let lastFeedStatus = ''
+    const setFeedStatus = (status: string) => {
+      if (status === lastFeedStatus) return
+      lastFeedStatus = status
+      feed.setStatus(status)
+    }
 
     const unsubscribe = transport.subscribe((event: JarvisEvent) => {
+      setFeedStatus('connected')
+      feed.accept(event)
       setState((prev) => foldEvent(applyStatus(prev, 'connected'), event))
     })
     const poll = setInterval(() => {
       if (transport.connected) hasConnected = true
       const status = transport.connected ? 'connected' : hasConnected || Date.now() - started >= 3000 ? 'disconnected' : 'connecting'
+      setFeedStatus(status)
       setState((prev) => applyStatus(prev, status))
     }, 500)
 
@@ -101,8 +130,9 @@ export function useJarvisEvents(): JarvisEventsState {
       clearInterval(poll)
       unsubscribe()
       transport.close()
+      feed.dispose()
     }
   }, [])
 
-  return state
+  return { ...state, core: visualCore }
 }

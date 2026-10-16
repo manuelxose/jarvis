@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "test:transport": "node --experimental-eventsource --test \"node-tests/*.test.ts\"",
     "test:desktop-command-center": "playwright test --config playwright.desktop.config.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:phase4": "playwright test visual-core.spec.ts visual-core-accessibility.spec.ts visual-core-performance.spec.ts event-stream.spec.ts live-core.spec.ts phase4-evidence.spec.ts overlay-shell.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

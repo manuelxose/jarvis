@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "scope": "fixture + bridge-stub + Python-owned CoreSignals test server; no native hardware, microphone, playback, native CPU/RAM",
+  "tested_source_revision": "1ed4f3799c8eb8d4bbd9861b0c3d6e12c7e0ad70",
+  "revision_note": "Revision of the tested source. The documentation-only commit that adds this manifest is a later, separate commit and is deliberately not recorded here.",
+  "command": "npm --prefix ui run test:phase4",
+  "build_command": "npm --prefix ui run build",
+  "environment": {
+    "os": "Linux 5.15.153.1-microsoft-standard-WSL2 (WSL2)",
+    "node": "v24.13.0",
+    "python_system": "3.12.3",
+    "python_venv": "3.11.16",
+    "playwright": "1.63.0",
+    "browser": "Playwright managed headless Chromium"
+  },
+  "projects": [
+    "desktop-1080p",
+    "desktop-1440p"
+  ],
+  "intentional_skips": [
+    {
+      "project": "desktop-1440p",
+      "spec": "phase4-evidence.spec.ts",
+      "count": 27,
+      "reason": "intentional duplicate-viewport skip: evidence captured once on desktop-1080p"
+    },
+    {
+      "project": "desktop-1440p",
+      "spec": "visual-core-performance.spec.ts",
+      "count": 33,
+      "reason": "intentional duplicate-viewport skip: performance probes measured only on desktop-1080p"
+    }
+  ],
+  "missing_prerequisite_skips": 0,
+  "critical_scenarios": [
+    "reload resyncs from the connect snapshot",
+    "reload during announcing restores the phase without replaying startup",
+    "cancelled startup shows Stopping then cleanup returns to Idle",
+    "stale and out-of-order frames during speech are rejected",
+    "cancel during speech leaves textual state, then disposal is safe",
+    "disconnect during speech leaves textual state, then disposal is safe",
+    "cancelled and disconnected startup keep text, no pending timers",
+    "sustained 60s telemetry run with remount and dispose"
+  ],
+  "runs": [
+    {
+      "run": 1,
+      "started_at": "2026-10-16T21:24:49.857Z",
+      "finished_at": "2026-10-16T21:26:57.420Z",
+      "elapsed_ms": 127563,
+      "exit_code": 0,
+      "passed": 154,
+      "failed": 0,
+      "flaky": 0,
+      "skipped": 60,
+      "total_listed": 214,
+      "tree_clean_before": true,
+      "tree_clean_after": true,
+      "source_revision_after": "1ed4f3799c8eb8d4bbd9861b0c3d6e12c7e0ad70",
+      "transcript": "acceptance-run-1.txt",
+      "transcript_sha256": "12fc8a662e3cf10d79be5402016127b516bd21b83d8e742eaef58a6ab45cbd72"
+    },
+    {
+      "run": 2,
+      "started_at": "2026-10-16T21:27:06.406Z",
+      "finished_at": "2026-10-16T21:29:14.203Z",
+      "elapsed_ms": 127797,
+      "exit_code": 0,
+      "passed": 154,
+      "failed": 0,
+      "flaky": 0,
+      "skipped": 60,
+      "total_listed": 214,
+      "tree_clean_before": true,
+      "tree_clean_after": true,
+      "source_revision_after": "1ed4f3799c8eb8d4bbd9861b0c3d6e12c7e0ad70",
+      "transcript": "acceptance-run-2.txt",
+      "transcript_sha256": "7da457d07b65fea46eb02972c677123c21c17e07929612a19612249a200d9f3d"
+    }
+  ],
+  "limitations": [
+    "Browser timing is host-specific diagnostic data, not native performance.",
+    "stderr contains only the fixture's deliberate bad-token negative case.",
+    "Transcripts are the complete runner stdout/stderr with no ANSI codes, tokens or absolute paths in the source output."
+  ]
+}

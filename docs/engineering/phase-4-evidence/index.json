@@ -1,0 +1,367 @@
+{
+  "generated": "phase4-evidence.spec.ts",
+  "source": "fixture routes (/visual-core-fixtures.html); not native Windows, no backend",
+  "entries": [
+    {
+      "file": "command-center-disconnected.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "DISCONNECTED",
+      "motion": "disabled",
+      "assertion": "data-state=DISCONNECTED; status text contains \"Offline\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-error.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "ERROR",
+      "motion": "disabled",
+      "assertion": "data-state=ERROR; status text contains \"Error\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-executing.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "EXECUTING",
+      "motion": "disabled",
+      "assertion": "data-state=EXECUTING; status text contains \"Executing\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-idle.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "IDLE",
+      "motion": "disabled",
+      "assertion": "data-state=IDLE; status text contains \"Idle\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-listening.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "LISTENING",
+      "motion": "disabled",
+      "assertion": "data-state=LISTENING; status text contains \"Listening\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-reduced-motion-speaking.png",
+      "kind": "reduced-motion",
+      "presentation": "command-center",
+      "state": "SPEAKING",
+      "motion": "reduced",
+      "assertion": "data-motion=reduced under OS prefers-reduced-motion; state text retained",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-speaking.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "SPEAKING",
+      "motion": "disabled",
+      "assertion": "data-state=SPEAKING; status text contains \"Speaking\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-starting.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "STARTING",
+      "motion": "disabled",
+      "assertion": "data-state=STARTING; status text contains \"Starting\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-stopping.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "STOPPING",
+      "motion": "disabled",
+      "assertion": "data-state=STOPPING; status text contains \"Stopping\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-success.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "SUCCESS",
+      "motion": "disabled",
+      "assertion": "data-state=SUCCESS; status text contains \"Done\"",
+      "source": "fixture"
+    },
+    {
+      "file": "command-center-thinking.png",
+      "kind": "state",
+      "presentation": "command-center",
+      "state": "THINKING",
+      "motion": "disabled",
+      "assertion": "data-state=THINKING; status text contains \"Thinking\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-disconnected.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "DISCONNECTED",
+      "motion": "disabled",
+      "assertion": "data-state=DISCONNECTED; status text contains \"Offline\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-error.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "ERROR",
+      "motion": "disabled",
+      "assertion": "data-state=ERROR; status text contains \"Error\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-executing.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "EXECUTING",
+      "motion": "disabled",
+      "assertion": "data-state=EXECUTING; status text contains \"Executing\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-idle.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "IDLE",
+      "motion": "disabled",
+      "assertion": "data-state=IDLE; status text contains \"Idle\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-listening.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "LISTENING",
+      "motion": "disabled",
+      "assertion": "data-state=LISTENING; status text contains \"Listening\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-reduced-motion-speaking.png",
+      "kind": "reduced-motion",
+      "presentation": "overlay",
+      "state": "SPEAKING",
+      "motion": "reduced",
+      "assertion": "data-motion=reduced under OS prefers-reduced-motion; state text retained",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-speaking.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "SPEAKING",
+      "motion": "disabled",
+      "assertion": "data-state=SPEAKING; status text contains \"Speaking\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-starting.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "STARTING",
+      "motion": "disabled",
+      "assertion": "data-state=STARTING; status text contains \"Starting\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-stopping.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "STOPPING",
+      "motion": "disabled",
+      "assertion": "data-state=STOPPING; status text contains \"Stopping\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-success.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "SUCCESS",
+      "motion": "disabled",
+      "assertion": "data-state=SUCCESS; status text contains \"Done\"",
+      "source": "fixture"
+    },
+    {
+      "file": "overlay-thinking.png",
+      "kind": "state",
+      "presentation": "overlay",
+      "state": "THINKING",
+      "motion": "disabled",
+      "assertion": "data-state=THINKING; status text contains \"Thinking\"",
+      "source": "fixture"
+    },
+    {
+      "file": "startup-full.png",
+      "kind": "startup",
+      "presentation": "startup",
+      "state": "STARTING",
+      "motion": "full",
+      "assertion": "data-startup-phase=announcing",
+      "source": "fixture"
+    },
+    {
+      "file": "startup-interrupted.png",
+      "kind": "startup",
+      "presentation": "startup",
+      "state": "STOPPING",
+      "motion": "full",
+      "assertion": "data-startup-phase=cancelled",
+      "source": "fixture"
+    },
+    {
+      "file": "startup-reduced.png",
+      "kind": "startup",
+      "presentation": "startup",
+      "state": "STARTING",
+      "motion": "reduced",
+      "assertion": "data-startup-phase=announcing",
+      "source": "fixture"
+    }
+  ],
+  "native_hardware": {
+    "manifest": "native-hardware.json",
+    "aggregate_status": "PASS",
+    "note": "Fixture entries below are not native evidence; native status is defined only by the manifest.",
+    "rows": [
+      {
+        "id": "runtime-source-resolution",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/runtime-source-resolution.json"
+        ]
+      },
+      {
+        "id": "microphone-envelope",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/microphone-envelope.json"
+        ]
+      },
+      {
+        "id": "playback-envelope",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/playback-envelope.json"
+        ]
+      },
+      {
+        "id": "audible-playback-human",
+        "status": "PASS",
+        "evidence_scope": "human-observation",
+        "artifacts": [
+          "human-records/audible-playback-human.json"
+        ]
+      },
+      {
+        "id": "cancellation-envelope",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/cancellation-envelope.json"
+        ]
+      },
+      {
+        "id": "disconnect-recovery",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/disconnect-recovery.json"
+        ]
+      },
+      {
+        "id": "reconnect-no-replay",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/reconnect-no-replay.json"
+        ]
+      },
+      {
+        "id": "startup-two-clap",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/startup-two-clap.json"
+        ]
+      },
+      {
+        "id": "startup-assets",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/startup-assets.json"
+        ]
+      },
+      {
+        "id": "native-overlay",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/native-smoke-sanitized.json"
+        ]
+      },
+      {
+        "id": "native-command-center",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/native-smoke-sanitized.json"
+        ]
+      },
+      {
+        "id": "stale-ordering-native",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/stale-ordering-native.json"
+        ]
+      },
+      {
+        "id": "idle-cpu",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/idle-cpu.json"
+        ]
+      },
+      {
+        "id": "idle-ram",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/idle-ram.json"
+        ]
+      },
+      {
+        "id": "reduced-motion-native",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/reduced-motion-native.json"
+        ]
+      },
+      {
+        "id": "av-sync-human",
+        "status": "PASS",
+        "evidence_scope": "native-programmatic",
+        "artifacts": [
+          "native-samples/av-sync-human.json",
+          "human-records/av-sync-human.json"
+        ]
+      }
+    ]
+  }
+}

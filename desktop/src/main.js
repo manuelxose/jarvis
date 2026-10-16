@@ -533,6 +533,7 @@ function startDesktop(electron, options = {}) {
       windows.get('overlay').setPosition(Math.round(x), Math.round(y))
     })
     ipcMain.handle('core:get-state', event => owned(event) && coreBridge ? coreBridge.getState() : null)
+    ipcMain.handle('core:get-replay', event => owned(event) && coreBridge ? coreBridge.getReplay() : [])
     ipcMain.handle('core:control', async (event, action) => {
       if (!owned(event) || !coreBridge) return { ok: false, error: 'denied' }
       if (typeof action !== 'string' || !CORE_ACTIONS.includes(action)) return { ok: false, error: 'unsupported action' }

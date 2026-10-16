@@ -21,6 +21,7 @@ logging to ``%LOCALAPPDATA%\\jarvis\\logs\\daemon.log``.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import secrets
@@ -35,6 +36,7 @@ from jarvis.adapters.audio.claps import ClapDetector, ClapTuning, calibration_pa
 from jarvis.application.runtime import JarvisRuntime, _data_dir, build_runtime
 from jarvis.application.voice_manager import VoiceModelManager, VoicePolicy, VoiceState
 from jarvis.observability import event_stream
+from jarvis.observability.core_signals import CoreSignals
 from jarvis.observability.event_hub import VERSION, JsonlSink, hub
 from jarvis.adapters.tts.ack_cache import bytes_to_stream, join_wavs
 from jarvis.application.startup import StartupOptions, StartupSequence, welcome_texts
@@ -46,6 +48,18 @@ logger = logging.getLogger("jarvis.daemon")
 DEFAULT_PORT = 47811
 DEFAULT_UI_EVENTS_PORT = 47812  # token-protected SSE stream for the UI (0 disables it)
 _BLOCK = 320  # 20 ms at 16 kHz
+
+
+def _skip_high_rate(sink):
+    """Keep per-slice level telemetry and snapshots out of the JSONL log; lifecycle kinds are still logged."""
+
+    def write(event: dict) -> None:
+        name = event.get("name")
+        if name == "core.snapshot" or (name == "core.signal" and event.get("kind") in ("output", "microphone")):
+            return
+        sink(event)
+
+    return write
 
 
 def clap_tuning(config: RuntimeConfig) -> ClapTuning:
@@ -127,12 +141,15 @@ class Sentinel:
         self,
         config: RuntimeConfig,
         *,
-        runtime_factory: Callable[[RuntimeConfig], JarvisRuntime] = build_runtime,
+        runtime_factory: Optional[Callable[..., JarvisRuntime]] = None,
         mixer_factory: Optional[Callable[[], Any]] = None,
         open_mic: Optional[Callable[[Callable[[Any], None]], Any]] = None,
     ) -> None:
         self.config = config
-        self._runtime_factory = runtime_factory
+        self.signals = CoreSignals()  # process-owned: one UI session across every runtime
+        self._candidate_n, self._candidate_id = 0, "clap-0"
+        self._apps_published = False
+        self._runtime_factory = runtime_factory or functools.partial(build_runtime, signals=self.signals)
         self._mixer_factory = mixer_factory or self._default_mixer
         self._open_mic = open_mic or self._default_mic
         self.detector = ClapDetector(clap_tuning(config))
@@ -223,6 +240,9 @@ class Sentinel:
             return
         self.state = "candidate"
         hub.publish("activation.started", source="first_clap")
+        self._candidate_n += 1
+        self._candidate_id = f"clap-{self._candidate_n}"
+        self.signals.candidate(self._candidate_id, True, self.detector.tuning.window_seconds * 1000)
         self._spawn(self._speculate("first clap"))
 
     async def _prime_output(self) -> None:
@@ -248,6 +268,7 @@ class Sentinel:
         recent = last if last and self.detector.now - last["time"] < 2.0 else None
         logger.info("activation candidate cancelled: %s%s", reason, f" (last rejected sound: {recent})" if recent else "")
         hub.publish("activation.cancelled", reason=reason)
+        self.signals.candidate(self._candidate_id, False, 0)
         self._spawn(self._cancel_speculation(reason))
 
     async def _cancel_speculation(self, reason: str) -> None:
@@ -322,7 +343,7 @@ class Sentinel:
         preload = asyncio.create_task(self._preload_music())
         self._prepared = asyncio.create_task(self._prepare_runtime())
         if self.config.daemon.get("events_log", True):
-            unsubscribe = hub.subscribe(JsonlSink(_data_dir() / "logs" / "events.jsonl"))
+            unsubscribe = hub.subscribe(_skip_high_rate(JsonlSink(_data_dir() / "logs" / "events.jsonl")))
         else:
             unsubscribe = lambda: None  # noqa: E731
         self._spawn(self.voice.start_always())
@@ -434,6 +455,8 @@ class Sentinel:
         if self._stop.is_set():
             return
         hub.publish("activation.confirmed", source=source, confidence=self._last_gesture.get("confidence") if source == "claps" else None)
+        self.signals.begin_activation()
+        self._apps_published = False
         await self._refresh_voice_identity()  # no-op unless the profile was re-enrolled since the last activation
         welcome_cache = self.welcome_cache
         # Pin the shared voice for the whole session (loads it if still cold). Started
@@ -488,6 +511,8 @@ class Sentinel:
         offset_ms = (time.perf_counter() - gesture_at) * 1000
         try:
             report = await sequence.trigger(source)
+            if sequence.workspace_task is not None:
+                sequence.workspace_task.add_done_callback(lambda _t: self._publish_apps(sequence.report.workspace))
             runtime = holder.get("runtime")
             timings = {k: round(v + offset_ms, 1) for k, v in report.timings_ms.items()}
             self.last_report = {**report.as_dict(), "timings_ms_since_gesture": timings, "gesture": self._last_gesture if source == "claps" else None}
@@ -526,7 +551,9 @@ class Sentinel:
                 self.last_report["workspace"] = sequence.report.workspace
                 self.last_report["timings_ms_since_gesture"] = {k: round(v + offset_ms, 1) for k, v in sequence.report.timings_ms.items()}
                 self._write_report()
+                self._publish_apps(sequence.report.workspace)
             runtime = holder.get("runtime")
+            self.signals.stop()  # idempotent for a cancelled startup, which already stopped
             if runtime is not None:
                 await runtime.stop()
             if mixer is not None:
@@ -535,6 +562,7 @@ class Sentinel:
             await self.voice.release("session")  # warm -> cooldown (reused by the next session)
             if runtime is not None:
                 _release_models(runtime)
+            self.signals.cleaned_up()
             self.runtime = None
             self.sequence = None  # its closures hold the finished runtime
             logger.info("voice session ended; back to sentinel")
@@ -573,6 +601,7 @@ class Sentinel:
 
     def _on_startup_phase(self, phase: Any, detail: dict[str, Any]) -> None:
         hub.publish("startup.progress", phase=phase.value)
+        self.signals.startup(phase.value, partial=bool(detail.get("issues")))
         if phase.value != "acknowledged" and self._voice_gate is not None:
             self._voice_gate.set()  # chime and music are out: now load the voice
         issues = detail.get("issues")
@@ -580,6 +609,14 @@ class Sentinel:
             # Visible even if no voice ever speaks: published and logged before the warning.
             logger.warning("startup degraded: %s", ", ".join(issues))
             hub.publish("startup.degraded", issues=list(issues), phase=phase.value)
+
+    def _publish_apps(self, workspace: Any) -> None:
+        if self._apps_published or not isinstance(workspace, dict):
+            return
+        pairs = [(name, info.get("status")) for name, info in workspace.items() if isinstance(info, dict)]
+        if pairs:
+            self._apps_published = True
+            self.signals.apps(pairs)
 
     async def _idle_watchdog(self, runtime: JarvisRuntime) -> None:
         """End a session nobody is talking to (it otherwise transcribes noise all night)."""
@@ -848,7 +885,8 @@ async def _start_event_stream(sentinel: Sentinel, config: RuntimeConfig) -> Opti
             raise ValueError("unsupported UI action")
 
     try:
-        server = await event_stream.serve_events(hub, token, port=port, static_dir=static_dir, on_action=on_ui_action)
+        server = await event_stream.serve_events(hub, token, port=port, static_dir=static_dir, on_action=on_ui_action,
+                                                  snapshot=sentinel.signals.snapshot)
     except OSError as error:
         logger.warning("ui event stream unavailable on port %d: %s", port, error)
         return None

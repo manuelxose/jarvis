@@ -1,6 +1,6 @@
 import type { AssistantState } from '../foundations/StatusIndicator'
-import { StatusIndicator } from '../foundations/StatusIndicator'
-import { JarvisOrb } from './orb/JarvisOrb'
+import type { VisualCoreSource } from '../../services/visual-core-service'
+import { VisualCore } from './visual-core/VisualCore'
 import { VisualCorePlaceholder } from './VisualCorePlaceholder'
 
 interface AssistantStatusProps {
@@ -8,10 +8,10 @@ interface AssistantStatusProps {
   headline: string
   detail?: string
   compact?: boolean
-  speaking?: boolean
+  core?: VisualCoreSource
 }
 
-export function AssistantStatus({ state, headline, detail, compact = false, speaking = false }: AssistantStatusProps) {
+export function AssistantStatus({ state, headline, detail, compact = false, core }: AssistantStatusProps) {
   if (compact) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
@@ -22,10 +22,9 @@ export function AssistantStatus({ state, headline, detail, compact = false, spea
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)' }}>
-      <JarvisOrb state={state} speaking={speaking} size={120} />
+      <VisualCore source={core} variant="command-center" />
       <div>
-        <StatusIndicator state={state} />
-        <h2 style={{ margin: '6px 0 4px', fontSize: 'var(--text-xl)' }}>{headline}</h2>
+        <h2 style={{ margin: '0 0 4px', fontSize: 'var(--text-xl)' }}>{headline}</h2>
         {detail && <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>{detail}</p>}
       </div>
     </div>

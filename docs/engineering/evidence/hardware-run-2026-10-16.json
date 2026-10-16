@@ -1,0 +1,102 @@
+{
+ "date": "2026-10-16",
+ "host": "i7-12700H, 20 logical cores, Windows; python %LOCALAPPDATA%/jarvis-m002-venv (3.11)",
+ "commit_measured": "aabb22c..74316e5 (pacing + rejoin fixes) unless 'before'",
+ "scope": "owner-present run; values copied from the session transcript of the attended run; scripts in hardware-run-scripts/",
+ "mic": {
+  "device": "Intel Smart Sound",
+  "seconds": 6,
+  "frames": 196,
+  "core_signal_microphone_events": 88,
+  "throttled": 108,
+  "rejected": 0,
+  "peak_speaking": 0.0948,
+  "peak_silence": 0.0001
+ },
+ "playback": {
+  "api": "Pyttsx3TTS -> AudioOutputQueue -> StreamRenderer (sounddevice) on Auriculares G435",
+  "A": {
+   "output_events": [
+    101,
+    123
+   ],
+   "playback_end": "ended"
+  },
+  "B_cancel": {
+   "flush_at_s": 1.48,
+   "playback_end": "cancelled",
+   "output_events_after_flush": 0
+  },
+  "owner_heard_audio": true
+ },
+ "ui_follows_playback": {
+  "overlay": "native Electron",
+  "turn_start_to_THINKING_ms": 60,
+  "playback_start_to_SPEAKING_ms": 70,
+  "cancel_to_leave_SPEAKING_ms": 60,
+  "output_device": "LG HDR 4K (HDMI)"
+ },
+ "reconnect": {
+  "sse_connections": 2,
+  "snapshots_each": 1,
+  "same_session": true,
+  "startup_replay": false,
+  "bad_token_http": 401
+ },
+ "core_restart_recovery": {
+  "before_fix": "Offline - State unavailable (never recovered)",
+  "after_fix": "bridge connected at +30.3 s, UI Idle at the same sample"
+ },
+ "two_clap": {
+  "events": [
+   "activation.started",
+   "candidate(2000ms)",
+   "activation.confirmed",
+   "startup.acknowledged",
+   "initializing",
+   "announcing",
+   "degraded",
+   "playback 8.5-22.3 s",
+   "capture active"
+  ],
+  "owner_observed": "one clap nothing, two start, third nothing"
+ },
+ "idle_native_overlay_connected": {
+  "rAF_per_s": {
+   "before": 238,
+   "after": 14.2
+  },
+  "cpu_percent_of_machine": {
+   "before": [
+    1.78,
+    2.06,
+    1.65
+   ],
+   "after": [
+    0.24,
+    0.22,
+    0.21
+   ],
+   "reduced_motion": 0.05
+  },
+  "private_mb": {
+   "before": [
+    125,
+    127
+   ],
+   "after": [
+    65.5,
+    65.7,
+    65.7
+   ],
+   "reduced_motion": 57.6
+  }
+ },
+ "tests_after_fix": {
+  "python": "1018 OK (1 skip)",
+  "test:phase4": "154 passed / 60 skipped, also under 8 and 16 busy CPU loops",
+  "transport": "238/238",
+  "desktop": "237/237",
+  "command_center": "39/39"
+ }
+}

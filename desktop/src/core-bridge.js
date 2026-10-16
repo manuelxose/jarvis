@@ -12,6 +12,7 @@ const FRAME_MAX_BYTES = 64 * 1024;
 const TOKEN_MAX = 256;
 const ACTIONS = ['activate', 'sleep'];
 const STOP_COMMAND = 'quit'; // control-socket line; reachable only via stopCore()
+const RETAIN_MAX = 512;
 const URL_RE = /^http:\/\/127\.0\.0\.1:(\d{1,5})\/events$/;
 
 class BridgeError extends Error {
@@ -46,6 +47,7 @@ function createCoreBridge(options = {}) {
     timers = { setTimeout, clearTimeout },
     log = () => {},
     now = Date.now,
+    clock = () => performance.now(),
     backoffInitialMs = 500,
     backoffMaxMs = 10000,
     slowRetryMs = 30000,
@@ -68,10 +70,43 @@ function createCoreBridge(options = {}) {
   let session = 0;
   let retryTimer = null;
   const live = new Set(); // sockets/requests to destroy on stop or session change
+  let retained = null; // { snapshot: {event, at}, signals: [{event, at}] } for late-mounting windows (D059)
+
+  function retain(event) {
+    const at = clock();
+    if (event.name === 'core.snapshot') {
+      if (typeof event.session !== 'string' || !Number.isInteger(event.watermark)) return;
+      const kept = retained ? retained.signals.filter((s) => s.event.session === event.session && s.event.seq > event.watermark) : [];
+      retained = { snapshot: { event, at }, signals: kept };
+    } else if (event.name === 'core.signal' && retained) {
+      const last = retained.signals.length ? retained.signals[retained.signals.length - 1].event.seq : retained.snapshot.event.watermark;
+      if (event.session !== retained.snapshot.event.session || !Number.isInteger(event.seq) || event.seq !== last + 1) {
+        retained = null;
+        return;
+      }
+      retained.signals.push({ event, at });
+      if (retained.signals.length > RETAIN_MAX) {
+        retained = null;
+        try { log({ event: 'core-replay-dropped', reason: 'overflow', at: now() }); } catch { /* logging must never break the bridge */ }
+      }
+    }
+  }
+
+  function aged(entry, current) {
+    const elapsed = current - entry.at;
+    const bump = (v) => Math.round((v + elapsed) * 1000) / 1000;
+    const copy = { ...entry.event };
+    if (typeof copy.age_ms === 'number') copy.age_ms = bump(copy.age_ms);
+    for (const key of ['output', 'microphone']) {
+      if (copy[key] && typeof copy[key] === 'object' && typeof copy[key].age_ms === 'number') copy[key] = { ...copy[key], age_ms: bump(copy[key].age_ms) };
+    }
+    return copy;
+  }
 
   function setState(next, reason) {
     if (stopped || next === state) return;
     state = next;
+    if (next !== 'connected') retained = null;
     try {
       log({ state, reason, attempt, at: now() });
     } catch {
@@ -233,6 +268,7 @@ function createCoreBridge(options = {}) {
         return false;
       }
       if (typeof event.name !== 'string') return true;
+      retain(event);
       for (const fn of [...eventListeners]) {
         try { fn(event); } catch { /* listener errors are isolated */ }
       }
@@ -263,6 +299,7 @@ function createCoreBridge(options = {}) {
     stop() {
       if (stopped) return;
       stopped = true;
+      retained = null;
       timers.clearTimeout(retryTimer);
       retryTimer = null;
       session += 1;
@@ -271,6 +308,11 @@ function createCoreBridge(options = {}) {
       eventListeners.clear();
     },
     getState: () => state,
+    getReplay() {
+      if (stopped || state !== 'connected' || !retained) return [];
+      const current = clock();
+      return [aged(retained.snapshot, current), ...retained.signals.map((s) => aged(s, current))];
+    },
     onState(fn) {
       stateListeners.add(fn);
       return () => stateListeners.delete(fn);

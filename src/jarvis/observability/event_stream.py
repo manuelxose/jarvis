@@ -25,11 +25,12 @@ import re
 import signal
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from jarvis.observability.event_hub import VERSION, EventHub, hub
+from jarvis.observability.event_hub import VERSION, EventHub, hub, validate
 
 logger = logging.getLogger("jarvis.events.stream")
 
@@ -149,10 +150,13 @@ async def serve_events(
     queue_size: int = 256,
     static_dir: Optional[Path] = None,
     on_action: Optional[Callable[[str], Awaitable[None]]] = None,
+    snapshot: Optional[Callable[[], Optional[dict[str, Any]]]] = None,
 ) -> asyncio.AbstractServer:
     """Start the SSE server. Read the bound port from ``server.sockets[0].getsockname()[1]``.
 
     With *static_dir* set, other GET paths serve the built UI from it (no token: it holds no secrets).
+    With *snapshot* set, a full ``core.snapshot`` frame is sent on connect, on every keepalive tick
+    and right after a queue overflow drop, so a client re-syncs retained state without replaying events.
     """
     loop = asyncio.get_running_loop()
     expected = token.encode("utf-8")
@@ -223,13 +227,33 @@ async def serve_events(
     async def stream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, origin: str) -> None:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=queue_size)
         dropped = 0
+        resync = False
 
         def put(event: dict[str, Any]) -> None:
-            nonlocal dropped
+            nonlocal dropped, resync
             if queue.full():
                 queue.get_nowait()
                 dropped += 1
+                resync = True
             queue.put_nowait(event)
+
+        def snapshot_frame() -> str:
+            if snapshot is None:
+                return ""
+            try:
+                payload = snapshot()
+                if not isinstance(payload, dict):
+                    return ""
+                problem = validate("core.snapshot", payload)
+                if problem:
+                    logger.warning("core.snapshot skipped: %s", problem)
+                    return ""
+                event = {"v": VERSION, "name": "core.snapshot", "ts": round(time.time(), 3),
+                         "mono_ms": round(time.monotonic() * 1000, 1), **payload}
+                return f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+            except Exception:  # noqa: BLE001 - a snapshot provider never breaks the stream
+                logger.debug("core.snapshot provider failed", exc_info=True)
+                return ""
 
         def on_event(event: dict[str, Any]) -> None:
             try:
@@ -242,7 +266,11 @@ async def serve_events(
             head.append(f"Access-Control-Allow-Origin: {origin}")
         writer.write(("\r\n".join(head) + "\r\n\r\n: connected\n\n").encode("ascii"))
         await writer.drain()
-        unsubscribe = event_hub.subscribe(on_event)
+        unsubscribe = event_hub.subscribe(on_event)  # before the snapshot: events racing it carry seq <= watermark and are ignored
+        first = snapshot_frame()
+        if first:
+            writer.write(first.encode("utf-8"))
+            await writer.drain()
         eof = asyncio.ensure_future(reader.read(1024))  # completes (b"") when the client goes away
         getter: Optional[asyncio.Future[dict[str, Any]]] = None
         try:
@@ -257,7 +285,10 @@ async def serve_events(
                     getter = None
                     frame = f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
                 else:
-                    frame = ": keepalive\n\n"
+                    frame = snapshot_frame() or ": keepalive\n\n"
+                if resync:
+                    resync = False
+                    frame += snapshot_frame()
                 writer.write(frame.encode("utf-8"))
                 await writer.drain()
         finally:

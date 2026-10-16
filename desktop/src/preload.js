@@ -60,6 +60,10 @@ contextBridge.exposeInMainWorld('jarvisDesktop', {
       const state = await ipcRenderer.invoke('core:get-state')
       return coreStates.includes(state) ? state : null
     },
+    getReplay: async () => {
+      const replay = await ipcRenderer.invoke('core:get-replay')
+      return Array.isArray(replay) ? replay.filter(isPlainEvent) : []
+    },
     onState: (callback) => subscribe('core:state', value => coreStates.includes(value), callback),
     onEvent: (callback) => subscribe('core:event', value => isPlainEvent(value), callback),
     control: async (action) => {

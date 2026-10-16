@@ -74,7 +74,7 @@ function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
 
 export function CommandCenter() {
   const [activeWorkspace, setActiveWorkspace] = useState('overview')
-  const { status, voiceState, speaking, metrics } = useJarvisEvents()
+  const { status, voiceState, speaking, metrics, core } = useJarvisEvents()
   const assistantState: AssistantState = status === 'connected' ? voiceState : 'offline'
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [desktopMode, setDesktopMode] = useState<DesktopMode | null>(null)
@@ -232,7 +232,7 @@ export function CommandCenter() {
             }
           />
         }
-        liveMessage={`${CONNECTION_LABEL[status]}. Assistant state: ${assistantState}. ${controlMessage || controlError || (pending ? 'Sending control request.' : '')}`}
+        liveMessage={`${CONNECTION_LABEL[status]}. ${controlMessage || controlError || (pending ? 'Sending control request.' : '')}`}
         sidebar={<Sidebar items={WORKSPACES} activeId={activeWorkspace} onSelect={setActiveWorkspace} />}
         right={
           <>
@@ -261,7 +261,7 @@ export function CommandCenter() {
             <StatusIndicator state={assistantState} />
           </div>
         )}
-        <Workspace state={assistantState} speaking={status === 'connected' && speaking} />
+        <Workspace state={assistantState} speaking={status === 'connected' && speaking} core={core} />
       </AppFrame>
       <CommandPalette commands={commands} open={paletteOpen} onOpenChange={setPaletteOpen} />
       <ConfirmationCard action={action} pending={pending} available={status === 'connected'} error={controlError} onCancel={closeControl} onConfirm={confirmControl} />

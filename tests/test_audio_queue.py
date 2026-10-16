@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jarvis.adapters.audio.output import AudioOutputQueue
 from jarvis.core.turn import TurnCancelled, TurnContext
+from jarvis.observability.core_signals import CoreSignals
+from jarvis.observability.event_hub import EventHub
 
 
 class AudioQueueTests(unittest.IsolatedAsyncioTestCase):
@@ -182,3 +184,68 @@ class AudioQueueTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AudioQueueTelemetryTests(unittest.IsolatedAsyncioTestCase):
+    def _signals(self):
+        hub = EventHub()
+        events = []
+        hub.subscribe(events.append)
+        return CoreSignals(hub=hub), events
+
+    async def test_measuring_render_yields_ended_on_drain(self):
+        signals, events = self._signals()
+
+        async def render(turn_id, chunk):
+            signals.output(turn_id, 0.4, 0.6)
+
+        queue = AudioOutputQueue(render=render, signals=signals)
+
+        async def audio():
+            yield b"a"
+
+        await queue.play(audio(), TurnContext.fresh("c"))
+        ends = [e for e in events if e.get("kind") == "playback-end"]
+        self.assertEqual(["ended"], [e["outcome"] for e in ends])
+
+    async def test_cancel_emits_single_cancelled_and_drops_later_output(self):
+        signals, events = self._signals()
+        context = TurnContext.fresh("c")
+        gate = asyncio.Event()
+
+        async def render(turn_id, chunk):
+            signals.output(turn_id, 0.4, 0.6)
+            await gate.wait()
+            signals.output(turn_id, 0.4, 0.6)  # late output after the fence
+
+        queue = AudioOutputQueue(render=render, signals=signals)
+
+        async def audio():
+            yield b"a"
+            await asyncio.sleep(0.02)
+            context.cancellation.cancel()
+            yield b"b"
+
+        with self.assertRaises(TurnCancelled):
+            await queue.play(audio(), context)
+        gate.set()
+        await asyncio.sleep(0.01)
+        kinds = [e["kind"] for e in events if e["name"] == "core.signal"]
+        self.assertEqual(1, kinds.count("playback-end"))
+        self.assertEqual("cancelled", next(e for e in events if e.get("kind") == "playback-end")["outcome"])
+        self.assertEqual(1, kinds.count("output"))
+
+    async def test_silent_or_recording_render_emits_nothing(self):
+        signals, events = self._signals()
+        queue = AudioOutputQueue(signals=signals)
+
+        async def audio():
+            yield b"a"
+
+        await queue.play(audio(), TurnContext.fresh("c"))
+        self.assertEqual([], events)
+
+    async def test_unmeasured_flush_is_a_noop(self):
+        signals, events = self._signals()
+        AudioOutputQueue(signals=signals).flush("nothing")
+        self.assertEqual([], events)

@@ -1,0 +1,228 @@
+# Acceptance run 1: npm --prefix ui run test:phase4 (stdout)
+
+> ui@0.0.0 test:phase4
+> playwright test visual-core.spec.ts visual-core-accessibility.spec.ts visual-core-performance.spec.ts event-stream.spec.ts live-core.spec.ts phase4-evidence.spec.ts overlay-shell.spec.ts
+
+
+Running 214 tests using 4 workers
+
+  ✓    3 [desktop-1080p] › src/testing/overlay-shell.spec.ts:70:1 › late getMode response cannot overwrite a newer native notification (384ms)
+  ✓    5 [desktop-1080p] › src/testing/overlay-shell.spec.ts:79:1 › rejected bridge read defaults to compact pass-through (178ms)
+  ✓    2 [desktop-1080p] › src/testing/overlay-shell.spec.ts:32:1 › native bridge stub synchronizes content and controls, transparent canvas and drag policy (743ms)
+  ✓    6 [desktop-1080p] › src/testing/overlay-shell.spec.ts:88:1 › bridge stub leaves margin and lifecycle events pass-through without duplicate movement IPC (346ms)
+  ✓    1 [desktop-1080p] › src/testing/event-stream.spec.ts:41:1 › streams real events cross-origin to the page (923ms)
+  ✓    7 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay IDLE (294ms)
+  ✓    9 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay LISTENING (402ms)
+  ✓   11 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay THINKING (282ms)
+  ✓    4 [desktop-1080p] › src/testing/live-core.spec.ts:60:1 › Command Center core follows real CoreSignals telemetry (1.7s)
+  ✓   12 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay SPEAKING (256ms)
+  ✓   13 [desktop-1080p] › src/testing/live-core.spec.ts:81:1 › reload resyncs from the connect snapshot (267ms)
+  ✓   14 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay EXECUTING (261ms)
+  ✓   16 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay SUCCESS (260ms)
+  ✓    8 [desktop-1080p] › src/testing/event-stream.spec.ts:66:1 › a bad token errors and delivers nothing (1.7s)
+  ✓   17 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay ERROR (267ms)
+  ✓   19 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay DISCONNECTED (241ms)
+  ✓   20 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay STARTING (208ms)
+  ✓   21 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay STOPPING (241ms)
+  ✓   18 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:50:7 › compact-overlay › disabled motion: no RAF, no CSS motion, axe clean (1.1s)
+  ✓   22 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:39:3 › evidence overlay reduced motion (258ms)
+  ✓   24 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center IDLE (244ms)
+  ✓   25 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center LISTENING (223ms)
+  ✓   26 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center THINKING (261ms)
+  ✓   27 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center SPEAKING (204ms)
+  ✓   23 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:50:7 › compact-overlay › reduced motion: no RAF, no CSS motion, axe clean (1.0s)
+  ✓   28 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center EXECUTING (220ms)
+  ✓   15 [desktop-1080p] › src/testing/live-core.spec.ts:99:1 › real startup lifecycle reaches Ready (3.1s)
+  ✓   30 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center SUCCESS (226ms)
+  ✓   29 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:61:5 › compact-overlay › full motion does animate (renderer is not inert) (542ms)
+  ✓   32 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center ERROR (226ms)
+  ✓   34 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center DISCONNECTED (233ms)
+  ✓   10 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:36:5 › compact-overlay › all ten states expose text label and a glyph, not color only (4.7s)
+  ✓   35 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center STARTING (243ms)
+  ✓   33 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:66:5 › compact-overlay › OS reduced-motion toggles at runtime and stops RAF (618ms)
+  ✓   31 [desktop-1080p] › src/testing/live-core.spec.ts:122:1 › degraded startup shows limitations and the apps line (1.0s)
+  ✓   37 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center STOPPING (301ms)
+  ✓   40 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:39:3 › evidence command-center reduced motion (228ms)
+  ✓   38 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:105:5 › compact-overlay › visible text is immediate while announcement lags; terminal ERROR arrives during debounce (652ms)
+  ✓   41 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:50:3 › evidence startup-full (263ms)
+  ✓   43 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:50:3 › evidence startup-reduced (249ms)
+  ✓   39 [desktop-1080p] › src/testing/live-core.spec.ts:133:1 › cancelled startup shows Stopping then cleanup returns to Idle (1.1s)
+  ✓   44 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:50:3 › evidence startup-interrupted (235ms)
+  ✓   36 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:85:5 › compact-overlay › announcements are coalesced, keep the latest terminal outcome, and ignore repeats (2.0s)
+  ✓   46 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:62:1 › rapid state transitions settle on the last state without a stuck label (585ms)
+  ✓   48 [desktop-1080p] › src/testing/phase4-evidence.spec.ts:74:1 › write evidence index (13ms)
+  ✓   45 [desktop-1080p] › src/testing/live-core.spec.ts:146:1 › reload during announcing restores the phase without replaying startup (1.1s)
+  ✓   42 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:116:5 › compact-overlay › announcement writes do not scale with signal reads or envelopes (1.7s)
+  ✓   47 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:125:5 › compact-overlay › source replacement drops pending announcements; unmount cleans up (974ms)
+  ✓   52 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:61:5 › command-center › full motion does animate (renderer is not inert) (597ms)
+  ✓   50 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:50:7 › command-center › disabled motion: no RAF, no CSS motion, axe clean (1.6s)
+  ✓   51 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:50:7 › command-center › reduced motion: no RAF, no CSS motion, axe clean (1.6s)
+  ✓   53 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:66:5 › command-center › OS reduced-motion toggles at runtime and stops RAF (867ms)
+  ✓   55 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:105:5 › command-center › visible text is immediate while announcement lags; terminal ERROR arrives during debounce (648ms)
+  ✓   57 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:125:5 › command-center › source replacement drops pending announcements; unmount cleans up (1.0s)
+  ✓   56 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:116:5 › command-center › announcement writes do not scale with signal reads or envelopes (1.7s)
+  ✓   54 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:85:5 › command-center › announcements are coalesced, keep the latest terminal outcome, and ignore repeats (2.1s)
+  ✓   58 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:142:1 › missing source and disconnected state remain textual (817ms)
+  ✓   49 [desktop-1080p] › src/testing/visual-core-accessibility.spec.ts:36:5 › command-center › all ten states expose text label and a glyph, not color only (4.7s)
+  ✓   59 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full idle: 10s measured sample (11.3s)
+  ✓   60 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full listening: 10s measured sample (11.3s)
+  ✓   61 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full speaking: 10s measured sample (11.3s)
+  ✓   62 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full startup: 10s measured sample (11.3s)
+  ✓   63 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled idle: 10s measured sample (11.3s)
+  ✓   64 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled listening: 10s measured sample (11.3s)
+  ✓   65 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled speaking: 10s measured sample (11.2s)
+  ✓   66 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled startup: 10s measured sample (11.3s)
+  ✓   67 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full idle: 10s measured sample (11.3s)
+  ✓   68 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full listening: 10s measured sample (11.3s)
+  ✓   69 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full speaking: 10s measured sample (11.2s)
+  ✓   70 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full startup: 10s measured sample (11.3s)
+  ✓   72 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled listening: 10s measured sample (11.3s)
+  ✓   71 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled idle: 10s measured sample (11.3s)
+  ✓   76 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:250:5 › lifecycle and negative paths › compact-overlay: stale and out-of-order frames during speech are rejected and invisible (147ms)
+  ✓   73 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled speaking: 10s measured sample (11.2s)
+  ✓   74 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled startup: 10s measured sample (11.2s)
+  ✓   75 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:229:5 › lifecycle and negative paths › compact-overlay: 30 Hz envelopes plus a 10x burst do not fan out into semantic renders or timers (1.2s)
+  ✓   79 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:296:5 › lifecycle and negative paths › compact-overlay: cancelled and disconnected startup keep text, no pending timers (881ms)
+  ✓   77 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › compact-overlay: cancel during speech leaves textual state, then disposal is safe (2.0s)
+  ✓   78 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › compact-overlay: disconnect during speech leaves textual state, then disposal is safe (2.0s)
+  ✓   83 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:250:5 › lifecycle and negative paths › command-center: stale and out-of-order frames during speech are rejected and invisible (160ms)
+  ✓   80 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › compact-overlay full: unmount leaves no DOM writes, RAF, timers or listeners (1.7s)
+  ✓   81 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › compact-overlay disabled: unmount leaves no DOM writes, RAF, timers or listeners (1.7s)
+  ✓   82 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:229:5 › lifecycle and negative paths › command-center: 30 Hz envelopes plus a 10x burst do not fan out into semantic renders or timers (1.2s)
+  ✓   86 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:296:5 › lifecycle and negative paths › command-center: cancelled and disconnected startup keep text, no pending timers (871ms)
+  ✓   84 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › command-center: cancel during speech leaves textual state, then disposal is safe (2.0s)
+  ✓   85 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › command-center: disconnect during speech leaves textual state, then disposal is safe (2.0s)
+  ✓   87 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › command-center full: unmount leaves no DOM writes, RAF, timers or listeners (1.7s)
+  ✓   88 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › command-center disabled: unmount leaves no DOM writes, RAF, timers or listeners (1.7s)
+  ✓   92 [desktop-1080p] › src/testing/visual-core.spec.ts:10:3 › Visual core fixtures › renders 40 cells with distinct states and visible labels per variant (504ms)
+  ✓   93 [desktop-1080p] › src/testing/visual-core.spec.ts:27:3 › Visual core fixtures › grid and each variant row match screenshots (1.4s)
+  ✓   89 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:347:3 › compact-overlay: 100 repeated lifecycle cycles keep DOM size, timers and listeners stable (5.0s)
+  ✓   94 [desktop-1080p] › src/testing/visual-core.spec.ts:35:3 › Visual core fixtures › has no axe violations (1.8s)
+  ✓   95 [desktop-1080p] › src/testing/visual-core.spec.ts:42:3 › Visual core fixtures › uses no canvas and requests no WebGL context (244ms)
+  ✓   96 [desktop-1080p] › src/testing/visual-core.spec.ts:58:3 › Visual core fixtures › motion attributes follow setting and OS preference (326ms)
+  ✓   90 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:347:3 › command-center: 100 repeated lifecycle cycles keep DOM size, timers and listeners stable (5.0s)
+  ✓   97 [desktop-1080p] › src/testing/visual-core.spec.ts:69:3 › Visual core fixtures › cell without a source falls back to static DISCONNECTED (203ms)
+  ✓   98 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-full in startup matches screenshot and has no axe violations (910ms)
+  ✓   99 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-full in compact-overlay matches screenshot and has no axe violations (903ms)
+  ✓  100 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-reduced in startup matches screenshot and has no axe violations (888ms)
+  ✓  101 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-reduced in compact-overlay matches screenshot and has no axe violations (720ms)
+  ✓  102 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-fast in startup matches screenshot and has no axe violations (726ms)
+  ✓  103 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-fast in compact-overlay matches screenshot and has no axe violations (693ms)
+  ✓  104 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-muted in startup matches screenshot and has no axe violations (779ms)
+  ✓  105 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-muted in compact-overlay matches screenshot and has no axe violations (785ms)
+  ✓  106 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-interrupted in startup matches screenshot and has no axe violations (769ms)
+  ✓  107 [desktop-1080p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-interrupted in compact-overlay matches screenshot and has no axe violations (752ms)
+  ✓  108 [desktop-1440p] › src/testing/event-stream.spec.ts:41:1 › streams real events cross-origin to the page (825ms)
+  ✓  110 [desktop-1440p] › src/testing/overlay-shell.spec.ts:32:1 › native bridge stub synchronizes content and controls, transparent canvas and drag policy (718ms)
+  ✓  112 [desktop-1440p] › src/testing/overlay-shell.spec.ts:70:1 › late getMode response cannot overwrite a newer native notification (204ms)
+  ✓  113 [desktop-1440p] › src/testing/overlay-shell.spec.ts:79:1 › rejected bridge read defaults to compact pass-through (131ms)
+  ✓  109 [desktop-1440p] › src/testing/live-core.spec.ts:60:1 › Command Center core follows real CoreSignals telemetry (1.4s)
+  ✓  114 [desktop-1440p] › src/testing/overlay-shell.spec.ts:88:1 › bridge stub leaves margin and lifecycle events pass-through without duplicate movement IPC (323ms)
+  -  116 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay IDLE
+  ✓  115 [desktop-1440p] › src/testing/live-core.spec.ts:81:1 › reload resyncs from the connect snapshot (225ms)
+  -  117 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay LISTENING
+  -  119 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay THINKING
+  -  120 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay SPEAKING
+  -  121 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay EXECUTING
+  -  122 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay SUCCESS
+  -  123 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay ERROR
+  -  124 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay DISCONNECTED
+  -  125 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay STARTING
+  -  126 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence overlay STOPPING
+  -  127 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:39:3 › evidence overlay reduced motion
+  -  128 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center IDLE
+  -  129 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center LISTENING
+  -  130 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center THINKING
+  -  131 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center SPEAKING
+  -  132 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center EXECUTING
+  -  133 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center SUCCESS
+  -  134 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center ERROR
+  -  135 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center DISCONNECTED
+  -  136 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center STARTING
+  -  137 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:30:5 › evidence command-center STOPPING
+  -  138 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:39:3 › evidence command-center reduced motion
+  -  139 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:50:3 › evidence startup-full
+  -  140 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:50:3 › evidence startup-reduced
+  -  141 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:50:3 › evidence startup-interrupted
+  -  142 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:62:1 › rapid state transitions settle on the last state without a stuck label
+  -  143 [desktop-1440p] › src/testing/phase4-evidence.spec.ts:74:1 › write evidence index
+  ✓  111 [desktop-1440p] › src/testing/event-stream.spec.ts:66:1 › a bad token errors and delivers nothing (1.7s)
+  ✓  145 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:50:7 › compact-overlay › disabled motion: no RAF, no CSS motion, axe clean (927ms)
+  ✓  146 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:50:7 › compact-overlay › reduced motion: no RAF, no CSS motion, axe clean (1.0s)
+  ✓  118 [desktop-1440p] › src/testing/live-core.spec.ts:99:1 › real startup lifecycle reaches Ready (3.1s)
+  ✓  147 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:61:5 › compact-overlay › full motion does animate (renderer is not inert) (524ms)
+  ✓  148 [desktop-1440p] › src/testing/live-core.spec.ts:122:1 › degraded startup shows limitations and the apps line (1.0s)
+  ✓  149 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:66:5 › compact-overlay › OS reduced-motion toggles at runtime and stops RAF (640ms)
+  ✓  144 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:36:5 › compact-overlay › all ten states expose text label and a glyph, not color only (4.6s)
+  ✓  150 [desktop-1440p] › src/testing/live-core.spec.ts:133:1 › cancelled startup shows Stopping then cleanup returns to Idle (1.4s)
+  ✓  152 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:105:5 › compact-overlay › visible text is immediate while announcement lags; terminal ERROR arrives during debounce (563ms)
+  ✓  151 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:85:5 › compact-overlay › announcements are coalesced, keep the latest terminal outcome, and ignore repeats (2.1s)
+  ✓  153 [desktop-1440p] › src/testing/live-core.spec.ts:146:1 › reload during announcing restores the phase without replaying startup (1.0s)
+  ✓  155 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:125:5 › compact-overlay › source replacement drops pending announcements; unmount cleans up (892ms)
+  ✓  154 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:116:5 › compact-overlay › announcement writes do not scale with signal reads or envelopes (1.7s)
+  ✓  157 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:50:7 › command-center › disabled motion: no RAF, no CSS motion, axe clean (1.0s)
+  ✓  158 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:50:7 › command-center › reduced motion: no RAF, no CSS motion, axe clean (1.1s)
+  ✓  159 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:61:5 › command-center › full motion does animate (renderer is not inert) (538ms)
+  ✓  160 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:66:5 › command-center › OS reduced-motion toggles at runtime and stops RAF (635ms)
+  ✓  162 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:105:5 › command-center › visible text is immediate while announcement lags; terminal ERROR arrives during debounce (575ms)
+  ✓  161 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:85:5 › command-center › announcements are coalesced, keep the latest terminal outcome, and ignore repeats (2.0s)
+  ✓  156 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:36:5 › command-center › all ten states expose text label and a glyph, not color only (4.6s)
+  ✓  163 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:116:5 › command-center › announcement writes do not scale with signal reads or envelopes (1.7s)
+  -  166 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full idle: 10s measured sample
+  -  167 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full listening: 10s measured sample
+  -  168 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full speaking: 10s measured sample
+  -  169 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay full startup: 10s measured sample
+  -  170 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled idle: 10s measured sample
+  -  171 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled listening: 10s measured sample
+  -  172 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled speaking: 10s measured sample
+  -  173 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › compact-overlay disabled startup: 10s measured sample
+  -  174 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full idle: 10s measured sample
+  -  175 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full listening: 10s measured sample
+  -  176 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full speaking: 10s measured sample
+  -  177 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center full startup: 10s measured sample
+  -  178 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled idle: 10s measured sample
+  -  179 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled listening: 10s measured sample
+  -  180 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled speaking: 10s measured sample
+  -  181 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:156:7 › command-center disabled startup: 10s measured sample
+  -  182 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:229:5 › lifecycle and negative paths › compact-overlay: 30 Hz envelopes plus a 10x burst do not fan out into semantic renders or timers
+  -  183 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:250:5 › lifecycle and negative paths › compact-overlay: stale and out-of-order frames during speech are rejected and invisible
+  -  184 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › compact-overlay: cancel during speech leaves textual state, then disposal is safe
+  -  185 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › compact-overlay: disconnect during speech leaves textual state, then disposal is safe
+  -  186 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:296:5 › lifecycle and negative paths › compact-overlay: cancelled and disconnected startup keep text, no pending timers
+  -  187 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › compact-overlay full: unmount leaves no DOM writes, RAF, timers or listeners
+  ✓  164 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:125:5 › command-center › source replacement drops pending announcements; unmount cleans up (905ms)
+  -  188 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › compact-overlay disabled: unmount leaves no DOM writes, RAF, timers or listeners
+  -  189 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:250:5 › lifecycle and negative paths › command-center: stale and out-of-order frames during speech are rejected and invisible
+  -  190 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:229:5 › lifecycle and negative paths › command-center: 30 Hz envelopes plus a 10x burst do not fan out into semantic renders or timers
+  -  191 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › command-center: cancel during speech leaves textual state, then disposal is safe
+  -  193 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:296:5 › lifecycle and negative paths › command-center: cancelled and disconnected startup keep text, no pending timers
+  -  192 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:267:7 › lifecycle and negative paths › command-center: disconnect during speech leaves textual state, then disposal is safe
+  -  194 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › command-center full: unmount leaves no DOM writes, RAF, timers or listeners
+  -  195 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:315:35 › lifecycle and negative paths › command-center disabled: unmount leaves no DOM writes, RAF, timers or listeners
+  -  196 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:347:3 › compact-overlay: 100 repeated lifecycle cycles keep DOM size, timers and listeners stable
+  -  197 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:347:3 › command-center: 100 repeated lifecycle cycles keep DOM size, timers and listeners stable
+  -  198 [desktop-1440p] › src/testing/visual-core-performance.spec.ts:384:1 › sustained 60s telemetry run with remount and dispose
+  ✓  165 [desktop-1440p] › src/testing/visual-core-accessibility.spec.ts:142:1 › missing source and disconnected state remain textual (711ms)
+  ✓  199 [desktop-1440p] › src/testing/visual-core.spec.ts:10:3 › Visual core fixtures › renders 40 cells with distinct states and visible labels per variant (668ms)
+  ✓  202 [desktop-1440p] › src/testing/visual-core.spec.ts:42:3 › Visual core fixtures › uses no canvas and requests no WebGL context (170ms)
+  ✓  203 [desktop-1440p] › src/testing/visual-core.spec.ts:58:3 › Visual core fixtures › motion attributes follow setting and OS preference (260ms)
+  ✓  204 [desktop-1440p] › src/testing/visual-core.spec.ts:69:3 › Visual core fixtures › cell without a source falls back to static DISCONNECTED (171ms)
+  ✓  200 [desktop-1440p] › src/testing/visual-core.spec.ts:27:3 › Visual core fixtures › grid and each variant row match screenshots (1.3s)
+  ✓  201 [desktop-1440p] › src/testing/visual-core.spec.ts:35:3 › Visual core fixtures › has no axe violations (1.8s)
+  ✓  206 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-full in compact-overlay matches screenshot and has no axe violations (849ms)
+  ✓  205 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-full in startup matches screenshot and has no axe violations (875ms)
+  ✓  207 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-reduced in startup matches screenshot and has no axe violations (846ms)
+  ✓  208 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-reduced in compact-overlay matches screenshot and has no axe violations (874ms)
+  ✓  209 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-fast in startup matches screenshot and has no axe violations (896ms)
+  ✓  210 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-fast in compact-overlay matches screenshot and has no axe violations (866ms)
+  ✓  211 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-muted in startup matches screenshot and has no axe violations (815ms)
+  ✓  212 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-muted in compact-overlay matches screenshot and has no axe violations (796ms)
+  ✓  213 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-interrupted in startup matches screenshot and has no axe violations (884ms)
+  ✓  214 [desktop-1440p] › src/testing/visual-core.spec.ts:79:7 › Visual core fixtures › startup-interrupted in compact-overlay matches screenshot and has no axe violations (829ms)
+  ✓   91 [desktop-1080p] › src/testing/visual-core-performance.spec.ts:384:1 › sustained 60s telemetry run with remount and dispose (1.1m)
+
+  60 skipped
+  154 passed (2.1m)
+# stderr
+events client rejected: bad or missing token
+events client rejected: bad or missing token

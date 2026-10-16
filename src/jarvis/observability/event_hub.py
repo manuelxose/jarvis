@@ -46,6 +46,9 @@ SCHEMAS: dict[str, dict[str, tuple[type, ...]]] = {
     "agent.completed": {"trace_id": (str,), "route": (str,), "ok": (bool,), "elapsed_ms": _NUM},
     "command.executed": {"trace_id": (str,), "tool": (str,), "ok": (bool,), "elapsed_ms": _NUM},
     "turn.cost": {"trace_id": (str,), "route": (str,), "entries": (list,), "total_usd": _NUM},
+    # visual core (session-sequenced; kind-specific fields ride along unvalidated)
+    "core.signal": {"session": (str,), "generation": (int,), "seq": (int,), "age_ms": _NUM, "kind": (str,)},
+    "core.snapshot": {"session": (str,), "generation": (int,), "watermark": (int,), "age_ms": _NUM, "facts": (dict,), "fences": (dict,)},
     # host
     "system.metrics": {"cpu_percent": _NUM, "ram_percent": _NUM, "gpu": (dict, type(None))},
 }

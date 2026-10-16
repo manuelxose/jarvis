@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from jarvis.observability.core_signals import CoreSignals
 from jarvis.observability.event_hub import EventHub
 from jarvis.observability.event_stream import MAX_REQUEST_BYTES, MAX_CONTROL_BODY_BYTES, serve_events
 
@@ -333,3 +334,81 @@ class ControlTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SnapshotTests(EventStreamTests):
+    """core.snapshot delivery; inherits the helpers (and so re-runs the base tests, which must stay green)."""
+
+    async def stream_with(self, snapshot, **kwargs):
+        port = await self.start(snapshot=snapshot, **kwargs)
+        reader, _ = await self.get(port, f"/events?token={TOKEN}")
+        await read_head(reader)
+        return reader
+
+    async def test_first_frame_is_snapshot_when_provider_given(self):
+        signals = CoreSignals(self.hub)
+        signals.turn_start("t1")
+        reader = await self.stream_with(signals.snapshot)
+        (event,) = await read_events(reader, 1)
+        self.assertEqual((event["v"], event["name"]), (1, "core.snapshot"))
+        self.assertEqual(event["facts"]["turn"], "t1")
+        self.assertEqual(event["session"], signals.session)
+        self.assertIn("mono_ms", event)
+
+    async def test_no_snapshot_frame_without_provider(self):
+        port = await self.start()
+        reader, _ = await self.get(port, f"/events?token={TOKEN}")
+        await read_head(reader)
+        self.assertTrue(await self.wait_hub(True))
+        self.hub.publish("voice.loading", reason="x")
+        (event,) = await read_events(reader, 1)
+        self.assertEqual(event["name"], "voice.loading")
+
+    async def test_provider_failure_or_garbage_never_closes_stream(self):
+        for provider in (lambda: 1 / 0, lambda: None, lambda: {"session": 1}):
+            with self.subTest(provider=provider):
+                reader = await self.stream_with(provider, keepalive_seconds=0.1)
+                self.assertTrue(await self.wait_hub(True))
+                self.hub.publish("voice.loading", reason="alive")
+                (event,) = await read_events(reader, 1)
+                self.assertEqual(event["name"], "voice.loading")
+                self.server.close()
+
+    async def test_overflow_drop_triggers_fresh_snapshot(self):
+        calls = []
+
+        def provider():
+            calls.append(1)
+            return CoreSignals(self.hub, session="s").snapshot()
+
+        reader = await self.stream_with(provider, queue_size=2)
+        self.assertTrue(await self.wait_hub(True))
+        for i in range(50):
+            self.hub.publish("voice.loading", reason=str(i))
+        await asyncio.sleep(0.2)
+        names = []
+        while True:
+            try:
+                names += [e["name"] for e in await read_events(reader, 1, timeout=0.3)]
+            except asyncio.TimeoutError:
+                break
+        self.assertEqual(names[0], "core.snapshot")
+        self.assertGreaterEqual(names.count("core.snapshot"), 2, names)
+        self.assertGreaterEqual(len(calls), 2)
+
+    async def test_reconnect_gets_current_state_without_replayed_lifecycle(self):
+        signals = CoreSignals(self.hub)
+        signals.turn_start("t1")
+        signals.output("t1", 0.5, 0.6)
+        port = await self.start(snapshot=signals.snapshot)
+        for _ in range(2):
+            reader, writer = await self.get(port, f"/events?token={TOKEN}")
+            await read_head(reader)
+            (event,) = await read_events(reader, 1)
+            self.assertEqual(event["name"], "core.snapshot")
+            self.assertEqual(event["facts"]["playback"]["turn"], "t1")
+            self.assertEqual(event["watermark"], 3)  # turn-start, playback-start, output
+            with self.assertRaises(asyncio.TimeoutError):
+                await read_events(reader, 1, timeout=0.3)
+            writer.close()
+            await asyncio.sleep(0.05)

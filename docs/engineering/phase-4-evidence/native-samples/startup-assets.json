@@ -1,0 +1,18 @@
+{
+ "runs": [
+  {
+   "entry": "startup-assets",
+   "status": "PASS",
+   "exit_code": 0,
+   "remaining_count": 0,
+   "measurements": {
+    "music": "file",
+    "welcome_source": "cache",
+    "first_sound_ms": 19.3,
+    "music_started_ms": 456.6,
+    "apps_launched": 6,
+    "apps_total": 6
+   }
+  }
+ ]
+}

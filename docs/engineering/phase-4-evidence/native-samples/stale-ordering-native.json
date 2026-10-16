@@ -1,0 +1,18 @@
+{
+ "runs": [
+  {
+   "entry": "stale-ordering-native",
+   "status": "PASS",
+   "exit_code": 0,
+   "remaining_count": 0,
+   "measurements": {
+    "state_before": "SPEAKING",
+    "state_after_stale_and_foreign_events": "SPEAKING",
+    "injected": [
+     "stale-seq cancel-turn",
+     "foreign-session cancel-turn"
+    ]
+   }
+  }
+ ]
+}

@@ -343,3 +343,34 @@ class VoiceLoopTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VoiceLoopSignalsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_capture_brackets_microphone_levels(self):
+        from jarvis.observability.core_signals import CoreSignals
+        from jarvis.observability.event_hub import EventHub
+
+        hub = EventHub()
+        events = []
+        hub.subscribe(events.append)
+        ticks = iter(i * 0.1 for i in range(1000))
+        signals = CoreSignals(hub=hub, clock=lambda: next(ticks))
+        loop, _, _ = _build(
+            [b"\xff\x7f" * 8] + [b"\x00\x00" * 8] * 6,
+            stt=ScriptedSTT([Transcript("Jarvis, hola", is_final=True)]),
+        )
+        loop._signals = signals
+
+        await loop.run(max_turns=1)
+
+        kinds = [e["kind"] for e in events if e["name"] == "core.signal"]
+        self.assertEqual("capture", kinds[0])
+        self.assertTrue(events[0]["active"])
+        self.assertIn("microphone", kinds)
+        last_capture = max(i for i, k in enumerate(kinds) if k == "capture")
+        self.assertFalse(events[last_capture]["active"])
+        first_mic = kinds.index("microphone")
+        self.assertTrue(0 < first_mic < last_capture)
+        mic = next(e for e in events if e["kind"] == "microphone")
+        self.assertGreater(mic["level"], 0.5)
+        self.assertFalse(any(k == "capture" and events[i]["active"] for i, k in enumerate(kinds) if i > last_capture))

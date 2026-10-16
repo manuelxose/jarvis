@@ -1,0 +1,458 @@
+{
+  "schema_version": 1,
+  "aggregate_status": "PASS",
+  "aggregate_rationale": "Every row has a retained, hash-verified native sample and, where required, a human-observation record.",
+  "artifacts": [
+    {
+      "id": "native-smoke-sample",
+      "path": "native-samples/native-smoke-sanitized.json",
+      "sha256": "75027fba04bc77f1002e39b440e024f5889482ac456972054ff45708fa521b74",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Allowlisted counts, exit codes and marker stages from desktop/scripts/native-smoke.cjs on Windows; derived from docs/engineering/evidence/native-smoke.json (digest inside the sample)."
+    },
+    {
+      "id": "runtime-source-resolution-sample",
+      "path": "native-samples/runtime-source-resolution.json",
+      "sha256": "c4d6f1e84a1dede01833389d5959aa8f334c49fb960442eea0bfbac17c221089",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "microphone-envelope-sample",
+      "path": "native-samples/microphone-envelope.json",
+      "sha256": "c25a88dc7afb5563e1d4570cfd20888c6e1021d5be2140e979a3e1085e6315bb",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "playback-envelope-sample",
+      "path": "native-samples/playback-envelope.json",
+      "sha256": "4da2d0d1c16d1f3794de3052858e90b2dbe3af768d6ba70939a0468501d56027",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "cancellation-envelope-sample",
+      "path": "native-samples/cancellation-envelope.json",
+      "sha256": "793811c519b15af1995436deb260e1d6940c86f01944fca0dd276a2c9c85cad3",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "disconnect-recovery-sample",
+      "path": "native-samples/disconnect-recovery.json",
+      "sha256": "f0f95cf70d20da1961f104f331cca5a3bdd5e2efe9c7ae0908802206c189f80c",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "reconnect-no-replay-sample",
+      "path": "native-samples/reconnect-no-replay.json",
+      "sha256": "8a4df3851443a34baf11a6042022690863b5d7197c65295e0f97dae832173d5b",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "startup-two-clap-sample",
+      "path": "native-samples/startup-two-clap.json",
+      "sha256": "11533ed047aada3dd29cb46ca1687925ddfde4dc63a1bdeae36a14ad5327cb60",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "startup-assets-sample",
+      "path": "native-samples/startup-assets.json",
+      "sha256": "4635c760ae3460b1a2fe423ce0ec6d0fcfb4495eb29113799f95b99ccd6fe544",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "stale-ordering-native-sample",
+      "path": "native-samples/stale-ordering-native.json",
+      "sha256": "693f132f3cc9b6359f4107dd2918ac9081f2cecf08c0f5908e6ddb5be60e781e",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "idle-cpu-sample",
+      "path": "native-samples/idle-cpu.json",
+      "sha256": "e4e911572405233a753a70cad4baf4755543ec80e24f0eead45c37c8a46ba35f",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "idle-ram-sample",
+      "path": "native-samples/idle-ram.json",
+      "sha256": "6d3d55d4336aa74c5b4b60edfeb33a283428401ea59e14791b3e9ee061f70288",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "reduced-motion-native-sample",
+      "path": "native-samples/reduced-motion-native.json",
+      "sha256": "c328b980f67a2a7ee435dcdf5b71bdaa0e4513e646ec2a005ccaf20955ba2e97",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "av-sync-human-sample",
+      "path": "native-samples/av-sync-human.json",
+      "sha256": "63606e8e26b5be5cf858aded30febc5f1d71d67ac452a37ed97c3baa52b2f0b9",
+      "provenance": "native-runner-output-sanitized",
+      "description": "Sanitized output of hardware-run-scripts/native_rows.py (or av_sync_live.py) on Windows: counts, booleans, numbers and state names only."
+    },
+    {
+      "id": "audible-playback-human-record",
+      "path": "human-records/audible-playback-human.json",
+      "sha256": "618668990c6e9b8d681d036928fcf9c87094fdd3291714a8e91f2622a2354dec",
+      "provenance": "human-observation-record",
+      "description": "Owner observation collected in the working session; quotes kept verbatim."
+    },
+    {
+      "id": "av-sync-human-record",
+      "path": "human-records/av-sync-human.json",
+      "sha256": "ef1bc6a25c96ff24aad9eb713a80a64cca036b2a0c97edc2dc2a83f7ba0b8eb8",
+      "provenance": "human-observation-record",
+      "description": "Owner observation collected in the working session; quotes kept verbatim."
+    }
+  ],
+  "rows": [
+    {
+      "id": "runtime-source-resolution",
+      "title": "Windows Python resolves jarvis to this worktree",
+      "table_row": 1,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "runtime-source-resolution-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Reported import resolved under the worktree src path. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "runtime-source-resolution"
+    },
+    {
+      "id": "microphone-envelope",
+      "title": "Real microphone envelope reaches the visual core",
+      "table_row": 2,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "microphone-envelope-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "196 frames, 88 core.signal microphone events, peak 0.095 speaking vs 0.0001 silence. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository.",
+          "numeric": {
+            "events": 88,
+            "peak_speaking": 0.095,
+            "peak_silence": 0.0001
+          }
+        }
+      ],
+      "sample_entry": "microphone-envelope"
+    },
+    {
+      "id": "playback-envelope",
+      "title": "Actual playback envelope, start and end",
+      "table_row": 3,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "playback-envelope-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "101-123 output events, playback-start then playback-end 'ended'. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "playback-envelope"
+    },
+    {
+      "id": "audible-playback-human",
+      "title": "Audible playback heard by a human",
+      "table_row": 3,
+      "requires": [
+        "human"
+      ],
+      "status": "PASS",
+      "evidence_scope": "human-observation",
+      "artifacts": [
+        "audible-playback-human-record"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Owner stated the speech on the headset was audible. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ]
+    },
+    {
+      "id": "cancellation-envelope",
+      "title": "Cancellation during speech stops playback",
+      "table_row": 4,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "cancellation-envelope-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "flush at 1.48 s -> playback-end 'cancelled', 0 output events after. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "cancellation-envelope"
+    },
+    {
+      "id": "disconnect-recovery",
+      "title": "Disconnected recovery after Core restart",
+      "table_row": 5,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "disconnect-recovery-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Bridge connected->reconnecting->disconnected->connected; UI Idle->Offline->Idle after a fix. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "disconnect-recovery"
+    },
+    {
+      "id": "reconnect-no-replay",
+      "title": "Reconnect without startup replay",
+      "table_row": 6,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "reconnect-no-replay-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Two SSE connections each got one core.snapshot, same session, no startup events, bad token 401. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "reconnect-no-replay"
+    },
+    {
+      "id": "startup-two-clap",
+      "title": "Two-clap entry and startup phase ordering",
+      "table_row": 7,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "startup-two-clap-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "activation.started -> confirmed -> startup phases -> degraded (Ollama and voice worker absent). Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "startup-two-clap"
+    },
+    {
+      "id": "startup-assets",
+      "title": "Configured startup assets and app launch",
+      "table_row": 8,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "startup-assets-sample"
+      ],
+      "history": [],
+      "sample_entry": "startup-assets"
+    },
+    {
+      "id": "native-overlay",
+      "title": "Native Overlay presentation",
+      "table_row": 9,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "native-smoke-sample"
+      ],
+      "blocker": null,
+      "history": [],
+      "sample_entry": "overlay"
+    },
+    {
+      "id": "native-command-center",
+      "title": "Native Command Center presentation",
+      "table_row": 10,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "native-smoke-sample"
+      ],
+      "blocker": null,
+      "history": [],
+      "sample_entry": "command-center"
+    },
+    {
+      "id": "stale-ordering-native",
+      "title": "Stale and out-of-order telemetry rejected natively",
+      "table_row": 11,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "stale-ordering-native-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Live SSE ordering observed; stale rejection is fixture-covered only. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "stale-ordering-native"
+    },
+    {
+      "id": "idle-cpu",
+      "title": "Native idle CPU below 2 percent",
+      "table_row": 12,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "idle-cpu-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "60 s windows, Electron tree over 20 cores: 0.21, 0.22, 0.24 percent after the pacing fix. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository.",
+          "numeric": {
+            "cpu_percent": [
+              0.21,
+              0.22,
+              0.24
+            ],
+            "limit": 2.0
+          }
+        }
+      ],
+      "sample_entry": "idle-cpu"
+    },
+    {
+      "id": "idle-ram",
+      "title": "Native idle RAM below 75 MB",
+      "table_row": 13,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "idle-ram-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Private bytes 65.5, 65.7, 65.7 MB after the fix. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository.",
+          "numeric": {
+            "private_mb": [
+              65.5,
+              65.7,
+              65.7
+            ],
+            "limit": 75.0
+          }
+        }
+      ],
+      "sample_entry": "idle-ram"
+    },
+    {
+      "id": "reduced-motion-native",
+      "title": "Reduced motion on the native window",
+      "table_row": null,
+      "requires": [
+        "native"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "reduced-motion-native-sample"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Reduced-motion idle: 0.05 percent CPU, 57.6 MB private. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository.",
+          "numeric": {
+            "cpu_percent": [
+              0.05
+            ],
+            "private_mb": [
+              57.6
+            ]
+          }
+        }
+      ],
+      "sample_entry": "reduced-motion-native"
+    },
+    {
+      "id": "av-sync-human",
+      "title": "Human-observed hearing and visual synchronization",
+      "table_row": 14,
+      "requires": [
+        "native",
+        "human"
+      ],
+      "status": "PASS",
+      "evidence_scope": "native-programmatic",
+      "artifacts": [
+        "av-sync-human-sample",
+        "av-sync-human-record"
+      ],
+      "history": [
+        {
+          "provenance": "narrative-unverified",
+          "claim": "Overlay followed playback (SPEAKING within 70 ms), cancel left SPEAKING within 60 ms; owner attested. Historical owner-present run 2026-10-16 (docs/engineering/evidence/hardware-run-2026-10-16.json): values transcribed by hand from a session transcript; no native sample or producer output is retained in the repository."
+        }
+      ],
+      "sample_entry": "av-sync-human"
+    }
+  ]
+}

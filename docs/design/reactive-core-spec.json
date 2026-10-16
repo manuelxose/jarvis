@@ -1,0 +1,277 @@
+{
+  "schema": "jarvis.reactive-core-spec/1",
+  "kind": "declarative-design-contract",
+  "scope": "Specification only; not a runtime schema, reducer, renderer, event store or implemented telemetry API. S03-S07 own implementation.",
+  "renderer": { "direction": "svg-css-2d", "forbidden": ["three.js additions", "new WebGL renderer", "motion dependency", "3d", "phase-5"] },
+  "sources": {
+    "audit": "docs/engineering/phase-4-runtime-audit.md",
+    "tokens": "ui/src/design-system/tokens.css",
+    "designSystem": "docs/design/jarvis-design-system.md",
+    "direction": "docs/design/visual-directions.md",
+    "overlayUx": "docs/design/desktop-overlay-ux.md",
+    "commandCenterUx": "docs/design/command-center-ux.md",
+    "orbModel": "ui/src/components/jarvis/orb/orbModel.ts",
+    "protocol": "ui/src/protocol/events.ts",
+    "turns": "src/jarvis/application/turn_manager.py",
+    "voiceModel": "src/jarvis/application/voice_manager.py",
+    "startup": "src/jarvis/application/startup.py",
+    "daemon": "src/jarvis/apps/daemon.py"
+  },
+  "identityLimitation": "Project visual-identity skill absent; existing design documents and tokens.css are authoritative. Only the resolved ponytail skill was activated; other Phase 1 user skills were not available within this unit's permitted read paths. No other checkout or unverified skill reconstruction.",
+  "identity": {
+    "surfaceTokens": ["--surface-app", "--surface-panel", "--surface-floating"],
+    "labelToken": "--text-primary", "labelFontToken": "--font-mono", "captionFontToken": "--font-sans",
+    "geometry": {
+      "viewBox": [-1, -1, 2, 2], "center": [0, 0], "unit": "half-core-side",
+      "angleOriginDeg": -90, "clockwise": true, "ringRadius": 0.62,
+      "strokeWidth": 0.035, "strokeCap": "round", "maxExtent": 0.9,
+      "dashPatterns": { "solid": [], "dashed": [0.14, 0.10], "dotted": [0.01, 0.11], "segmented": [0.38, 0.12] },
+      "glyphs": {
+        "dot": "circle r=0.12",
+        "tick": "M 0 -0.48 L 0 -0.72",
+        "dots": "three circles r=0.05 centered at (-0.18,0),(0,0),(0.18,0)",
+        "bars": "M -0.18 -0.14 V 0.14 M 0 -0.24 V 0.24 M 0.18 -0.14 V 0.14",
+        "square": "rect x=-0.18 y=-0.18 width=0.36 height=0.36",
+        "check": "M -0.24 0 L -0.06 0.18 L 0.28 -0.20",
+        "error": "M 0 -0.28 L 0.28 0.22 L -0.28 0.22 Z M 0 -0.12 V 0.06 M 0 0.15 L 0 0.16",
+        "slash": "M -0.24 0.24 L 0.24 -0.24",
+        "phaseTicks": "five radial ticks at 0,72,144,216,288 degrees; radii 0.74 to 0.82",
+        "stopBars": "M -0.10 -0.20 V 0.20 M 0.10 -0.20 V 0.20"
+      },
+      "renderRule": "Keep ring and static glyph at every size. Dot is replaced by the state glyph except phaseTicks, which keeps the dot. Up to three concentric level rings at radii 0.62,0.70,0.78; all scale by 1+0.12*y only during fresh confirmed output. Clamp extent including stroke to 0.9. No random geometry or audio-like decorative jitter."
+    },
+    "motionUnits": "period/transition/hold in ms; amplitude/scale are dimensionless fractions of base geometry. Breath scale=1+a*(1-cos(2*pi*t/period))/2; rotate ring only clockwise 360*t/period degrees; glyph stays upright. Period zero disables that motion. Elements budget counts grouped vector primitives: compound glyph/ticks one group; essential glyph/label never dropped.",
+    "transition": { "allowedMs": [0, 120, 200, 320], "maxMs": 320, "easeToken": "--motion-ease-standard", "durationTokens": ["--motion-duration-fast", "--motion-duration-base", "--motion-duration-slow"], "safetyStatesSnap": ["DISCONNECTED", "STOPPING", "ERROR"], "rule": "State, label, terminal fence and zero-level changes are immediate; durations affect decorative transforms only. Interrupt current transition from its current transform, never queue animations." }
+  },
+  "states": [
+    {
+      "id": "IDLE", "label": "Idle", "cue": "solid ring and steady dot", "token": "--accent-listening", "glow": "--glow-core",
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "solid", "glyph": "dot" },
+      "motion": { "breathPeriodMs": 4000, "breathAmplitude": 0.03, "rotationPeriodMs": 0, "levelScaleMax": 0, "holdMs": 0 }, "transitionInMs": 320,
+      "trigger": "Authoritative idle/ready/sentinel snapshot or end of activity with no other active fact.", "exit": "Current listening, work, activation or connection fact."
+    },
+    {
+      "id": "LISTENING", "label": "Listening", "cue": "270 degree open arc and leading tick", "token": "--accent-listening", "glow": "--glow-core",
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 270, "dash": "solid", "glyph": "tick" },
+      "motion": { "breathPeriodMs": 2400, "breathAmplitude": 0.04, "rotationPeriodMs": 0, "levelScaleMax": 0, "holdMs": 0 }, "transitionInMs": 200,
+      "trigger": "Core capture/listening lifecycle fact; never inferred from microphone amplitude or sentinel clap input.", "exit": "Capture ends, work starts, cancellation, error or disconnect."
+    },
+    {
+      "id": "THINKING", "label": "Thinking", "cue": "dashed ring and three fixed dots", "token": "--accent-processing", "glow": "--glow-core",
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "dashed", "glyph": "dots" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 2400, "levelScaleMax": 0, "holdMs": 0 }, "transitionInMs": 200,
+      "trigger": "Legacy processing or current correlated agent.started; generated speech may supply static 'Speech prepared; output unconfirmed' detail, never measured speaking.", "exit": "Work outcome, explicit execution fact, confirmed output or other authoritative activity."
+    },
+    {
+      "id": "SPEAKING", "label": "Speaking", "cue": "concentric ring and fixed three-bar glyph", "token": "--accent-speaking", "glow": "--glow-core-inset",
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "solid", "glyph": "bars" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 0, "levelScaleMax": 0.12, "holdMs": 0 }, "transitionInMs": 120,
+      "trigger": "Proposed current device-write-confirmed speech playback AND fresh normalized output sample for the same session/generation/playback.",
+      "audibility": "Confirms successful output writes, not physical audibility or final DAC drain. Fresh zero samples are silence during an active stream: target zero, envelope releases to rest.",
+      "exit": "Playback end/cancel/failure, missing or stale telemetry, stop or disconnect. Fallback is static underlying activity, not SPEAKING."
+    },
+    {
+      "id": "EXECUTING", "label": "Executing", "cue": "segmented 300 degree arc and square", "token": "--accent-processing", "glow": "--glow-core",
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 300, "dash": "segmented", "glyph": "square" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 1600, "levelScaleMax": 0, "holdMs": 0 }, "transitionInMs": 120,
+      "trigger": "Legacy executing presentation value or proposed typed Core tool-execution start; never arbitrary agent.progress detail text.", "exit": "Matching command/agent terminal outcome, cancel, failure or disconnect."
+    },
+    {
+      "id": "SUCCESS", "label": "Done", "cue": "solid ring and check mark", "token": "--state-success", "glow": null,
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "solid", "glyph": "check" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 0, "levelScaleMax": 0, "holdMs": 900 }, "transitionInMs": 120,
+      "trigger": "Matching uncancelled command.executed ok=true or agent.completed ok=true after aggregate error checks. Startup ready uses Ready text, not inferred app success.",
+      "forbiddenSources": ["notification", "speech.completed alone", "startup mark alone"], "exit": "900 ms elapsed or any higher priority active fact; never replay a hidden or expired success."
+    },
+    {
+      "id": "ERROR", "label": "Error", "cue": "broken 300 degree ring and warning triangle", "token": "--state-danger", "glow": null,
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 300, "dash": "solid", "glyph": "error" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 0, "levelScaleMax": 0, "holdMs": 1500 }, "transitionInMs": 0,
+      "trigger": "Correlated uncancelled failed command/agent outcome, actual output failure, startup failed, or legacy error. Startup degraded is partial status, not necessarily a fatal error.",
+      "exit": "Recoverable error hold ends after 1500 ms; persistent device/startup failure stays static until explicit recovery or a new authoritative generation. Stop/disconnect preempt immediately."
+    },
+    {
+      "id": "DISCONNECTED", "label": "Offline", "cue": "dotted ring and diagonal slash", "token": "--state-offline", "glow": null,
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "dotted", "glyph": "slash" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 0, "levelScaleMax": 0, "holdMs": 0 }, "transitionInMs": 0,
+      "trigger": "Initial/absent transport, connection loss, invalid or missing authoritative snapshot, or legacy offline.", "exit": "Validated fresh snapshot from connected Core; reconnect alone is insufficient."
+    },
+    {
+      "id": "STARTING", "label": "Starting", "cue": "solid ring with five fixed phase ticks and central dot", "token": "--accent-listening", "glow": "--glow-core",
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "solid", "glyph": "phaseTicks" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 0, "levelScaleMax": 0.12, "holdMs": 0 }, "transitionInMs": 320,
+      "trigger": "Activation candidate/confirmation or nonterminal startup phase. Ring/ticks settle per actual phase; not elapsed-time progress.", "exit": "Startup ready/degraded/failed/cancelled or disconnect; candidate expiry returns IDLE without stopping an unrelated session."
+    },
+    {
+      "id": "STOPPING", "label": "Stopping", "cue": "solid ring and two stop bars", "token": "--text-secondary", "glow": null,
+      "geometry": { "ringRadius": 0.62, "arcSweepDeg": 360, "dash": "solid", "glyph": "stopBars" },
+      "motion": { "breathPeriodMs": 0, "breathAmplitude": 0, "rotationPeriodMs": 0, "levelScaleMax": 0, "holdMs": 0 }, "transitionInMs": 0,
+      "trigger": "Confirmed session stop or startup cancelled; do not infer completion from a sleep request acknowledgement.", "exit": "Authoritative cleanup/sentinel snapshot then IDLE, or disconnect. No cosmetic timeout asserts cleanup."
+    }
+  ],
+  "legacyMappings": {
+    "scope": "Current orb/StatusIndicator presentation aliases, not proof that Core emits these voice.state values.",
+    "idle": "IDLE", "listening": "LISTENING", "processing": "THINKING", "executing": "EXECUTING", "error": "ERROR", "offline": "DISCONNECTED",
+    "speaking": { "candidate": "SPEAKING", "requires": "fresh device-write-confirmed playback and level; otherwise static THINKING with output-unconfirmed detail" },
+    "notification": { "channel": "notification", "state": null, "note": "Independent text/placement; never implies SUCCESS." }
+  },
+  "sourceMappings": [
+    { "source": "voice.state", "fact": "VoiceModelManager publishes model residency, not Core capture/execution state. Keep as model detail, not direct assistant aliases." },
+    { "source": "TurnManager.handle", "fact": "Sets RuntimeState.THINKING internally and publishes agent.started after routing. RuntimeState is not itself the voice.state channel." },
+    { "source": "agent.progress", "fact": "Protocol permits free-text detail; no typed executing phase exists. Show detail only; never parse into executable content or infer execution." },
+    { "source": "command.executed / agent.completed", "fact": "Carry trace_id and ok. Failed command can precede agent.completed ok=true for a successfully handled turn; preserve the failure, never overwrite with aggregate success. agent.completed ok=false can mean cancellation; apply fence first." },
+    { "source": "speech.started / speech.completed", "fact": "Generated chunk/cache orchestration; coverage gaps for speak_text and welcomes. Not device proof; generated completion does not end a confirmed playback stream." }
+  ],
+  "variants": [
+    { "id": "compact-overlay", "host": "overlay", "windowPx": { "width": 360, "height": 72 }, "corePx": 40, "scaleRange": [0.8, 1], "detailBudget": { "elements": 6, "glow": false, "levelRings": 1, "captionLines": 1 }, "legibility": { "minStrokePx": 2, "minContrast": 3, "minTextContrast": 4.5, "labelPx": 13 }, "preserves": ["caption", "notification placement", "pass-through and controls"], "layout": "Core + adjacent label, reserved one-line ellipsized caption. Controls never covered. Full text in expanded view; no auto expansion from level." },
+    { "id": "expanded-overlay", "host": "overlay", "windowPx": { "width": 420, "height": 520 }, "corePx": 96, "scaleRange": [0.75, 1.25], "detailBudget": { "elements": 12, "glow": true, "levelRings": 2, "captionLines": 2 }, "legibility": { "minStrokePx": 2, "minContrast": 3, "minTextContrast": 4.5, "labelPx": 13 }, "preserves": ["captions", "conversation list", "notification placement", "pass-through and controls"], "layout": "Proposed reference size, not a native resize change. Core header, captions, scrollable focusable conversation, existing expand/collapse/hide controls." },
+    { "id": "command-center", "host": "command-center", "windowPx": { "width": 1280, "height": 800 }, "corePx": 240, "scaleRange": [0.6, 1.5], "detailBudget": { "elements": 24, "glow": true, "levelRings": 3, "captionLines": 2 }, "legibility": { "minStrokePx": 2, "minContrast": 3, "minTextContrast": 4.5, "labelPx": 14 }, "preserves": ["navigation", "captions", "notification placement"], "layout": "Within AssistantStatus slot only; preserve eight workspace links, command palette, skip link, scroll/focus and right rail behavior." },
+    { "id": "startup", "host": "existing-command-center-or-overlay", "windowPx": { "width": 1280, "height": 800 }, "corePx": 320, "scaleRange": [0.6, 1.5], "detailBudget": { "elements": 24, "glow": true, "levelRings": 3, "captionLines": 2 }, "legibility": { "minStrokePx": 2, "minContrast": 3, "minTextContrast": 4.5, "labelPx": 14 }, "preserves": ["captions", "notification placement", "navigation", "existing controls"], "layout": "No new window or modal. On overlay host inherit its core size, scale, stroke and element budget; startup overrides content only. Phase text and unknown app outcomes stay visible." }
+  ],
+  "staticIdentity": "Graphite surface, radius 0.62 ring, central state glyph. Required glyph/label persist without motion, glow or color. Offline token is decorative only; slash and all text use text-primary for contrast.",
+  "layoutPolicy": "Dimensions are CSS px/DIPs reference budgets, not device pixels. Fit square without distortion, drop optional rings/glow first, never shrink text or targets. Preserve existing native draggable/control regions and pass-through focus ownership; core is aria-hidden decoration beside accessible status. No interactive island is added. Text can wrap in expanded view; zoom/high DPI must not clip captions or controls.",
+  "priority": {
+    "order": ["DISCONNECTED", "STOPPING", "ERROR", "STARTING", "SPEAKING", "EXECUTING", "THINKING", "LISTENING", "SUCCESS", "IDLE"],
+    "rules": [
+      "Reject invalid identity/order and apply terminal fences before selecting highest-priority currently active fact, not the highest historical event.",
+      "DISCONNECTED outranks SPEAKING and immediately clears levels; new connection needs snapshot before re-entry.",
+      "Turn/playback cancellation fences discard later starts, amplitude and success/error outcomes for the cancelled identity; a new playback ID cannot bypass a cancelled turn generation.",
+      "Session stop fences the whole session; candidate expiry fences only that activation candidate, not a concurrent unrelated turn.",
+      "Matching terminal outcomes clear active work; hold clocks start at receipt, are not extended by duplicates and expire while hidden. Critical errors persist until recovery.",
+      "Startup announcing remains STARTING with welcome detail; confirmed welcome amplitude can modulate rings but cannot hide startup progress or partial status."
+    ]
+  },
+  "lifecycle": {
+    "status": "All identity/snapshot/output contracts below are proposed downstream policies, absent from today's v1 envelope (v,ts,mono_ms). Names below are conceptual inputs, not promised wire names.",
+    "acceptedInputs": [
+      { "event": "voice.state", "availability": "existing", "provenance": "Core model residency only" },
+      { "event": "speech.started", "availability": "existing", "provenance": "generated audio orchestration; trace_id/source" },
+      { "event": "speech.completed", "availability": "existing", "provenance": "orchestration; cancelled=true is a turn cancellation hint, not device drain" },
+      { "event": "startup.progress", "availability": "existing", "provenance": "Python StartupPhase, phase only" },
+      { "event": "startup.completed", "availability": "existing", "provenance": "healthy report; welcome_source/timings, not audible proof" },
+      { "event": "startup.degraded", "availability": "existing", "provenance": "issues and phase; announcing may continue" },
+      { "event": "activation.started", "availability": "existing", "provenance": "candidate first clap, no music" },
+      { "event": "activation.confirmed", "availability": "existing", "provenance": "accepted activation; configurable clap count or other source" },
+      { "event": "activation.cancelled", "availability": "existing", "provenance": "candidate expiry; not proof active session stopped" },
+      { "event": "agent.started", "availability": "existing", "provenance": "routed work, trace_id" },
+      { "event": "agent.progress", "availability": "existing", "provenance": "free text, not execution classification" },
+      { "event": "agent.completed", "availability": "existing", "provenance": "handled turn outcome; cancellation/error aggregation required" },
+      { "event": "command.executed", "availability": "existing", "provenance": "tool result, no start or arguments" },
+      { "event": "activity", "availability": "proposed", "provenance": "Core capture/tool/stop lifecycle plus session/generation/trace correlation" },
+      { "event": "output.playback", "availability": "proposed", "provenance": "Python successful device-write start, ended/cancelled/failed; never queue played counter" },
+      { "event": "output.level", "availability": "proposed", "provenance": "Python gain-adjusted written speech PCM RMS/peak, no browser inference" },
+      { "event": "snapshot", "availability": "proposed", "provenance": "authoritative Core state with watermark, terminal fences, startup/app facts and output age" },
+      { "event": "connection", "availability": "existing-local", "provenance": "bridge connected/disconnected; no command permission" }
+    ],
+    "excluded": ["microphone level", "VAD level", "raw PCM", "browser microphone", "Mixer.level as speech", "wall-clock ts as ordering", "arbitrary asset or command strings"],
+    "identity": {
+      "fields": ["session", "generation", "playback"], "session": "Opaque Core session/boot identity; changes on replacement. Only snapshot establishes a new session.",
+      "generation": "Nonnegative safe integer, increments for each turn or startup activation; trace_id correlates existing events. Candidate ID is separate from an active turn.",
+      "playback": "Opaque unique output instance within generation; required for output, null for non-output work. New playback requires accepted start under a live generation.",
+      "ordering": "Nonnegative safe integer sequence strictly increases across one session stream, shared by lifecycle/output/snapshot watermark. Duplicates and lower sequences dropped without refreshing freshness; gaps request snapshot, suppress speaking until reconciled. Valid envelopes advance observed watermark even when their fenced payload is ignored; trace acceptedSequences means applied state changes, not observed envelopes.",
+      "fences": "Terminal generation/session fences retained until authoritative replacement; playback end fences that playback. Retired session packets cannot recreate state. Unmapped legacy trace events may show static detail, never invent identity or measured speech."
+    },
+    "guards": {
+      "ordering": "strict-session-sequence", "duplicatesRefreshFreshness": false,
+      "gapRequiresSnapshot": true, "snapshotEstablishesSession": true,
+      "generationCancelFencesAllPlaybacks": true, "terminalBeforePriority": true,
+      "speakingRequires": ["successful-device-write", "same-session-generation-playback", "fresh-output-level"],
+      "unavailableOutput": { "static": true, "level": 0, "speaking": false },
+      "invalidLevelRefreshesFreshness": false
+    },
+    "snapshot": { "onInitialAndReconnect": true, "timeoutMs": 2000, "restoresStartupProgress": true, "replaysStartup": false, "replaysWelcome": false, "triggersCommands": false, "rule": "Install atomic state, pending/failed app outcomes, terminal fences and sequence watermark. Drop packets <= watermark. Snapshot has authoritative age; cannot mark old amplitude fresh on delivery. Missing/invalid snapshot stays DISCONNECTED with 'State unavailable'. No browser endpoint or polling API is added here." },
+    "freshness": {
+      "levelMaxAgeMs": 250, "connectionLivenessBudgetMs": 45000,
+      "clock": "Python monotonic capture age plus bridge transit age and local monotonic elapsed; never subtract independent process clock origins or wall-clock ts. Negative/nonfinite/future age invalid.",
+      "stateRule": "Lifecycle facts persist until matching terminal/recovery within live session. Silence is not disconnection. Proposed liveness timeout or failed transport requires a new snapshot, not repeated activate.",
+      "onStale": "At age >250ms clear level/peak/gate to zero, stop audio transforms and show static underlying activity with 'Output telemetry unavailable', not SPEAKING.",
+      "onAbsent": "Static underlying THINKING/IDLE/STARTING with truthful output-unconfirmed detail; no fake production speech, no fallback sine wave. Unknown cancellation/outcome correlation stays static with outcome-unconfirmed detail, not a guessed ERROR or SUCCESS. Invalid levels never refresh last-valid sample age.",
+      "diagnosticReasons": ["level-stale", "level-absent", "sequence-duplicate", "sequence-out-of-order", "sequence-gap", "identity-fenced", "level-invalid", "age-invalid", "snapshot-unavailable", "output-failed", "disconnected"]
+    }
+  },
+  "audio": {
+    "status": "Proposed S05 policy, not available telemetry; successful write is not human/device-acoustic acceptance.",
+    "level": { "unit": "normalized-rms", "min": 0, "max": 1, "invalid": "Reject non-number/NaN/Infinity before arithmetic; finite out-of-range values clamp to [0,1] with level-invalid diagnostic.", "normalization": "Python decodes actual WAV metadata, int16 divided by 32768 or bounded float PCM; apply actual output gain, compute RMS per channel over <=40ms successful device-write window, then max channel RMS. No AGC or per-window max normalization; 1 means digital full scale, not loudness or microphone SPL.", "windowMaxMs": 40 },
+    "noiseGate": { "open": 0.02, "close": 0.012, "initialOpen": false, "rule": "Closed opens at >=open; open closes at <=close; between thresholds retain gate. Target is zero while closed, else clamped RMS." },
+    "smoothing": { "formula": "y += (x - y) * (1 - exp(-dt / tau))", "unit": "ms", "attackTauMs": 40, "releaseTauMs": 220, "dtClampMs": [0, 250], "rule": "tau=attack when gated target x>y, else release. Invalid/negative dt gives no step; clamp large valid dt, but freshness/reset wins first. No frame-count assumption.", "reset": ["cancel", "session change", "generation change", "playback change", "disconnect", "terminal end", "stale telemetry"], "resetValue": 0 },
+    "peak": { "unit": "normalized-peak", "max": 1, "holdMs": 120, "rule": "Python max absolute gain-adjusted written sample per window. Hold maximum 120ms then release with 220ms tau; never raise RMS envelope from peak. Same invalid/clamp/freshness/reset rules. Peak detail optional, no extra flash." },
+    "cadence": { "telemetryMaxHz": 30, "renderMaxHz": 60, "hiddenRenderHz": 0, "reducedRenderOnSignalOnly": true, "staticLevelRedraw": false, "bufferSlotsPerPlayback": 1, "rule": "Coalesce newest level off audio thread; no per-sample EventHub publication. At most one frame callback per visible window; no React setState per frame. Reduced/disabled modes redraw on semantic state/phase only, not every level. Python off-audio-thread coalescer computes envelope once per accepted sample using monotonic sample dt. Windows consume the same RMS/peak/envelope facts, interpolate at most 60Hz without re-smoothing, and do no independent PCM analysis. Hidden renderers resume from current envelope/snapshot with local interpolation reset." },
+    "ownership": "PCM, input capture and output device remain Python-owned. No browser microphone, AudioContext analyser, new transport or independent window audio processing. Mute, music/browser fallback and device failure must not synthesize levels.",
+    "examples": [
+      { "name": "silence", "dtMs": 33, "from": 0, "input": 0, "gateOpenBefore": false, "gateOpenAfter": false, "target": 0, "expected": 0 },
+      { "name": "quiet", "dtMs": 33, "from": 0, "input": 0.1, "gateOpenBefore": false, "gateOpenAfter": true, "target": 0.1, "expected": 0.056 },
+      { "name": "normal", "dtMs": 33, "from": 0, "input": 0.5, "gateOpenBefore": false, "gateOpenAfter": true, "target": 0.5, "expected": 0.281 },
+      { "name": "emphasis", "dtMs": 33, "from": 0.281, "input": 0.9, "gateOpenBefore": true, "gateOpenAfter": true, "target": 0.9, "expected": 0.629 },
+      { "name": "pause", "dtMs": 33, "from": 0.629, "input": 0, "gateOpenBefore": true, "gateOpenAfter": false, "target": 0, "expected": 0.541 },
+      { "name": "end", "dtMs": 220, "from": 0.541, "input": 0, "gateOpenBefore": false, "gateOpenAfter": false, "target": 0, "expected": 0.199, "note": "Fresh zero tail samples during active stream; actual terminal end resets to zero immediately." }
+    ],
+    "tolerance": 0.002
+  },
+  "startup": {
+    "timingAuthority": "StartupOptions/config in Python. Cached healthy welcome targets music_started + welcome_delay_seconds (default 2s), duck starts early; services/health may delay it. Live/fallback use voice readiness/announcement deadlines, not that delay. UI adds no two-second timer.",
+    "runtimePhases": ["idle", "acknowledged", "initializing", "announcing", "ready", "degraded", "failed", "cancelled"],
+    "phases": [
+      { "id": "candidate", "source": "activation.started", "state": "STARTING", "text": "Activation candidate", "note": "Default two-clap path: first clap only speculates voice, no chime/music. Count configurable; hotkey/wake/control can bypass candidate." },
+      { "id": "acknowledged", "source": "activation.confirmed / startup.progress acknowledged", "state": "STARTING", "text": "Activation confirmed", "note": "Existing activation sound or synthesized cue. first_sound mark is not audible proof." },
+      { "id": "initializing", "source": "startup.progress initializing", "state": "STARTING", "text": "Preparing services and music", "note": "Services and workspace launched concurrently before awaiting local music/browser URL fallback; music_started mark is not confirmed output. App outcome remains unknown until reported." },
+      { "id": "announcing", "source": "startup.progress announcing", "state": "STARTING", "text": "Preparing welcome", "note": "Existing prerecorded healthy cache or live/degraded/fallback welcome. Without output telemetry show phase text and static identity; no fabricated welcome amplitude." },
+      { "id": "ready", "source": "startup.progress ready / healthy startup.completed", "state": "IDLE", "text": "Ready", "note": "Core health only; app launch not inferred successful. Actual capture input can then select LISTENING." },
+      { "id": "degraded", "source": "startup.progress degraded", "state": "IDLE", "text": "Ready with limitations", "note": "Persistent partial-status text/issues channel; fatal required failure selects ERROR. startup.degraded at announcing updates issues without terminating startup." },
+      { "id": "failed", "source": "startup.progress failed", "state": "ERROR", "text": "Startup failed", "note": "Static persistent failure until recovery; retain available controls." },
+      { "id": "cancelled", "source": "startup.progress cancelled or confirmed stop", "state": "STOPPING", "text": "Stopping", "note": "Wait for authoritative cleanup; already launched apps keep running. Candidate activation.cancelled alone returns IDLE." }
+    ],
+    "phaseTicks": "Five milestones: candidate/confirmed, acknowledged, initializing, announcing, terminal. Ticks are categorical, not percent or five serial tasks. Direct activation skips candidate. No cosmetic elapsed-time advancement.",
+    "apps": "Workspace starts concurrently. StartupReport.workspace contains per-app status/ms/detail or error, but existing SSE startup.progress has phase only. Proposed snapshot may supply sanitized outcomes; until then show 'Apps: status unavailable', never an invented apps phase or all apps ready. App failures do not imply rollback or close launched apps.",
+    "sequences": [
+      { "id": "full", "kind": "visual-only", "motion": "full", "description": "Actual phases drive at most 320ms ring/tick settles; welcome modulation requires confirmed fresh speech output; music uses phase text only. No forced cinematic wait." },
+      { "id": "reduced", "kind": "visual-only", "motion": "reduced", "description": "Instant static ticks/glyph and phase text; no loops, audio geometry or camera movement. Runtime timing unchanged." },
+      { "id": "fast", "kind": "visual-only", "motion": "shortened", "transitionMaxMs": 120, "description": "Shortens decorative transitions only, not Python startup/music/welcome or service deadlines. OS reduce/disabled wins." },
+      { "id": "muted", "kind": "visual-only-scenario", "motion": "static-output", "description": "Text-complete presentation when output is actually silent/muted/unavailable. No startup mute option/API exists here; do not equate music_volume=0 with muted welcome. Only authoritative existing output/config status can label muted; unknown status says unconfirmed. Fixture selection never sends mute." },
+      { "id": "interrupted", "kind": "existing-runtime-control-observation", "motion": "stopping", "description": "Existing sleep/sequence.cancel requests may interrupt music/welcome; confirm stop, fence old generation, zero level, STOPPING until cleanup. No new stop control; request acceptance is not completion." }
+    ],
+    "forbidden": ["new audio mute/control API", "invented delay", "changing assets or allowlists", "startup replay on reconnect", "welcome replay on reconnect", "commands on reconnect"]
+  },
+  "motionPolicy": {
+    "precedence": ["user setting disabled", "OS prefers-reduced-motion", "user setting reduced", "user setting full"], "modes": ["full", "reduced", "disabled"],
+    "adjustable": { "amplitudeRange": [0, 1], "durationMultiplierRange": [0.5, 1], "rule": "Proposed local presentation preference only. Multiplies listed amplitudes and decorative transition durations, capped at 320ms; never speeds loops or overrides OS reduce. No settings UI/store added here." },
+    "staticModes": {
+      "reduced": { "transitionMs": 0, "loops": false, "levelRedraw": false, "glyph": true, "label": true },
+      "disabled": { "transitionMs": 0, "loops": false, "levelRedraw": false, "glyph": true, "label": true }
+    },
+    "reduced": "Zero transition duration; no continuous rotation, breath, envelope-driven geometry or glow pulse. Semantic glyph/label changes only.",
+    "disabled": "Same recognizable static geometry, no animation or amplitude redraw; current state/phase text remains.",
+    "flash": { "maxFlashesPerSecond": 0, "note": "No deliberate flashes, strobes or alternating full-field luminance. Frame/update cadence is not a flash rate; do not limit labels or telemetry to three updates per second." },
+    "cues": "All states have distinct static glyph plus label; never color alone. text-primary essential glyph/label on neutral graphite; offline color decorative. Downstream must measure >=4.5:1 text and >=3:1 essential nontext at all sizes; no contrast pass is claimed here.",
+    "announcements": { "role": "status", "live": "polite", "minIntervalMs": 1000, "levelAnnounced": false, "rule": "One shared semantic announcer, deduplicate, latest pending status only; no waveform/sample announcements. Captions remain visible and independent. Persistent failures must not be lost to transient work detail." },
+    "hiddenWindow": "Stop RAF and animation, coalesce latest semantic facts, expire holds and validate fences; no hidden level work/backlog. On visible fetch/install current snapshot and reset local interpolation, not shared envelope; no catch-up animation or startup replay."
+  },
+  "traces": [
+    { "id": "generated-not-output", "given": { "state": "THINKING" }, "steps": [{ "event": "speech.started", "trace": "t1", "source": "cache" }], "expect": { "state": "THINKING", "static": true, "level": 0, "text": "Speech prepared; output unconfirmed", "diagnostic": "level-absent" } },
+    { "id": "stale-level", "given": { "state": "SPEAKING", "underlying": "THINKING", "playback": "p1", "seq": 3, "level": 0.6 }, "steps": [{ "ageMs": 251 }], "expect": { "state": "THINKING", "static": true, "level": 0, "diagnostic": "level-stale" } },
+    { "id": "duplicate-seq", "given": { "seq": 4, "level": 0.5 }, "steps": [{ "seq": 4, "level": 0.9 }], "expect": { "acceptedSequences": [], "level": 0.5, "refreshFreshness": false, "diagnostic": "sequence-duplicate" } },
+    { "id": "out-of-order", "given": { "seq": 5, "level": 0.5 }, "steps": [{ "seq": 3, "level": 0.9 }], "expect": { "acceptedSequences": [], "level": 0.5, "diagnostic": "sequence-out-of-order" } },
+    { "id": "disconnect-during-speaking", "given": { "state": "SPEAKING", "level": 0.7 }, "steps": [{ "connection": "lost" }, { "event": "output.level", "level": 0.8 }], "expect": { "state": "DISCONNECTED", "level": 0, "static": true, "diagnostic": "disconnected" } },
+    { "id": "cancel-late-amplitude", "given": { "state": "SPEAKING", "session": "s1", "generation": 1, "playback": "p1", "seq": 8 }, "steps": [{ "seq": 9, "terminal": "cancel-generation", "generation": 1 }, { "seq": 10, "event": "output.level", "generation": 1, "playback": "p1", "level": 0.8 }, { "seq": 11, "event": "output.playback", "phase": "started", "generation": 1, "playback": "p2" }, { "seq": 12, "event": "agent.completed", "ok": true, "generation": 1 }], "expect": { "state": "IDLE", "level": 0, "acceptedSequences": [9], "diagnostic": "identity-fenced" } },
+    { "id": "invalid-level", "steps": [{ "levelEncoding": "NaN" }, { "levelEncoding": "+Infinity" }, { "levelEncoding": "-Infinity" }, { "level": -0.2 }, { "level": 1.7 }], "expect": { "rejectedCount": 3, "boundedValues": [0, 1], "diagnostic": "level-invalid" } },
+    { "id": "gate-boundaries", "given": { "gateOpen": false }, "steps": [{ "input": 0.019 }, { "input": 0.02 }, { "input": 0.015 }, { "input": 0.012 }], "expect": { "gateOpenAfterEach": [false, true, true, false], "targetAfterEach": [0, 0.02, 0.015, 0] } },
+    { "id": "envelope-cases", "steps": [{ "audioExamples": ["silence", "quiet", "normal", "emphasis", "pause", "end"] }, { "terminal": "playback-ended" }], "expect": { "intermediateLevels": [0, 0.056, 0.281, 0.629, 0.541, 0.199], "terminalLevel": 0, "resetGate": true } },
+    { "id": "session-replacement", "given": { "session": "a", "state": "SPEAKING", "level": 0.6 }, "steps": [{ "snapshotSession": "b", "watermark": 1, "state": "IDLE" }, { "session": "a", "seq": 999, "event": "output.level", "level": 0.9 }], "expect": { "state": "IDLE", "level": 0, "smoothing": "reset", "diagnostic": "identity-fenced" } },
+    { "id": "reconnect-snapshot", "given": { "state": "STARTING", "phase": "announcing" }, "steps": [{ "connection": "lost" }, { "connection": "restored" }, { "event": "snapshot", "phase": "announcing", "watermark": 20 }, { "seq": 19, "event": "activation.confirmed" }], "expect": { "state": "STARTING", "restoredPhase": "announcing", "level": 0, "startupReplayed": false, "welcomeReplayed": false, "commandsTriggered": false } },
+    { "id": "snapshot-missing", "steps": [{ "connection": "restored" }, { "elapsedMs": 2001, "snapshot": null }], "expect": { "state": "DISCONNECTED", "level": 0, "diagnostic": "snapshot-unavailable" } },
+    { "id": "startup-partial", "given": { "state": "STARTING" }, "steps": [{ "event": "startup.degraded", "phase": "announcing", "issues": ["voice unavailable"] }, { "event": "startup.progress", "phase": "degraded" }], "expect": { "statesAfterEach": ["STARTING", "IDLE"], "text": "Ready with limitations", "apps": "unknown", "allOperational": false } },
+    { "id": "startup-muted", "steps": [{ "fixtureScenario": "muted", "authoritativeOutputMuted": true }, { "event": "startup.progress", "phase": "announcing" }], "expect": { "state": "STARTING", "level": 0, "static": true, "kind": "visual-only-scenario", "newAudioApi": false, "commandsTriggered": false } },
+    { "id": "startup-interrupted", "given": { "state": "STARTING", "phase": "initializing" }, "steps": [{ "event": "startup.progress", "phase": "cancelled" }, { "event": "output.level", "oldGeneration": true, "level": 0.7 }], "expect": { "state": "STOPPING", "level": 0, "diagnostic": "identity-fenced", "appsRolledBack": false } },
+    { "id": "candidate-expired", "steps": [{ "event": "activation.started" }, { "event": "activation.cancelled", "reason": "expired" }], "expect": { "state": "IDLE", "startupReplayed": false, "commandsTriggered": false } },
+    { "id": "startup-failed", "steps": [{ "event": "startup.progress", "phase": "failed" }], "expect": { "state": "ERROR", "persistent": true, "level": 0 } },
+    { "id": "command-failed-turn-handled", "steps": [{ "event": "command.executed", "trace": "t1", "ok": false }, { "event": "agent.completed", "trace": "t1", "ok": true }], "expect": { "state": "ERROR", "successInferred": false } }
+  ],
+  "downstreamEvidence": [
+    "T02: test-local validator for valid and malformed declarative contracts; tracked JSON/tokens only, not production state-machine tests",
+    "S03: typed identity/order/fence/snapshot machine and bridge parity tests; no startup control on reconnect",
+    "S04: rendered ten-state/four-variant screenshots, reduced/disabled motion, contrast, zoom/focus/captions/pass-through checks",
+    "S05: Python output telemetry covering cache/live/fallback, failure and cancellation; measured device latency/drain limits reported truthfully",
+    "S07: startup phase synchronization, real configured assets, partial/muted/interrupted/reconnect cases",
+    "Later slices: docs/architecture/reactive-visual-core.md, audio synchronization and performance evidence, final report; no hardware/performance or subjective acceptance claimed by S02",
+    "All traces are test-only arithmetic/design fixtures, never fake production speech, device evidence or human approval"
+  ]
+}

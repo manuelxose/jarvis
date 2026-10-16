@@ -170,7 +170,7 @@ test('preload retains exactly its existing public keys; no visual renderer API',
   let api
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'preload.js'),'utf8'), { require:id => { assert.equal(id,'electron'); return {contextBridge:{exposeInMainWorld:(name,value) => {assert.equal(name,'jarvisDesktop');api=value}},ipcRenderer:{}} } })
   assert.deepEqual(Object.keys(api).sort(),['core','getMode','moveOverlayTo','onModeChanged','requestMode','setOverlayInteractive','settings'])
-  assert.deepEqual(Object.keys(api.core).sort(),['control','getState','onEvent','onState'])
+  assert.deepEqual(Object.keys(api.core).sort(),['control','getReplay','getState','onEvent','onState'])
   assert.deepEqual(Object.keys(api.settings).sort(),['get','onChanged','onOpenRequested','setLaunchAtLogin'])
 })
 

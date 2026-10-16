@@ -187,7 +187,9 @@ class TurnManager:
         planner: Any = None,
         agent_tools: Optional[Callable[[str, dict[str, Any], TurnContext], Any]] = None,
         pricing: Optional[Mapping[str, ProviderRate]] = None,
+        signals: Any = None,
     ) -> None:
+        self._signals = signals
         self._router = router
         self._tools = tools
         self._model = model
@@ -238,6 +240,8 @@ class TurnManager:
             route = decision.route
             trace.mark("routing_ms")
             hub.publish("agent.started", trace_id=context.trace_id, route=route)
+            if self._signals is not None:
+                self._signals.turn_start(context.trace_id)
 
             if route == "desktop" and self.planner is None:
                 route = "fast_model"
@@ -262,6 +266,8 @@ class TurnManager:
                 cost=cost_dict,
             )
         except (TurnCancelled, asyncio.CancelledError):
+            if self._signals is not None:
+                self._signals.cancel_turn(context.trace_id)
             cost_dict = self._build_turn_cost(context, route, model_before, tts_before)
             return TurnResult(
                 transcript=text,
@@ -292,6 +298,8 @@ class TurnManager:
                 fallback=cost_dict.get("fallback", []),
             )
             hub.publish("agent.completed", trace_id=context.trace_id, route=route, ok=ok, elapsed_ms=round((time.monotonic() - started) * 1000, 1))
+            if self._signals is not None:
+                self._signals.turn_end(context.trace_id, ok)
             async with self._lock:
                 if self._current is context:
                     self._current = None

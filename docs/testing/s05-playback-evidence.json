@@ -1,0 +1,24 @@
+{
+  "slice": "M011/S05",
+  "recorded": "2026-10-15",
+  "host": "WSL2 Linux with powershell.exe bridge",
+  "summary": "Real Windows device playback was NOT exercised; no numbers below were measured on a device.",
+  "items": {
+    "loopback_transport_latency": {
+      "status": "PASS",
+      "evidence": "tests/test_core_signal_latency.py: n=200 p50=0.81ms p95=1.61ms max=2.59ms (loopback, transport only)"
+    },
+    "real_renderer_event_sequence": {
+      "status": "BLOCKED",
+      "reason": "powershell.exe is available, but none of C:\\Python310, C:\\Python312, C:\\Users\\Admin\\.morph\\env nor the codex runtime has sounddevice/numpy importable (C:\\Python312: ModuleNotFoundError sounddevice); the repo .venv is a Linux venv. Installing packages was out of scope for this task.",
+      "unmeasured": ["first_write_to_playback_start_ms", "device_latency_ms", "slice_cadence_ms", "abort_to_cancel_ms", "output_after_cancel"]
+    },
+    "windows_audio_endpoints_present": {
+      "status": "PASS",
+      "evidence": "Win32_SoundDevice reports Realtek HD Audio, NVIDIA HD Audio and Intel SST devices with Status OK. Presence only; no playback."
+    },
+    "human_audible_confirmation": {"status": "BLOCKED", "reason": "No human observer in autonomous run."},
+    "two_clap_welcome_path": {"status": "BLOCKED", "reason": "Requires physical claps and the full Windows runtime; not observed."},
+    "microphone_level_g435": {"status": "BLOCKED", "reason": "Requires the G435 headset capture path on Windows; not observed."}
+  }
+}

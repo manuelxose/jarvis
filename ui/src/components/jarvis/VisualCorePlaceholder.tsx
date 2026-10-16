@@ -18,7 +18,7 @@ interface VisualCorePlaceholderProps {
 
 /**
  * Flat CSS blob + glow. Used as the compact status indicator and as the
- * fallback when JarvisOrb (raw WebGL2, ./orb/JarvisOrb.tsx) cannot render.
+ * fallback when the VisualCore renderer cannot render.
  */
 export function VisualCorePlaceholder({ state, size = 120 }: VisualCorePlaceholderProps) {
   const color = CORE_COLOR[state] ?? 'var(--text-disabled)'

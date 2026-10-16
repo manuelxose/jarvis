@@ -86,7 +86,7 @@ const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() 
 function fakeBridge() {
   const bridge = { stops: 0, starts: 0, controls: [], state: 'connecting', stateFns: [], eventFns: [] }
   Object.assign(bridge, {
-    start() { this.starts++ }, stop() { this.stops++ }, getState() { return this.state },
+    start() { this.starts++ }, stop() { this.stops++ }, getState() { return this.state }, getReplay() { return [{ v: 1, name: 'core.snapshot' }] },
     onState(fn) { this.stateFns.push(fn) }, onEvent(fn) { this.eventFns.push(fn) },
     async stopCore() { this.stopCalls = (this.stopCalls || 0) + 1; if (this.stopReject) throw Object.assign(new Error('x'), { code: 'unreachable' }) },
     async control(action) { this.controls.push(action); if (this.reject) throw Object.assign(new Error('secret-token-123 leaked'), { code: 'unauthorized' }) },
@@ -885,6 +885,9 @@ test('core bridge IPC is owner-gated, allowlisted, fans out to live windows only
   assert.equal(await h.handlers.get('core:get-state')(event), 'connecting')
   assert.equal(await h.handlers.get('core:get-state')(stranger), null)
   assert.equal(await h.handlers.get('core:get-state')(null), null)
+  assert.deepEqual(await h.handlers.get('core:get-replay')(event), [{ v: 1, name: 'core.snapshot' }])
+  assert.deepEqual(await h.handlers.get('core:get-replay')(stranger), [])
+  assert.deepEqual(await h.handlers.get('core:get-replay')(null), [])
   const control = h.handlers.get('core:control')
   assert.deepEqual(await control(stranger, 'activate'), { ok: false, error: 'denied' })
   for (const bad of ['quit', 'restart', '', null, {}, 'x'.repeat(1000)]) assert.deepEqual(await control(event, bad), { ok: false, error: 'unsupported action' })

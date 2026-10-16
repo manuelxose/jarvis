@@ -52,7 +52,7 @@ test('preload exposes only the jarvisDesktop bridge without raw IPC or require',
   const [[name, api]] = exposed
   assert.equal(name, 'jarvisDesktop')
   assert.deepEqual(Object.keys(api).sort(), ['core', 'getMode', 'moveOverlayTo', 'onModeChanged', 'requestMode', 'setOverlayInteractive', 'settings'])
-  assert.deepEqual(Object.keys(api.core).sort(), ['control', 'getState', 'onEvent', 'onState'])
+  assert.deepEqual(Object.keys(api.core).sort(), ['control', 'getReplay', 'getState', 'onEvent', 'onState'])
   assert.deepEqual(Object.keys(api.settings).sort(), ['get', 'onChanged', 'onOpenRequested', 'setLaunchAtLogin'])
   const walk = (value, seen = new Set()) => {
     for (const [key, item] of Object.entries(value)) {
@@ -67,7 +67,7 @@ test('preload exposes only the jarvisDesktop bridge without raw IPC or require',
 
 test('every ipcMain handler is gated by owned() sender authentication', () => {
   const registrations = [...main.matchAll(/ipcMain\.(handle|on)\('([^']+)'/g)]
-  assert.deepEqual(registrations.map(m => m[2]).sort(), ['core:control', 'core:get-state', 'desktop:get-settings', 'desktop:set-launch-at-login', 'mode:get', 'mode:request', 'overlay:move-to', 'overlay:set-interactive'])
+  assert.deepEqual(registrations.map(m => m[2]).sort(), ['core:control', 'core:get-replay', 'core:get-state', 'desktop:get-settings', 'desktop:set-launch-at-login', 'mode:get', 'mode:request', 'overlay:move-to', 'overlay:set-interactive'])
   const body = main.slice(main.indexOf('function registerIpc()'), main.indexOf('function startCoreBridge()'))
   const chunks = body.split(/\n    (?=ipcMain\.)/).slice(1)
   assert.equal(chunks.length, registrations.length)

@@ -24,9 +24,9 @@ test.describe('Command Center', () => {
       await page.goto('/')
       await page.getByRole('button', { name: workspace, exact: true }).click()
       await expect(page.getByRole('button', { name: workspace, exact: true })).toHaveAttribute('aria-current', 'page')
+      await expect(page.locator('[data-variant="command-center"]')).toHaveCount(workspace === 'Overview' ? 1 : 0)
       await expect(page).toHaveScreenshot(`command-center-${workspace.toLowerCase()}.png`, {
         maxDiffPixelRatio: 0.01,
-        mask: [page.locator('canvas[data-renderer="webgl2"]')],
       })
     })
   }

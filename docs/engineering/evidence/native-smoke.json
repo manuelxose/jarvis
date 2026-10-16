@@ -1,0 +1,220 @@
+{
+  "status": "PASS",
+  "runs": [
+    {
+      "entry": "command-center",
+      "status": "PASS",
+      "directory": "/home/manuelxose/workspace/jarvis/desktop-native-smoke-fwW4Do/command-center",
+      "native": {
+        "windows": [
+          {
+            "handle": "6099584",
+            "started": "639277713991935057",
+            "pid": 36304,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "title": "ui"
+          }
+        ],
+        "rootPid": 36304,
+        "stopped": [],
+        "owned": [
+          {
+            "parent": 37956,
+            "pid": 36304,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "started": "639277713991935057"
+          },
+          {
+            "parent": 36304,
+            "pid": 26136,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "started": "639277714002995140"
+          },
+          {
+            "parent": 36304,
+            "pid": 9164,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "started": "639277714016567981"
+          }
+        ],
+        "languageMode": "ConstrainedLanguage",
+        "survived": [],
+        "exitCode": 0,
+        "remaining": [],
+        "error": null,
+        "cleanupErrors": []
+      },
+      "markers": [
+        {
+          "stage": "dist-ready",
+          "pid": 36304
+        },
+        {
+          "stage": "state-recovered",
+          "pid": 36304,
+          "reason": "default",
+          "entry": "command-center"
+        },
+        {
+          "stage": "created",
+          "pid": 36304,
+          "entry": "command-center"
+        },
+        {
+          "stage": "main-frame-ready",
+          "pid": 36304,
+          "entry": "command-center"
+        },
+        {
+          "stage": "renderer-mounted",
+          "pid": 36304,
+          "entry": "command-center"
+        },
+        {
+          "stage": "shown",
+          "pid": 36304,
+          "entry": "command-center"
+        },
+        {
+          "stage": "closing-window",
+          "pid": 36304,
+          "entry": "command-center"
+        },
+        {
+          "stage": "closing",
+          "pid": 36304,
+          "code": 0
+        },
+        {
+          "stage": "window-closed",
+          "pid": 36304,
+          "entry": "command-center"
+        },
+        {
+          "stage": "closed",
+          "pid": 36304,
+          "code": 0
+        },
+        {
+          "stage": "quit",
+          "pid": 36304,
+          "code": 0
+        }
+      ]
+    },
+    {
+      "entry": "overlay",
+      "status": "PASS",
+      "directory": "/home/manuelxose/workspace/jarvis/desktop-native-smoke-fwW4Do/overlay",
+      "native": {
+        "windows": [
+          {
+            "handle": "11141502",
+            "started": "639277714068139491",
+            "pid": 31096,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "title": "Jarvis Overlay"
+          }
+        ],
+        "rootPid": 31096,
+        "stopped": [],
+        "owned": [
+          {
+            "parent": 14644,
+            "pid": 31096,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "started": "639277714068139491"
+          },
+          {
+            "parent": 31096,
+            "pid": 21072,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "started": "639277714075618941"
+          },
+          {
+            "parent": 31096,
+            "pid": 37568,
+            "path": "C:\\Users\\Admin\\AppData\\Local\\jarvis\\electron-runtime\\44.4.5\\electron.exe",
+            "session": 1,
+            "started": "639277714087446598"
+          }
+        ],
+        "languageMode": "ConstrainedLanguage",
+        "survived": [],
+        "exitCode": 0,
+        "remaining": [],
+        "error": null,
+        "cleanupErrors": []
+      },
+      "markers": [
+        {
+          "stage": "dist-ready",
+          "pid": 31096
+        },
+        {
+          "stage": "state-recovered",
+          "pid": 31096,
+          "reason": "default",
+          "entry": "overlay"
+        },
+        {
+          "stage": "created",
+          "pid": 31096,
+          "entry": "overlay"
+        },
+        {
+          "stage": "overlay-interaction",
+          "pid": 31096,
+          "interactive": false
+        },
+        {
+          "stage": "main-frame-ready",
+          "pid": 31096,
+          "entry": "overlay"
+        },
+        {
+          "stage": "renderer-mounted",
+          "pid": 31096,
+          "entry": "overlay"
+        },
+        {
+          "stage": "shown",
+          "pid": 31096,
+          "entry": "overlay"
+        },
+        {
+          "stage": "closing-window",
+          "pid": 31096,
+          "entry": "overlay"
+        },
+        {
+          "stage": "closing",
+          "pid": 31096,
+          "code": 0
+        },
+        {
+          "stage": "window-closed",
+          "pid": 31096,
+          "entry": "overlay"
+        },
+        {
+          "stage": "closed",
+          "pid": 31096,
+          "code": 0
+        },
+        {
+          "stage": "quit",
+          "pid": 31096,
+          "code": 0
+        }
+      ]
+    }
+  ]
+}

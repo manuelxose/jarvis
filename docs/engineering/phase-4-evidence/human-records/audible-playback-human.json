@@ -1,0 +1,26 @@
+{
+ "record_type": "human-observation",
+ "observer": "owner (Manuel)",
+ "date": "2026-10-16",
+ "collected": "in the working session, in answer to direct questions",
+ "subject": "Is the speech produced by the real playback path (AudioOutputQueue/StreamRenderer on the output device) audible?",
+ "answers": [
+  {
+   "quote": "no se ha escuchado nada",
+   "context": "first attended run: the audio went to the system default output (a headset that was not worn). Recorded for honesty: this run was not heard."
+  },
+  {
+   "quote": "si se escucharon",
+   "context": "second attended run: two spoken replies on the G435 headset, selected explicitly."
+  },
+  {
+   "quote": "el sonido funciona siempre eso se da por aceptado",
+   "context": "standing statement: audible output works and is accepted as given."
+  },
+  {
+   "quote": "todo perfecto",
+   "context": "third attended run with the Overlay open; spoken reply and a reply cut mid-sentence, on the G435 headset."
+  }
+ ],
+ "limits": "Observation by one person on one machine; audibility is not machine-measurable. Machine evidence for the playback envelope is the playback-envelope sample."
+}

@@ -123,6 +123,47 @@ export interface SystemMetrics extends JarvisEventEnvelope {
   readonly gpu: Record<string, unknown> | null
 }
 
+export interface CoreLevelSample {
+  readonly level: number
+  readonly peak: number
+  readonly age_ms: number
+}
+
+/** Session-sequenced visual-core signal; kind-specific fields are optional here and validated by the visual-core normalizer. */
+export interface CoreSignal extends JarvisEventEnvelope {
+  readonly name: 'core.signal'
+  readonly session: string
+  readonly generation: number
+  readonly seq: number
+  readonly age_ms: number
+  readonly kind: string
+  readonly turn?: string
+  readonly ok?: boolean
+  readonly playback?: string
+  readonly confirmed?: boolean
+  readonly latency_ms?: number | null
+  readonly outcome?: string
+  readonly active?: boolean
+  readonly level?: number
+  readonly peak?: number
+}
+
+export interface CoreSnapshot extends JarvisEventEnvelope {
+  readonly name: 'core.snapshot'
+  readonly session: string
+  readonly generation: number
+  readonly watermark: number
+  readonly age_ms: number
+  readonly facts: Record<string, unknown>
+  readonly fences: Record<string, unknown>
+  readonly replaces_session?: string | null
+  readonly output?: CoreLevelSample | null
+  readonly microphone?: CoreLevelSample | null
+  readonly candidate?: { readonly id: string; readonly remaining_ms: number } | null
+  readonly success_remaining_ms?: number
+  readonly error_remaining_ms?: number
+}
+
 /** Discriminated union over every event `name` the Python EventHub can publish. */
 export type JarvisEvent =
   | ActivationStarted
@@ -142,6 +183,8 @@ export type JarvisEvent =
   | AgentCompleted
   | CommandExecuted
   | TurnCost
+  | CoreSignal
+  | CoreSnapshot
   | SystemMetrics
 
 /** Every event `name` exactly once; plain data so non-React code can validate incoming frames. */
@@ -163,6 +206,8 @@ export const JARVIS_EVENT_NAMES = [
   'agent.completed',
   'command.executed',
   'turn.cost',
+  'core.signal',
+  'core.snapshot',
   'system.metrics',
 ] as const satisfies readonly JarvisEvent['name'][]
 

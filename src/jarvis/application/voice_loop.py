@@ -21,6 +21,7 @@ from jarvis.core.contracts import (
     VoiceActivityDetector,
 )
 from jarvis.adapters.audio.vad import rms_int16
+from jarvis.observability.core_signals import pcm_envelope
 from jarvis.core.errors import ProviderError, ProviderUnavailable
 
 from .turn_manager import TurnManager, TurnResult
@@ -57,7 +58,9 @@ class VoiceLoop:
         barge_in_energy_factor: float = 3.0,
         echo_tail_frames: int = 0,
         confirmer: Any = None,
+        signals: Any = None,
     ) -> None:
+        self._signals = signals
         self._audio = audio
         self._vad = vad
         self._stt = stt
@@ -162,6 +165,15 @@ class VoiceLoop:
 
     async def _capture_utterance(self, context: TurnContext) -> str | None:
         """Capture a VAD-bounded window and transcribe it; None means exhausted."""
+        if self._signals is not None:
+            self._signals.capture(True)
+        try:
+            return await self._capture_utterance_inner(context)
+        finally:
+            if self._signals is not None:
+                self._signals.capture(False)
+
+    async def _capture_utterance_inner(self, context: TurnContext) -> str | None:
         self._phase = "listening"
         logger.info("listening for command")
         frames: list[bytes] = []
@@ -173,6 +185,8 @@ class VoiceLoop:
             frame = await self._next_frame(context)
             if frame is None:
                 break
+            if self._signals is not None:
+                self._signals.microphone(*pcm_envelope(frame), age_ms=0)
             if not frames:
                 if not self._vad.is_speech(frame):
                     pre_roll.append(frame)

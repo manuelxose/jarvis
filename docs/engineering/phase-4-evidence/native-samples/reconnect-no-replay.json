@@ -1,0 +1,20 @@
+{
+ "runs": [
+  {
+   "entry": "reconnect-no-replay",
+   "status": "PASS",
+   "exit_code": 0,
+   "remaining_count": 0,
+   "measurements": {
+    "connections": 2,
+    "snapshots_each": [
+     1,
+     1
+    ],
+    "same_session": true,
+    "startup_or_welcome_events": 0,
+    "bad_token_http": 401
+   }
+  }
+ ]
+}

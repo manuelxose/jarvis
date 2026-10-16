@@ -97,38 +97,74 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
             self.mic_callbacks.append(callback)
             return SimpleNamespace(stop=lambda: None, close=lambda: None)
 
-        return daemon.Sentinel(self.config, runtime_factory=FakeRuntime, mixer_factory=FakeMixer, open_mic=open_mic)
+        sentinel = daemon.Sentinel(self.config, runtime_factory=FakeRuntime, mixer_factory=FakeMixer, open_mic=open_mic)
+        # Keep the real voice lifecycle, but never scan host processes/VRAM in
+        # these fake-runtime tests: session cleanup awaits voice acquisition.
+        sentinel.voice = daemon.VoiceModelManager(lambda: None, free_vram=lambda: None, running_processes=set)
+        return sentinel
+
+    async def wait_until(self, predicate):
+        async def poll():
+            while not predicate():
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(poll(), 2)
 
     async def test_activation_runs_startup_then_voice_session_then_sleep(self):
         sentinel = self.sentinel()
         task = asyncio.create_task(sentinel.run())
-        await asyncio.sleep(0.05)
-        self.assertEqual(sentinel.state, "sentinel")
-        sentinel.request_activation("hotkey")
-        for _ in range(200):
-            await asyncio.sleep(0.01)
-            if sentinel.state == "active":
-                break
-        self.assertEqual(sentinel.state, "active")
-        names = [e[0] for e in EVENTS]
-        # The runtime is built while idle, so the chime never waits for it.
-        self.assertLess(names.index("build"), names.index("chime"))
-        self.assertLess(names.index("welcome"), names.index("listening"))
-        report = json.loads((Path(self.tmp.name) / "jarvis" / "startup-report.json").read_text(encoding="utf-8"))
-        self.assertEqual(report["phase"], "ready")
-        self.assertIn("first_sound", report["timings_ms_since_gesture"])
-        sentinel.sleep()  # "Jarvis, a dormir"
-        for _ in range(100):
-            await asyncio.sleep(0.01)
-            if sentinel.state == "sentinel":
-                break
-        self.assertEqual(sentinel.state, "sentinel")
-        self.assertIn("runtime_stop", [e[0] for e in EVENTS])
-        self.assertEqual(len(self.mic_callbacks), 2)  # mic reopened for the next gesture
-        await asyncio.sleep(0.05)
-        self.assertEqual([e[0] for e in EVENTS].count("build"), 2)  # next session prepared while idle
-        sentinel.shutdown()
-        await asyncio.wait_for(task, 2)
+        try:
+            await self.wait_until(lambda: sentinel.state == "sentinel")
+            sentinel.request_activation("hotkey")
+            await self.wait_until(lambda: sentinel.state == "active")
+            names = [e[0] for e in EVENTS]
+            # The runtime is built while idle, so the chime never waits for it.
+            self.assertLess(names.index("build"), names.index("chime"))
+            self.assertLess(names.index("welcome"), names.index("listening"))
+            report = json.loads((Path(self.tmp.name) / "jarvis" / "startup-report.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["phase"], "ready")
+            self.assertIn("first_sound", report["timings_ms_since_gesture"])
+            sentinel.sleep()  # "Jarvis, a dormir"
+            await self.wait_until(lambda: sentinel.state == "sentinel")
+            self.assertIn("runtime_stop", [e[0] for e in EVENTS])
+            self.assertEqual(len(self.mic_callbacks), 2)  # mic reopened for the next gesture
+            await self.wait_until(lambda: [e[0] for e in EVENTS].count("build") == 2)
+        finally:
+            sentinel.shutdown()
+            await asyncio.wait_for(task, 2)
+
+    async def test_sleep_waits_for_pending_voice_acquire_before_reopening_mic(self):
+        sentinel = self.sentinel()
+        entered, release = asyncio.Event(), asyncio.Event()
+        acquire = sentinel.voice.acquire
+
+        async def delayed_acquire(owner):
+            entered.set()
+            await release.wait()
+            await acquire(owner)
+
+        with mock.patch.object(sentinel.voice, "acquire", side_effect=delayed_acquire):
+            task = asyncio.create_task(sentinel.run())
+            try:
+                await self.wait_until(lambda: sentinel.state == "sentinel")
+                sentinel.request_activation("hotkey")
+                await self.wait_until(lambda: sentinel.state == "active")
+                await asyncio.wait_for(entered.wait(), 2)
+                sentinel.sleep()
+                await self.wait_until(lambda: "runtime_stop" in [e[0] for e in EVENTS])
+                # Runtime stop alone is not the end of _session's cleanup.
+                self.assertEqual(sentinel.state, "active")
+                self.assertEqual(len(self.mic_callbacks), 1)
+                self.assertTrue(sentinel.detector._suspended)
+                release.set()
+                await self.wait_until(lambda: sentinel.state == "sentinel")
+                self.assertEqual(len(self.mic_callbacks), 2)
+                self.assertFalse(sentinel.voice.holders)
+                self.assertIsNone(sentinel.runtime)
+            finally:
+                release.set()
+                sentinel.shutdown()
+                await asyncio.wait_for(task, 2)
 
     async def test_mic_is_suspended_during_session_so_own_audio_cannot_retrigger(self):
         sentinel = self.sentinel()
@@ -214,6 +250,7 @@ class UiEventStreamTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(b"200 OK", head)
             self.assertIn(b"text/event-stream", head)
             frame = None
+            snapshots = 0
             for _ in range(40):  # the client may connect a beat before the hub subscription lands
                 hub.publish("voice.state", state="listening", reason="test")
                 try:
@@ -222,7 +259,11 @@ class UiEventStreamTests(unittest.IsolatedAsyncioTestCase):
                     continue
                 if chunk.startswith(b"data: "):
                     frame = json.loads(chunk[6:])
+                    if frame["name"] == "core.snapshot":  # the process-owned CoreSignals snapshot opens every stream
+                        snapshots += 1
+                        continue
                     break
+            self.assertGreaterEqual(snapshots, 1)
             self.assertIsNotNone(frame)
             self.assertEqual((frame["v"], frame["name"], frame["state"]), (1, "voice.state", "listening"))
             writer.close()
@@ -772,6 +813,119 @@ class SessionLifecycleTests(SentinelCase):
         self.assertIn("runtime_stop", [e[0] for e in EVENTS])
         self.assertEqual([e[0] for e in EVENTS][-1], "mixer_stop")
         self.assertEqual(sentinel.voice.holders, frozenset())
+
+
+class CoreSignalWiringTests(SentinelCase):
+    def setUp(self):
+        super().setUp()
+        from jarvis.observability.event_hub import hub
+
+        self.events = []
+        self.addCleanup(hub.subscribe(lambda e: self.events.append(e) if e["name"].startswith("core.") else None))
+
+    def kinds(self):
+        return [e["kind"] for e in self.events if e["name"] == "core.signal"]
+
+    def startups(self):
+        return [e["phase"] for e in self.events if e["name"] == "core.signal" and e["kind"] == "startup"]
+
+    async def run_session(self, runtime=StartRuntime, workspace=None):
+        sentinel = self.sentinel(runtime)
+        if workspace is not None:
+            sentinel._workspace_starter = lambda: workspace
+        task = asyncio.create_task(sentinel.run())
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        return sentinel, task
+
+    async def finish(self, sentinel, task):
+        sentinel.shutdown()
+        await asyncio.wait_for(task, 3)
+
+    async def test_two_claps_emit_candidate_then_ordered_startup_then_cleanup(self):
+        sentinel, task = await self.run_session()
+        sentinel.detector.on_candidate(SimpleNamespace(time=1.0))
+        sentinel.request_activation("claps")
+        await self.wait_for(lambda: sentinel.state == "active")
+        sentinel.sleep()
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        signals = [e for e in self.events if e["name"] == "core.signal"]
+        kinds = [e["kind"] for e in signals]
+        self.assertEqual(kinds[0], "candidate")
+        self.assertTrue(signals[0]["active"])
+        phases = [e["phase"] for e in signals if e["kind"] == "startup"]
+        self.assertEqual(phases, ["acknowledged", "initializing", "announcing", "ready"])
+        self.assertLess(kinds.index("candidate"), kinds.index("startup"))
+        self.assertEqual([e["seq"] for e in signals], sorted({e["seq"] for e in signals}))
+        snapshots = [e for e in self.events if e["name"] == "core.snapshot"]
+        self.assertEqual(len({e["generation"] for e in snapshots[:1]}), 1)
+        last = snapshots[-1]
+        self.assertTrue(last["fences"]["stopped"] and last["fences"]["cleaned_up"])
+        await self.finish(sentinel, task)
+
+    async def test_single_clap_expiry_clears_candidate_without_startup(self):
+        sentinel, task = await self.run_session()
+        sentinel.detector.on_candidate(SimpleNamespace(time=1.0))
+        sentinel.detector.on_candidate_expired("timeout")
+        await self.wait_for(lambda: self.kinds().count("candidate") == 2)
+        flags = [e["active"] for e in self.events if e["name"] == "core.signal" and e["kind"] == "candidate"]
+        self.assertEqual(flags, [True, False])
+        self.assertNotIn("startup", self.kinds())
+        await self.finish(sentinel, task)
+
+    async def test_sleep_during_startup_emits_cancelled_then_cleanup_snapshot(self):
+        async def slow_speak(self_runtime, text):
+            await asyncio.sleep(5)
+
+        with mock.patch.object(VoiceRuntime, "_speak", slow_speak):
+            sentinel, task = await self.run_session()
+            sentinel.request_activation("hotkey")
+            await self.wait_for(lambda: "announcing" in self.startups())
+            sentinel.sleep()
+            await self.wait_for(lambda: sentinel.state == "sentinel", timeout=3)
+        phases = [e["phase"] for e in self.events if e["name"] == "core.signal" and e["kind"] == "startup"]
+        self.assertEqual(phases[-1], "cancelled")
+        self.assertNotIn("ready", phases)
+        last = [e for e in self.events if e["name"] == "core.snapshot"][-1]
+        self.assertTrue(last["fences"]["cleaned_up"])
+        self.assertEqual(last["facts"]["startup"], "cancelled")
+        await self.finish(sentinel, task)
+
+    async def test_unhealthy_service_marks_partial_and_degraded(self):
+        sentinel, task = await self.run_session(DegradedRuntime)
+        sentinel.request_activation("hotkey")
+        await self.wait_for(lambda: sentinel.state == "active")
+        startups = [e for e in self.events if e["name"] == "core.signal" and e["kind"] == "startup"]
+        self.assertTrue(next(e for e in startups if e["phase"] == "announcing")["partial"])
+        self.assertEqual(startups[-1]["phase"], "degraded")
+        await self.finish(sentinel, task)
+
+    async def test_muted_output_never_claims_playback(self):
+        sentinel, task = await self.run_session()
+        sentinel.request_activation("hotkey")
+        await self.wait_for(lambda: sentinel.state == "active")
+        self.assertNotIn("playback-start", self.kinds())
+        self.assertEqual(self.startups()[-1], "ready")
+        await self.finish(sentinel, task)
+
+    async def test_workspace_results_become_one_apps_snapshot(self):
+        async def starter():
+            return {"code": {"status": "launched"}, "api": {"status": "timeout"}, "odd": "garbage"}
+
+        sentinel, task = await self.run_session(workspace=starter)
+        sentinel.request_activation("hotkey")
+        await self.wait_for(lambda: sentinel.state == "active")
+        await self.wait_for(lambda: any(e["facts"]["apps"] for e in self.events if e["name"] == "core.snapshot"))
+        sentinel.sleep()
+        await self.wait_for(lambda: sentinel.state == "sentinel")
+        apps = [e["facts"]["apps"] for e in self.events if e["name"] == "core.snapshot" and e["facts"]["apps"]]
+        self.assertEqual({a["id"]: a["status"] for a in apps[0]}, {"code": "ready", "api": "failed"})
+        await self.finish(sentinel, task)
+
+    def test_malformed_workspace_report_is_ignored(self):
+        sentinel = self.sentinel()
+        for bad in (None, [], "x", {"a": "b"}):
+            sentinel._publish_apps(bad)
+        self.assertEqual(self.events, [])
 
 
 class ClapHandoff:

@@ -20,6 +20,7 @@ from typing import Any, AsyncIterator, Callable, Optional
 from jarvis.core.contracts import TurnContext
 from jarvis.core.errors import ProviderUnavailable
 from jarvis.core.turn import TurnCancelled
+from jarvis.observability.core_signals import CoreSignals, pcm_envelope
 
 
 async def _silent_render(turn_id: str, chunk: bytes) -> None:
@@ -54,8 +55,14 @@ class StreamRenderer:
     importable without them.
     """
 
-    def __init__(self, device: int | str | None = None, slice_seconds: float = 0.04) -> None:
+    def __init__(
+        self,
+        device: int | str | None = None,
+        slice_seconds: float = 0.04,
+        signals: Optional[CoreSignals] = None,
+    ) -> None:
         self._device = device
+        self._signals = signals
         self._slice_seconds = slice_seconds
         self._stream: Any = None
         self._format: Optional[tuple[int, int]] = None
@@ -65,6 +72,9 @@ class StreamRenderer:
 
     def abort(self, turn_id: str) -> None:
         self._aborted.append(turn_id)
+        if self._signals is not None:
+            # Fence first so no later output for this playback can be accepted.
+            self._signals.playback_end(turn_id, "cancelled")
         if self._playing == turn_id:
             self._abort.set()
             stream = self._stream
@@ -119,13 +129,25 @@ class StreamRenderer:
             for start in range(0, len(samples), step):
                 if self._abort.is_set():
                     return
-                stream.write(samples[start:start + step])
+                piece = samples[start:start + step]
+                stream.write(piece)
+                if self._signals is not None and not self._abort.is_set():
+                    level, peak = pcm_envelope(piece.tobytes())
+                    latency = getattr(stream, "latency", None)
+                    latency_ms = (
+                        round(latency * 1000, 1)
+                        if isinstance(latency, (int, float)) and not isinstance(latency, bool)
+                        else None
+                    )
+                    self._signals.output(turn_id, level, peak, age_ms=0, latency_ms=latency_ms)
         except (getattr(sd, "PortAudioError", OSError), OSError) as error:
             if self._abort.is_set():
                 return  # write interrupted by our own abort
             # Device open/write failures (unplugged device, PortAudio error) must
             # reach callers as ProviderUnavailable, not as a raw driver error.
             self.close()
+            if self._signals is not None:
+                self._signals.playback_end(turn_id, "failed")
             raise ProviderUnavailable(f"audio device playback failed: {error}", provider="audio") from error
         finally:
             self._playing = None
@@ -135,9 +157,11 @@ class StreamRenderer:
         await loop.run_in_executor(None, self._blocking, turn_id, chunk)
 
 
-def make_sounddevice_render(device: int | str | None = None) -> StreamRenderer:
+def make_sounddevice_render(
+    device: int | str | None = None, signals: Optional[CoreSignals] = None
+) -> StreamRenderer:
     """Build the persistent-stream device renderer (see :class:`StreamRenderer`)."""
-    return StreamRenderer(device)
+    return StreamRenderer(device, signals=signals)
 
 
 class AudioOutputQueue:
@@ -148,12 +172,14 @@ class AudioOutputQueue:
         render: Optional[Callable[[str, bytes], Any]] = None,
         max_pending: int = 32,
         render_timeout_seconds: float = 5.0,
+        signals: Optional[CoreSignals] = None,
     ) -> None:
         if max_pending < 1:
             raise ValueError("max_pending must be at least 1")
         if render_timeout_seconds <= 0:
             raise ValueError("render_timeout_seconds must be positive")
         self._render = render or _silent_render
+        self._signals = signals
         self._max_pending = max_pending
         self._render_timeout_seconds = render_timeout_seconds
         self._pending: deque[tuple[str, bytes]] = deque()
@@ -189,9 +215,16 @@ class AudioOutputQueue:
                     self._stats["enqueued"] += 1
                     self._wake_worker()
             await self._wait_drained(turn_id, context)
+            if self._signals is not None:
+                self._signals.playback_end(turn_id, "ended")
         except TurnCancelled:
             # A cancelled turn must not leave queued chunks behind.
             self.flush(turn_id)
+            raise
+        except Exception:
+            self.flush(turn_id)
+            if self._signals is not None:
+                self._signals.playback_end(turn_id, "failed")
             raise
 
     def flush(self, turn_id: Optional[str] = None) -> int:
@@ -204,6 +237,8 @@ class AudioOutputQueue:
         self._stats["flushed"] += before - len(self._pending)
         # Also cut the chunk already on the device, not just the queued ones.
         target = turn_id or self._current_turn
+        if self._signals is not None and target is not None:
+            self._signals.playback_end(target, "cancelled")
         abort = getattr(self._render, "abort", None)
         if abort is not None and target is not None:
             abort(target)

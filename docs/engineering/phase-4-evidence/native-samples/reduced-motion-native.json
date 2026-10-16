@@ -1,0 +1,14 @@
+{
+ "runs": [
+  {
+   "entry": "reduced-motion-native",
+   "status": "PASS",
+   "exit_code": 0,
+   "remaining_count": 0,
+   "measurements": {
+    "data_motion": "reduced",
+    "raf_callbacks_in_5s": 0
+   }
+  }
+ ]
+}

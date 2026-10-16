@@ -30,7 +30,8 @@ from jarvis.core.contracts import AgentStatus, AgentToken, AgentToolRequest, Tur
 from jarvis.core.errors import ToolExecutionError
 from jarvis.core.state import RuntimeState
 from jarvis.core.turn import TurnCancelled
-from jarvis.observability.event_hub import hub
+from jarvis.observability.core_signals import CoreSignals
+from jarvis.observability.event_hub import EventHub, hub
 
 
 async def _noop_tools(name, arguments, context):
@@ -482,3 +483,37 @@ class TurnManagerMemoryTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TurnManagerSignalsTests(unittest.IsolatedAsyncioTestCase):
+    def _manager(self, **kwargs):
+        local = EventHub()
+        events = []
+        local.subscribe(events.append)
+        signals = CoreSignals(hub=local)
+        manager = _make_manager(**kwargs)
+        manager._signals = signals
+        return manager, events
+
+    async def test_turn_start_and_end_wrap_the_turn(self):
+        manager, events = self._manager()
+        result = await manager.handle("hola jarvis")
+        kinds = [e["kind"] for e in events]
+        self.assertEqual(["turn-start", "turn-end"], kinds)
+        self.assertEqual(result.trace and events[0]["turn"], events[1]["turn"])
+        self.assertTrue(events[1]["ok"])
+
+    async def test_interrupt_emits_cancel_turn_then_failed_end(self):
+        manager, events = self._manager(model=_SlowModel(delay=0.05))
+        task = asyncio.create_task(manager.handle("hola jarvis"))
+        await asyncio.sleep(0.01)
+        await manager.interrupt()
+        await task
+        kinds = [e["kind"] for e in events]
+        self.assertEqual(["turn-start", "cancel-turn", "turn-end"], kinds)
+        self.assertFalse(events[-1]["ok"])
+
+    async def test_no_signals_means_no_events(self):
+        manager = _make_manager()
+        self.assertIsNone(manager._signals)
+        await manager.handle("hola")

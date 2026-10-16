@@ -6,6 +6,8 @@ export type CoreConnectionState = 'connecting' | 'connected' | 'reconnecting' | 
 
 export interface JarvisCoreBridge {
   getState(): Promise<CoreConnectionState | null>
+  /** Retained core.snapshot plus contiguous core.signal events for late-mounting windows. Optional so older fakes type-check. */
+  getReplay?(): Promise<JarvisEvent[]>
   onState(callback: (state: CoreConnectionState) => void): () => void
   onEvent(callback: (event: JarvisEvent) => void): () => void
   /** Resolves with ok:false and a short error code; never throws. The Core token never reaches the renderer. */

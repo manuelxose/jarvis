@@ -17,6 +17,7 @@ export default defineConfig({
       input: {
         main: path.resolve(import.meta.dirname, 'index.html'),
         overlay: path.resolve(import.meta.dirname, 'overlay.html'),
+        'visual-core-fixtures': path.resolve(import.meta.dirname, 'visual-core-fixtures.html'),
       },
     },
   },

@@ -50,9 +50,16 @@ The bridge uses only `net` and `http` (a test asserts it does not require
 
 The token exists only in the main process. The renderer receives state names,
 validated events and `{ok}` / `{ok:false,error}` control results. IPC is
-allowlisted (`core:get-state`, `core:control` with `activate|sleep`) and answers
+allowlisted (`core:get-state`, `core:get-replay`, `core:control` with `activate|sleep`) and answers
 only owned, live windows. `bootstrap.test.js` asserts the token never appears in
 any IPC payload.
+
+## Retained replay (S06 / D059)
+
+The bridge retains the latest `core.snapshot` and up to 512 contiguous `core.signal` events so a window mounted
+after the connection can resync immediately. `core:get-replay` / `jarvisDesktop.core.getReplay()` returns them
+with `age_ms` advanced by elapsed time; it returns `[]` when not connected, on a gap/overflow/other session, and
+for non-owner senders. The set is cleared when the stream is lost or stopped.
 
 ## Verification
 

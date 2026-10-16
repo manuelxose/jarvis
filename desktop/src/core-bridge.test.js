@@ -146,6 +146,88 @@ test('connects, forwards v1 events, ignores comments/garbage/other shapes, no du
   await core.stop();
 });
 
+const snap = (session, watermark, extra = {}) => ({ v: 1, name: 'core.snapshot', session, generation: 1, watermark, age_ms: 10, output: { level: 0.5, peak: 0.6, age_ms: 4 }, microphone: null, ...extra });
+const sig = (session, seq) => ({ v: 1, name: 'core.signal', session, generation: 1, seq, age_ms: 1, kind: 'turn-start', turn: 't' });
+
+async function replayHarness() {
+  const core = await createFakeCore().start();
+  let t = 1000;
+  const h = harness(core, { clock: () => t });
+  h.bridge.start();
+  await waitFor(() => h.bridge.getState() === 'connected', 'connected');
+  await waitFor(() => core.sseResponses.size === 1, 'sse open');
+  const sent = async (events) => { const n = h.events.length; for (const e of events) core.send(e); await waitFor(() => h.events.length === n + events.length, 'events'); };
+  return { core, h, sent, advance: (ms) => { t += ms; } };
+}
+
+test('replay retains snapshot then contiguous signals, ages them by clock elapsed and never mutates stored events', async () => {
+  const { core, h, sent, advance } = await replayHarness();
+  assert.deepEqual(h.bridge.getReplay(), []);
+  await sent([sig('s1', 1), snap('s1', 2), sig('s1', 3), sig('s1', 4)]);
+  advance(250.12345);
+  const first = h.bridge.getReplay();
+  assert.deepEqual(first.map((e) => e.name === 'core.signal' ? e.seq : 'snap'), ['snap', 3, 4]);
+  assert.equal(first[0].age_ms, 260.123);
+  assert.equal(first[0].output.age_ms, 254.123);
+  assert.equal(first[1].age_ms, 251.123);
+  assert.equal(first[0].microphone, null);
+  assert.equal(h.events[1].age_ms, 10);
+  assert.equal(h.events[1].output.age_ms, 4);
+  first[0].facts = 'tampered';
+  assert.equal(h.bridge.getReplay()[0].facts, undefined);
+  advance(100);
+  assert.equal(h.bridge.getReplay()[0].age_ms, 360.123);
+  h.bridge.stop();
+  await core.stop();
+});
+
+test('replay drops signals at or below a newer snapshot watermark and other sessions; gaps and foreign sessions clear it', async () => {
+  const { core, h, sent } = await replayHarness();
+  await sent([snap('s1', 0), sig('s1', 1), sig('s1', 2), sig('s1', 3), snap('s1', 2)]);
+  assert.deepEqual(h.bridge.getReplay().slice(1).map((e) => e.seq), [3]);
+  await sent([sig('s1', 5)]);
+  assert.deepEqual(h.bridge.getReplay(), []);
+  await sent([sig('s1', 6)]);
+  assert.deepEqual(h.bridge.getReplay(), []);
+  await sent([snap('s1', 6), sig('s2', 7)]);
+  assert.deepEqual(h.bridge.getReplay(), []);
+  await sent([snap('s2', 0, { replaces_session: 's1' }), sig('s2', 1)]);
+  assert.equal(h.bridge.getReplay().length, 2);
+  await sent([snap(7, 3), sig('s2', 2)]);
+  assert.equal(h.bridge.getReplay().length, 3);
+  await sent([{ ...snap('s2', 2), watermark: 'x' }]);
+  assert.equal(h.bridge.getReplay().length, 3);
+  h.bridge.stop();
+  await core.stop();
+});
+
+test('replay overflow past the cap clears retention and logs core-replay-dropped', async () => {
+  const { core, h, sent } = await replayHarness();
+  const events = [snap('s1', 0)];
+  for (let i = 1; i <= 513; i++) events.push(sig('s1', i));
+  await sent(events.slice(0, 513));
+  assert.equal(h.bridge.getReplay().length, 513);
+  await sent(events.slice(513));
+  assert.deepEqual(h.bridge.getReplay(), []);
+  assert.ok(h.logs.some((l) => l.event === 'core-replay-dropped' && l.reason === 'overflow'));
+  h.bridge.stop();
+  await core.stop();
+});
+
+test('replay is empty after the stream is lost or the bridge is stopped', async () => {
+  const { core, h, sent } = await replayHarness();
+  await sent([snap('s1', 0), sig('s1', 1)]);
+  assert.equal(h.bridge.getReplay().length, 2);
+  for (const res of core.sseResponses) res.destroy();
+  await waitFor(() => h.bridge.getState() !== 'connected', 'left connected');
+  assert.deepEqual(h.bridge.getReplay(), []);
+  await waitFor(() => h.bridge.getState() === 'connected', 'reconnected');
+  assert.deepEqual(h.bridge.getReplay(), []);
+  h.bridge.stop();
+  assert.deepEqual(h.bridge.getReplay(), []);
+  await core.stop();
+});
+
 test('control socket refused before ever connecting -> disconnected, then attaches when Core appears', async () => {
   const port = await freePort();
   const states = [];
