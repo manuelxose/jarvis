@@ -1,7 +1,7 @@
 {
   "source": "desktop/scripts/native-smoke.cjs run on Windows (Electron, owner-present 2026-10-16)",
   "derived_from": "docs/engineering/evidence/native-smoke.json",
-  "derived_from_sha256": "06e75351a12a88d218581825b5458847f37a23b56c806ca68a17bc84df2e7874",
+  "derived_from_sha256": "b0be5a1bee566ef96ab7d03088f537521dcbe6cca03fb8e8727c2ee5bc85c5a0",
   "sanitization": "allowlisted counts, exit codes and marker stage names only; pids, paths, handles and session data dropped",
   "status": "PASS",
   "runs": [

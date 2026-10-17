@@ -5,7 +5,7 @@ import { mockDevelopment, mockTimeline } from '../../../mocks/fixtures'
 export function DevelopmentWorkspace() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-      <Panel title="the workflow tool milestone">
+      <Panel title="Active milestone">
         {mockDevelopment.map((d) => (
           <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-sm)', padding: '4px 0' }}>
             <span style={{ color: 'var(--text-secondary)' }}>{d.label}</span>

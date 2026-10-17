@@ -22,7 +22,7 @@ Two navigation paths to the same destination, deliberately:
 | Memory | Fact count, last-write time, searchable recent facts — explicitly separated from "current conversation context" (section 6 requirement) | `SearchInput`, `EmptyState` |
 | System | CPU/RAM/GPU with sparkline history; a connection-state toggle demonstrates connected/loading/error/disconnected | `SystemHealthPanel`, `ChartContainer`, `Skeleton`, `EmptyState` |
 | Agents | Running agent list + task progress list | `AgentActivityList`, `TaskProgress` |
-| Development | the workflow tool milestone/worktree/branch/VS Code status + activity timeline | `Timeline` |
+| Development | Milestone/worktree/branch/VS Code status + activity timeline | `Timeline` |
 | Media | Playback transport (mock, interactive play/pause) | `MediaControl` |
 | Settings | Appearance — states the single-direction/single-density decision explicitly rather than exposing unbuilt options | `Badge` |
 

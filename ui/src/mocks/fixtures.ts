@@ -21,7 +21,7 @@ export const mockConversation: ConversationMessageData[] = [
 export const mockLog: LogEntry[] = mockConversation.map((m) => ({ id: m.id, timestamp: m.timestamp, source: m.author, text: m.text }))
 
 export const mockAgents: AgentActivityEntry[] = [
-  { id: 'a1', name: 'wf-exec', detail: 'T04 replan-slice · milestone/M008 · S02', state: 'processing' },
+  { id: 'a1', name: 'task-exec', detail: 'T04 replan-slice · milestone/M008 · S02', state: 'processing' },
   { id: 'a2', name: 'hermes-child', detail: 'degraded fallback — ollama unreachable, retry in 8s', state: 'error' },
   { id: 'a3', name: 'playwright', detail: 'visual regression · desktop-1080p, desktop-1440p', state: 'executing' },
   { id: 'a4', name: 'oxlint', detail: 'idle — last run 340ms, zero warnings', state: 'idle' },

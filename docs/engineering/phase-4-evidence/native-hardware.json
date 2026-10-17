@@ -6,7 +6,7 @@
     {
       "id": "native-smoke-sample",
       "path": "native-samples/native-smoke-sanitized.json",
-      "sha256": "75027fba04bc77f1002e39b440e024f5889482ac456972054ff45708fa521b74",
+      "sha256": "762b322f2932f3751f24f78c8f8cec79b75307c034188f77b4ce0e9515c9497f",
       "provenance": "native-runner-output-sanitized",
       "description": "Allowlisted counts, exit codes and marker stages from desktop/scripts/native-smoke.cjs on Windows; derived from docs/engineering/evidence/native-smoke.json (digest inside the sample)."
     },

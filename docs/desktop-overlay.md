@@ -52,7 +52,7 @@ effects. Without `--accept-gaps` any FAIL or BLOCKED returns 1. Each run writes
 ## Measured matrix (current run)
 
 Final verification run (PASS_WITH_GAPS, exit 0): `desktop-native-overlay-JvGgSQ/report.json` and `probe.json`. Earlier run: `desktop-native-overlay-JE0Two/report.json` and `probe.json` (previous, after one earlier run in this verification, `desktop-native-overlay-OojCMz`, failed with `overlay-exited-before-probe` and was not reproduced on rerun); previous passing run `desktop-native-overlay-JqcKuR`; execution
-output `.wf/exec/00eb6074-0c89-4888-8eee-c940d57569ce.stdout` (status
+output `(transcript not retained)` (status
 PASS_WITH_GAPS, exit 0). Electron exit 0, no host error, cleanup errors none,
 remaining owned processes none. Real input (`realInput: true`) via ctypes
 SendInput; screenshots `screenshot-01.bmp` to `screenshot-09.bmp` in that
@@ -70,7 +70,7 @@ directory.
 | Terminal x5 (`terminal.*`) | 5 accepted gaps | Originally `observation-timeout`; re-diagnosed 2026-10-14: cmd.exe exited on DEVNULL stdin, and Windows 11 hands bare consoles to Windows Terminal. Now launched as `conhost.exe cmd.exe` with an owned window, but the console's single text area keeps UIA keyboard focus (`terminal-focus-reset-not-observed`) |
 | Owned cleanup | PASS | `cleanup.stopped/remaining` empty; recovery empty |
 | Automated suites | PASS | build, lint, transport, desktop, harness contracts (103 node tests, 21 probe tests), Playwright stub |
-| Lifecycle (`native-smoke.cjs`) | PASS | Command center and overlay entries, explicit quit; `.wf/exec/42823775-f42c-4ce6-973d-f7a6be384bd1.stdout`, `desktop-native-smoke-s0jEuJ/` |
+| Lifecycle (`native-smoke.cjs`) | PASS | Command center and overlay entries, explicit quit; `(transcript not retained)`, `desktop-native-smoke-s0jEuJ/` |
 
 The gaps are an owner decision (2026-10-13): the overlay was verified visually
 by the owner and by this run, and the three third-party recipients cannot be

@@ -4,12 +4,12 @@ Date: 2026-10-14. Unit: M011/S01/T01. Scope: source-backed audit and existing co
 
 ## Evidence and retrieval
 
-- Authoritative plan: `.wf/phases/11-phase-4-reactive-visual-core-and-synchro/11-01-PLAN.md` (local `.planning/STATE.md` absent).
+- Authoritative plan: the Phase 4 slice-1 plan (not retained in the repository).
 - Phase 1: `docs/engineering/frontend-skills.md`, `jarvis-ui-phase-1-audit.md`, `docs/architecture/frontend-architecture.md`; Phase 2: `docs/design/phase-2-review.md`, `jarvis-design-system.md`; Phase 3: `docs/phase-3-report.md`, `docs/desktop-core-bridge.md`.
-- Context Mode execution lane: scoped `wf_exec` retrieval of `.wf/KNOWLEDGE.md`, especially MEM183, MEM044, MEM047, MEM169 and MEM189. Historical memory is not current-source authority: MEM047's unmapped PortAudio failures and MEM169's unused `Mixer.prime()` are contradicted by live code and tests. No external Context Mode search service was used.
+- Context Mode execution lane: scoped retrieval of the project knowledge notes, especially MEM183, MEM044, MEM047, MEM169 and MEM189. Historical memory is not current-source authority: MEM047's unmapped PortAudio failures and MEM169's unused `Mixer.prime()` are contradicted by live code and tests. No external Context Mode search service was used.
 - Graphify availability checked locally: no `graphify-out/graph.json`, no wiki index, no `graphify` executable. Graph retrieval unavailable; no other checkout accessed and no graph refresh needed for this documentation-only audit.
 - The two historical evidence names in the plan are absent in this worktree. Fresh evidence below replaces those references, without manufacturing old IDs.
-- Bounded independent scouts: `.wf/exec/2738ccef-41bc-43c9-ace7-51d9bacf1d26.stdout` (frontend/bridge), `.wf/exec/416a41c1-aaba-4005-b991-3571c120a795.stdout` (audio/startup), `.wf/exec/b45a62bf-792a-420f-8cb9-af23eac4994c.stdout` (exact lifecycle windows). Phase constraints and retrieval limits: `.wf/exec/25d3805d-c28c-4c34-b5cb-6065cd36e0f0.stdout`.
+- Bounded independent scouts: `(transcript not retained)` (frontend/bridge), `(transcript not retained)` (audio/startup), `(transcript not retained)` (exact lifecycle windows). Phase constraints and retrieval limits: `(transcript not retained)`.
 
 ## Renderer and transport ownership
 
@@ -89,28 +89,28 @@ Existing tracked tests reused (no new runtime behavior or test fixtures needed f
 
 | Command | Result | Duration | Durable evidence |
 |---|---|---|---|
-| `npm --prefix desktop test` | 233 passed, exit 0 | 3338 ms | `.wf/exec/0531a457-7b9c-4777-9aba-9620f0488eed.meta.json` |
-| `.venv/bin/python -m unittest tests.test_audio_renderer tests.test_audio_queue tests.test_startup tests.test_daemon tests.test_core_handshake tests.test_ui_protocol_parity` | 112 passed, exit 0 | 23482 ms | `.wf/exec/fe5a37f8-054e-463c-ba90-e073fb87aa1f.meta.json` and stderr |
-| `npm --prefix ui run test:transport` | 35 passed, 1 dependency-bound failure, exit 1 | 3997 ms | `.wf/exec/c5ae5f5b-979f-46b7-8d13-c9f6172b0b6a.meta.json` |
-| `node --experimental-eventsource --test ui/node-tests/command-client.test.ts ui/node-tests/desktop-transport.test.ts ui/node-tests/endpoint.test.ts ui/node-tests/orb-model.test.ts ui/node-tests/overlay-interop.test.ts ui/node-tests/sse-transport.test.ts` | 35 passed, exit 0 | 3022 ms | `.wf/exec/b3080109-8403-4393-ab5b-4819490d21af.meta.json` |
-| Scoped dependency reproduction (Python subprocess) | Confirmed `ERR_MODULE_NOT_FOUND` for `@playwright/test` before any hardware launch, exit 0 | 224 ms | `.wf/exec/5eecdb4a-7406-4bae-9a7a-919bfd659fe2.meta.json` |
+| `npm --prefix desktop test` | 233 passed, exit 0 | 3338 ms | `(transcript not retained)` |
+| `.venv/bin/python -m unittest tests.test_audio_renderer tests.test_audio_queue tests.test_startup tests.test_daemon tests.test_core_handshake tests.test_ui_protocol_parity` | 112 passed, exit 0 | 23482 ms | `(transcript not retained)` and stderr (not retained) |
+| `npm --prefix ui run test:transport` | 35 passed, 1 dependency-bound failure, exit 1 | 3997 ms | `(transcript not retained)` |
+| `node --experimental-eventsource --test ui/node-tests/command-client.test.ts ui/node-tests/desktop-transport.test.ts ui/node-tests/endpoint.test.ts ui/node-tests/orb-model.test.ts ui/node-tests/overlay-interop.test.ts ui/node-tests/sse-transport.test.ts` | 35 passed, exit 0 | 3022 ms | `(transcript not retained)` |
+| Scoped dependency reproduction (Python subprocess) | Confirmed `ERR_MODULE_NOT_FOUND` for `@playwright/test` before any hardware launch, exit 0 | 224 ms | `(transcript not retained)` |
 
 ## T02 lifecycle verification follow-up
 
-The later gate `.wf/exec/01f510ab-0c64-4fab-91e7-db545529692e.stderr` ran 112 tests in 26.838 s and failed only the lifecycle test's return-to-sentinel assertion. T01's `.wf/exec/fe5a37f8-054e-463c-ba90-e073fb87aa1f.meta.json` instead records exit 0 (23482 ms). Fresh pre-change isolated and scoped runs also passed (evidence `b982b58f-ba58-453b-811b-a0f842d88c34` and `2fd9d9e9-d353-4b92-8e9c-b4bdc2806a7f`), demonstrating intermittent behavior rather than a consistently broken lifecycle.
+The later gate `(transcript not retained)` ran 112 tests in 26.838 s and failed only the lifecycle test's return-to-sentinel assertion. T01's `(transcript not retained)` instead records exit 0 (23482 ms). Fresh pre-change isolated and scoped runs also passed (evidence `b982b58f-ba58-453b-811b-a0f842d88c34` and `2fd9d9e9-d353-4b92-8e9c-b4bdc2806a7f`), demonstrating intermittent behavior rather than a consistently broken lifecycle.
 
-Source diagnosis: `_session` stops the runtime, then awaits the gated voice-acquire task and releases its holder before returning to `_listen`, which sets `sentinel` and reopens the Core microphone. Even with `FakeRuntime`, `VoiceModelManager.acquire` performs real off-loop process/VRAM probes. The old test allowed only 100 ten-millisecond polls for this cleanup. A controlled acquire delay reproduced `active` after runtime stop for 1.1 s, then restored `sentinel` and the microphone as soon as acquisition was released (`.wf/exec/82da3029-a8a5-40e0-92ec-92a932e4fe30.stdout`). This establishes a test isolation/timing failure mechanism consistent with the gate; the historical trace alone cannot identify exactly which host probe was slow. No production deadlock was reproduced, and runtime stop is not a complete session-cleanup signal.
+Source diagnosis: `_session` stops the runtime, then awaits the gated voice-acquire task and releases its holder before returning to `_listen`, which sets `sentinel` and reopens the Core microphone. Even with `FakeRuntime`, `VoiceModelManager.acquire` performs real off-loop process/VRAM probes. The old test allowed only 100 ten-millisecond polls for this cleanup. A controlled acquire delay reproduced `active` after runtime stop for 1.1 s, then restored `sentinel` and the microphone as soon as acquisition was released (`(transcript not retained)`). This establishes a test isolation/timing failure mechanism consistent with the gate; the historical trace alone cannot identify exactly which host probe was slow. No production deadlock was reproduced, and runtime stop is not a complete session-cleanup signal.
 
 Smallest fix: `DaemonTests` retains the real voice manager with injected deterministic process/VRAM callbacks and a no-clone factory, uses bounded condition waits instead of fixed sleeps, and guarantees daemon shutdown on assertions. A new event-gated acquire regression checks that the detector stays suspended and the mic is not reopened prematurely, then that holders/runtime are cleared and listening returns after acquisition. No production code, startup assets, welcome timings or Python microphone ownership changed. Test fixtures are inline, not sourced from ignored audit files.
 
-| Command | Exit code | Verdict | Duration | Durable evidence (`.wf/exec/`) |
+| Command | Exit code | Verdict | Duration | Durable evidence (`(transcript not retained)`) |
 |---|---|---|---|---|
-| `.venv/bin/python -m unittest tests.test_audio_renderer tests.test_audio_queue tests.test_startup tests.test_daemon tests.test_core_handshake tests.test_ui_protocol_parity` | 0 | 113 passed | 19819 ms | `0ebd84c2-5697-45be-b518-37b490ff929b.meta.json` and stderr |
+| `.venv/bin/python -m unittest tests.test_audio_renderer tests.test_audio_queue tests.test_startup tests.test_daemon tests.test_core_handshake tests.test_ui_protocol_parity` | 0 | 113 passed | 19819 ms | `0ebd84c2-5697-45be-b518-37b490ff929b.meta.json` and stderr (not retained) |
 | `npm --prefix desktop test` | 0 | 233 passed | 5670 ms | `2210ed74-a561-49ce-84d3-231af30c4261.meta.json` and stdout |
 | `node --experimental-eventsource --test ui/node-tests/command-client.test.ts ui/node-tests/desktop-transport.test.ts ui/node-tests/endpoint.test.ts ui/node-tests/orb-model.test.ts ui/node-tests/overlay-interop.test.ts ui/node-tests/sse-transport.test.ts` | 0 | 35 passed | 5964 ms | `88cc418d-4c67-4543-b164-f5f36b0823d8.meta.json` and stdout |
-| Inline unittest runner: 30 repetitions each of normal lifecycle and delayed acquisition | 0 | 60 passed | 5839 ms | `142502cb-a7e8-48a2-8487-d722110d5367.meta.json` and stderr |
+| Inline unittest runner: 30 repetitions each of normal lifecycle and delayed acquisition | 0 | 60 passed | 5839 ms | `142502cb-a7e8-48a2-8487-d722110d5367.meta.json` and stderr (not retained) |
 
-Graphify refresh was attempted with `graphify update .`; exit 127, command unavailable (`.wf/exec/e0d82f2e-7431-4baa-b716-f1a88b8bb343.stderr`). No graph or wiki exists in this worktree; no other checkout was accessed.
+Graphify refresh was attempted with `graphify update .`; exit 127, command unavailable (`(transcript not retained)`). No graph or wiki exists in this worktree; no other checkout was accessed.
 
 ## Operational Readiness
 

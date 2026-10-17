@@ -1,12 +1,12 @@
 # Jarvis UI — Phase 1 Repository & Environment Audit
 
 Date: 2026-09-24
-Auditor: the workflow tool (Principal Frontend Architect, Phase 1)
+Auditor: Principal Frontend Architect (Phase 1)
 Method: verified against live source, executable configuration, and installed tooling — not documentation alone.
 
 ## Executive summary
 
-Jarvis is a **brownfield Python voice-assistant runtime** with **zero existing frontend code**. The frontend is greenfield. The the workflow tool orchestration environment is fully configured, including an **already-installed frontend skill stack** (six UX/UI skills allowlisted, plus two Vercel skills currently disabled). Node 24 + npm 12 are available; Rust is not. The desktop shell decision therefore has an immediate environmental consequence (Tauri PoC blocked until Rust is installed).
+Jarvis is a **brownfield Python voice-assistant runtime** with **zero existing frontend code**. The frontend is greenfield. The agent tooling environment is fully configured, including an **already-installed frontend skill stack** (six UX/UI skills allowlisted, plus two Vercel skills currently disabled). Node 24 + npm 12 are available; Rust is not. The desktop shell decision therefore has an immediate environmental consequence (Tauri PoC blocked until Rust is installed).
 
 ---
 
@@ -67,36 +67,22 @@ Classification key: **PRESENT / WORKING / PARTIAL / MISSING / LEGACY / UNKNOWN /
 | Windows launch | PRESENT | `bootstrap.ps1`/`bootstrap.bat`, `run_jarvis.ps1`/`run_jarvis.bat` |
 | Windows audio/STT/TTS | WORKING | WASAPI mixer, SAPI (`stt/sapi.py`), `pyttsx3` |
 
-### 1.6 the workflow tool orchestration
+### 1.6 Agent skills
 
 | Item | Status | Evidence |
 | --- | --- | --- |
-| the workflow tool version | WORKING | the workflow tool **1.20.1**, wf-core **1.13.0** |
-| State dir | WORKING | `.wf` → symlink to `~/.wf/projects/644d114365dc/` (I/O error from Windows side is DrvFS symlink-resolution, not corruption) |
-| Active milestone | WORKING | **M005** "API-first low-latency voice pipeline", phase `executing`, slice S01 |
-| Future UI milestone | PRESENT | **M008** "Futuristic voice interface" queued — this Phase 1 is its foundation |
-| Provider routing | WORKING | subscription-first: Claude Opus 5.5 primary, Codex GPT-6 fallback, DeepSeek manual (D032–D036) |
-| Dynamic routing | WORKING | enabled, capability routing, 2 workers, worktree isolation |
-| Context Mode | WORKING | `context_mode.enabled: true` |
-| Ponytail | WORKING | `always_use_skills: [ponytail]`, session mode `full` |
-| Skill discovery path | WORKING | `~/.wf/agent/settings.json` → `"skills": ["/home/manuelxose/.wf/agent/skills"]` |
-
-### 1.7 Agent skills
-
-| Item | Status | Evidence |
-| --- | --- | --- |
-| the workflow tool global skills | WORKING | `~/.wf/agent/skills/` — 49 entries |
+| Global skills | WORKING | user-level skills directory — 49 entries |
 | Frontend skills installed | WORKING | `frontend-design` (Anthropic), `react-best-practices` (Vercel), `web-design-guidelines` (Vercel), `accessibility`/`core-web-vitals`/`web-quality-audit` (web-quality-skills), `design-an-interface`, `make-interfaces-feel-better` all present |
 | Frontend skills ACTIVE | PARTIAL | six UX/UI skills allowlisted + UI-gated; `react-best-practices` + `web-design-guidelines` present but in `avoid_skills` |
 | Project-local skills | PRESENT | `.claude/skills/` (16), `.agents/skills/` (16) — no frontend skills |
-| Agents | PRESENT | `~/.wf/agent/agents/`, `.agents/` (skills only, no bespoke agent hierarchy) |
+| Agents | PRESENT | `.agents/` (skills only, no bespoke agent hierarchy) |
 
-### 1.8 Repository hygiene
+### 1.7 Repository hygiene
 
 | Item | Status | Evidence |
 | --- | --- | --- |
 | Uncommitted changes | WORKING | none — clean tree |
-| Branches / worktrees | WORKING | `main`, `milestone/M005`; `.wf-worktrees/` empty |
+| Branches / worktrees | WORKING | `main`, `milestone/M005` |
 | `.claude/CLAUDE.md` | MISSING | `claude_md_path: "./.claude/CLAUDE.md"` points to a non-existent file |
 | `config.json` | PRESENT | minimal — ollama provider `mistral:7b-instruct` |
 | `config.local.json` | PRESENT | gitignored local override |
@@ -118,7 +104,7 @@ Classification key: **PRESENT / WORKING / PARTIAL / MISSING / LEGACY / UNKNOWN /
 1. **Frontend is greenfield** — no migration, no compatibility constraints from existing UI code.
 2. **Node/npm are ready** — a Vite + React + TS skeleton is immediately buildable.
 3. **Desktop shell decision has an environmental cost** — Tauri (preferred on footprint) needs Rust; Electron runs on Node only. See `docs/architecture/desktop-shell-adr.md`.
-4. **The frontend skill stack already exists in the workflow tool** — Phase 1 must verify discovery and fill the genuine gaps (React engineering, design-system discipline) rather than re-install everything.
+4. **The frontend skill stack already exists in the agent tooling** — Phase 1 must verify discovery and fill the genuine gaps (React engineering, design-system discipline) rather than re-install everything.
 5. **Python runtime must remain untouched** — all Phase 1 work is frontend-only; existing 541-test baseline is the regression reference (1 pre-existing failure + 22 environment errors remain as-is).
 
 ---

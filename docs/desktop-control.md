@@ -138,13 +138,13 @@ is in the owner's Recycle Bin.
 
 2026-09-29, WSL → `powershell.exe` → Windows Python 3.11.9 in the existing
 `.venv`, with `PYTHONPATH` pointing at this M007 worktree's `src`. Driver:
-`.wf/exec/s05_driver.py` (throwaway, ignored); recorded Windows runs:
-`.wf/exec/1dc40e55-a117-4faf-9bee-1206f5c0e1a6.stdout` and
-`.wf/exec/26a170a7-3033-401c-8e17-071b7797bad6.stdout`. Invocation:
+`s05_driver.py` (throwaway driver, not retained); recorded Windows runs:
+`(transcript not retained)` and
+`(transcript not retained)`. Invocation:
 
 ```sh
 WINROOT=$(wslpath -w "$PWD")
-powershell.exe -NoProfile -Command "Set-Location '$WINROOT'; \$env:PYTHONPATH='$WINROOT\src'; & '$WINROOT\..\..\.venv\Scripts\python.exe' '.wf\exec\s05_driver.py'"
+powershell.exe -NoProfile -Command "Set-Location '$WINROOT'; \$env:PYTHONPATH='$WINROOT\src'; & '$WINROOT\..\..\.venv\Scripts\python.exe' 's05_driver.py'"
 ```
 
 The driver loaded the worktree's `config.win.json` via `load_config`, built its
@@ -202,18 +202,18 @@ checkout outside this worktree). Reproduce with:
 
 ```sh
 WINROOT=$(wslpath -w "$PWD")
-powershell.exe -NoProfile -Command "Set-Location '$WINROOT'; \$env:PYTHONPATH='$WINROOT\src'; py -3.11 '.wf\exec\s05_driver.py'"
+powershell.exe -NoProfile -Command "Set-Location '$WINROOT'; \$env:PYTHONPATH='$WINROOT\src'; py -3.11 's05_driver.py'"
 ```
 
 The actual `config.win.json` Ollama model chain was used. `LOCALAPPDATA` and
-authorized scopes were redirected to `.wf/exec/s05-windows/`, and only the
+authorized scopes were redirected to a temporary directory, and only the
 in-memory `dev` profile was replaced with a harmless, managed Python sleep
 process. The driver allowed execution only when each model argument matched
 that profile and scoped folder/file, then replayed the *same captured raw model
 responses* into `DesktopPlanner.handle`; it did not substitute a fake model for
 planning. Full raw replies, timings, spoken strings, and audit lines are in
-`.wf/exec/t03-windows-final.log` (earlier rejected run in
-`.wf/exec/t03-windows.log`).
+`(transcript not retained)` (earlier rejected run in
+`(transcript not retained)`).
 
 | Request | Observed configured-model result | Wall time | Gateway/audit |
 |---|---|---:|---|
@@ -232,7 +232,7 @@ VoiceLoop, microphone and TTS were omitted. The slow-progress behavior is
 verified by scripted-model integration tests, not by this fast replay.
 
 **Final T03 rerun after context binding and grounded fallback:**
-`.wf/exec/t03-windows-grounded.log` records the configured Ollama chain returning
+`(transcript not retained)` records the configured Ollama chain returning
 invalid/incomplete plans twice, followed by the planner's deterministic fallback
 from the single configured `dev` profile and `last_project`. The safe replay ran
 `workspace` then `vscode_open` (34,969 ms end-to-end), with both latest audit
@@ -240,7 +240,7 @@ entries `origin=agent`, `decision=auto`, `outcome=ok`; managed state was empty
 after cleanup. This is **not** a model-generated valid plan: it is a narrowly
 grounded recovery after real-model failures. Clarification remained immediate.
 On this final rerun the model's HIGH plan had unsafe arguments and the driver
-refused execution; the immediately preceding `.wf/exec/t03-windows-bound.log`
+refused execution; the immediately preceding `(transcript not retained)`
 records a real HIGH decline, `origin=agent`, and retained file. The previous
 valid two-tool model-generated run remains in `t03-windows-final.log`.
 No new audible/visual confirmation or slow-progress Windows proof is claimed.

@@ -121,7 +121,7 @@ without a terminal. It is **not** a reboot and not the owner's Startup folder. R
 ### Replay
 
 ```powershell
-$root = '\\wsl.localhost\Ubuntu\...\'          # the worktree
+$root = '\\wsl.localhost\Ubuntu\...\jarvis'                    # the project root
 $env:PYTHONPATH = "$root\src"; $env:APPDATA = "$env:TEMP\jarvis-t04\appdata"
 $py = "$root\.venv-win\Scripts\python.exe"; $cfg = "$env:TEMP\jarvis-t04\config.t04.json"
 & $py -m jarvis autostart install --config $cfg     # shortcut -> pythonw.exe scripts\jarvis_daemon.pyw --config ...

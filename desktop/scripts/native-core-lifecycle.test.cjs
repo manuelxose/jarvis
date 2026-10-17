@@ -30,7 +30,7 @@ test('derived config changes only whitelisted keys and records them', () => {
 })
 
 test('venv lookup reports every checked path and never substitutes', () => {
-  const root = path.resolve('/w/jarvis/')
+  const root = path.resolve('/w/jarvis/worktrees/M010')
   const none = L.locateVenv(root, () => false, {})
   assert.equal(none.found, null)
   assert.equal(none.checked.length, 4)

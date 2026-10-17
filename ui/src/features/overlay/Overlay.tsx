@@ -62,7 +62,7 @@ function OverlayCard({ mode, source }: { mode: OverlayMode; source?: VisualCoreS
       return (
         <FloatingContainer style={{ width: 320 }}>
           <StatusIndicator state="notification" label="Task finished" />
-          <p className={styles.caption}>wf-exec completed T04 replan-slice on milestone/M008.</p>
+          <p className={styles.caption}>task-exec completed T04 replan-slice on milestone/M008.</p>
         </FloatingContainer>
       )
     case 'error':

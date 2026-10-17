@@ -1,6 +1,6 @@
 # Desktop automated QA results (M010/S08/T02)
 
-Date: 2026-10-14. Host: WSL2 Linux, worktree ``. These are automated checks only; none is Windows hardware acceptance (see `desktop-windows-qa-matrix.md`).
+Date: 2026-10-14. Host: WSL2 Linux. These are automated checks only; none is Windows hardware acceptance (see `desktop-windows-qa-matrix.md`).
 
 | Layer | Command | Exit | Result |
 |-------|---------|------|--------|

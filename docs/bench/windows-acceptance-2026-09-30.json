@@ -17,7 +17,7 @@
    "lnk": "C:\\Users\\Admin\\AppData\\Local\\Temp\\jarvis-t04\\appdata\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Jarvis Sentinel.lnk",
    "target": "\\\\wsl.localhost\\Ubuntu\\home\\manuelxose\\workspace\\jarvis\\.venv-win\\Scripts\\pythonw.exe",
    "arguments": "\"\\\\wsl.localhost\\Ubuntu\\home\\manuelxose\\workspace\\jarvis\\scripts\\jarvis_daemon.pyw\" --config \"C:\\Users\\Admin\\AppData\\Local\\Temp\\jarvis-t04\\config.t04.json\"",
-   "workdir": "\\\\wsl.localhost\\Ubuntu\\home\\manuelxose\\workspace\\jarvis\\"
+   "workdir": "\\\\wsl.localhost\\Ubuntu\\home\\manuelxose\\workspace\\jarvis"
   },
   {
    "step": "launched",

@@ -132,8 +132,8 @@ main-process expression, not a renderer-controlled code surface.
 
 ## Actual verification and native observations
 
-All evidence references below are relative to this worktree under `.wf/exec/`;
-workflow artifacts are not runtime dependencies and tests never read them.
+Evidence transcripts referenced below were recorded during development and are not retained;
+they are not runtime dependencies and tests never read them.
 
 | Scenario | Result | Observation / evidence |
 |---|---|---|

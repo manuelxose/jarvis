@@ -33,7 +33,7 @@ show a native window (nonzero HWND), quit with code 0 and leave zero owned
 survivors. The authorized recovery caches only the locked stock Electron
 runtime on local NTFS, not application source; source, UI build and isolated
 state remain in this worktree. Fresh evidence is
-`.wf/exec/T03-native-recovery-current.json`; missing-build and UNC launch-failure
+`(transcript not retained)`; missing-build and UNC launch-failure
 checks also fail safely with no survivors. Visual/audio acceptance is still untested. The handoff records the
 Electron dynamic-import entry-guard fix and native process-handle/zero-HWND
 observation fixes found during this verification.
@@ -79,7 +79,7 @@ window evidence, not a screenshot or a human-observed visual check.
 ### Evidence and limits of this revalidation
 
 Raw command output and individual exit codes/durations are retained under
-`.wf/exec/` (execution evidence, not application runtime dependencies).
+execution transcripts that are not retained (not application runtime dependencies).
 
 **Current re-run (2026-10-14, S10/T02; files present in this worktree).** Five
 separate probes, each a bounded `powershell.exe -NoProfile -NonInteractive`
@@ -142,7 +142,7 @@ available on the Windows host, so `rustup` can be installed there with one
 explicit, user-confirmed step (matches the ADR's own condition: "install Rust
 ... before Phase 2 desktop-shell work starts" — that step was deferred past
 Phase 2 into Phase 3, since Phase 2 was prototype-only). This decision gates
-S02 (native application shell bootstrap) and is tracked as a wf decision.
+S02 (native application shell bootstrap) and is tracked as a project decision.
 
 **Decision (D041, 2026-09-24):** ship Phase 3 on Electron; do not install a
 Rust toolchain unilaterally. User was asked to choose between installing
