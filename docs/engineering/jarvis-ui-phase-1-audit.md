@@ -20,7 +20,6 @@ Classification key: **PRESENT / WORKING / PARTIAL / MISSING / LEGACY / UNKNOWN /
 | --- | --- | --- |
 | Python package `src/jarvis/` (v2) | WORKING | `core/`, `application/`, `adapters/`, `apps/`, `observability/`, `benchmarks/` present |
 | Legacy v1 code | LEGACY | `legacy/` holds `actions/`, `brain/`, `cache/`, `voice/` (pre-v2, superseded by commit `17f6b7c`) |
-| `.planning/codebase/` map | LEGACY | References `main.py`, `setup.py`, `config.yaml`, `voice/`, `brain/` — all removed/moved; stale onboarding artifact |
 | Tests | WORKING | `tests/` — 49 files, `unittest`, 541 tests |
 | Docs | PRESENT | `docs/architecture.md`, `configuration.md`, `installation.md`, `performance.md`, `desktop-control.md`, `voice-clone.md`, `alibaba-qwen.md` |
 | Git | WORKING | clean tree on `main`, up to date with `origin/main`; branch `milestone/M005` |

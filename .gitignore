@@ -42,7 +42,6 @@ Thumbs.db
 .codex/
 .copilot/
 .agents/
-.planning/
 .ai/
 .agentic/
 .agentic-platform-backups/
@@ -56,7 +55,6 @@ mcp.json
 
 skills-lock.json
 .superpowers/
-.bg-shell/
 nul
 nul.*
 con
