@@ -113,3 +113,7 @@ desktop-native-qa-matrix-*/
 desktop-native-core-lifecycle-*/
 desktop-native-tray-*/
 desktop-native-core-lifecycle-*.json
+
+# Tool caches that must never be committed
+.npm-cache/
+desktop/.electron-cache/
