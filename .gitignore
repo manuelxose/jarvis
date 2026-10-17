@@ -117,3 +117,6 @@ desktop-native-core-lifecycle-*.json
 # Tool caches that must never be committed
 .npm-cache/
 desktop/.electron-cache/
+.venv
+.uat-event-stream.pid
+intruder-*.bmp
